@@ -660,6 +660,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
     {id:'form17c-settlement-brief',     badge:'Form 17C',title:'Settlement Conference Brief',        tag:'Required for settlement conference'},
     {id:'form17e-trial-mgmt-brief',     badge:'Form 17E',title:'Trial Management Conference Brief',  tag:'Required for trial management conference'},
     {id:'form17f-confirmation-conference',badge:'Form 17F',title:'Confirmation of Conference',      tag:'Due 3 business days before conference'},
+    {id:'form36b-certificate-divorce',      badge:'Form 36B',title:'Certificate of Divorce',                tag:'Request after 31-day waiting period'},
     {id:'form23c-uncontested-trial',    badge:'Form 23C',title:'Affidavit for Uncontested Trial',   tag:'Uncontested / no response from other party'},
     {id:'form25-order-general',         badge:'Form 25', title:'Order (General)',                    tag:'General court order'},
     {id:'form25a-order-divorce',        badge:'Form 25A',title:'Order (Divorce)',                    tag:'Divorce order'},
@@ -2199,6 +2200,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
           ['💰','Child support','Set or change child support payments','support'],
           ['⚖️','Bring a motion','Ask the court for a temporary or urgent order','motion'],
           ['📬','Respond to paperwork','Someone filed against me','respond'],
+          ['📋','Prepare for a conference','Case, settlement, or trial management conference','conference'],
         ];
       }
 
