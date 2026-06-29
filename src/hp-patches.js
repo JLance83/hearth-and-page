@@ -659,7 +659,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
     {id:'form17-conference-notice',     badge:'Form 17', title:'Conference Notice',                  tag:'Conference scheduling'},
     {id:'form17c-settlement-brief',     badge:'Form 17C',title:'Settlement Conference Brief',        tag:'Required for settlement conference'},
     {id:'form17e-trial-mgmt-brief',     badge:'Form 17E',title:'Trial Management Conference Brief',  tag:'Required for trial management conference'},
-    {id:'form17f-confirmation-conference',badge:'Form 17F',title:'Confirmation of Conference',      tag:'Due 2 days before conference'},
+    {id:'form17f-confirmation-conference',badge:'Form 17F',title:'Confirmation of Conference',      tag:'Due 3 business days before conference'},
     {id:'form23c-uncontested-trial',    badge:'Form 23C',title:'Affidavit for Uncontested Trial',   tag:'Uncontested / no response from other party'},
     {id:'form25-order-general',         badge:'Form 25', title:'Order (General)',                    tag:'General court order'},
     {id:'form25a-order-divorce',        badge:'Form 25A',title:'Order (Divorce)',                    tag:'Divorce order'},

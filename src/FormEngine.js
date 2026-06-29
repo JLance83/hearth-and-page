@@ -281,31 +281,31 @@
       // Past deadline
       banner.className += ' fe-urgency-past';
       banner.innerHTML =
-        '<span class="fe-urgency-icon">X</span>' +
+        '<span class="fe-urgency-icon" aria-hidden="true">&#x2716;</span>' +
         '<div><strong>DEADLINE MISSED — ' + deadlineStr + ' at 2:00 PM</strong>' +
         '<p>Your filing deadline has passed. Under Rule 17(14.1), the court SHALL cancel your conference unless the court orders otherwise. Contact the courthouse immediately.</p></div>';
     } else if (hoursRemaining <= 24) {
       banner.className += ' fe-urgency-critical';
       banner.innerHTML =
-        '<span class="fe-urgency-icon">!</span>' +
+        '<span class="fe-urgency-icon" aria-hidden="true">&#x26A0;</span>' +
         '<div><strong>URGENT — Deadline TODAY by 2:00 PM (' + deadlineStr + ')</strong>' +
         '<p>File this confirmation immediately at the courthouse or through Justice Services Online. Missing this deadline cancels your conference automatically.</p></div>';
     } else if (hoursRemaining <= 72) {
       banner.className += ' fe-urgency-warning';
       banner.innerHTML =
-        '<span class="fe-urgency-icon">!</span>' +
+        '<span class="fe-urgency-icon" aria-hidden="true">&#x26A0;</span>' +
         '<div><strong>Filing deadline: ' + deadlineStr + ' at 2:00 PM</strong>' +
         '<p>File soon. Missing this 3-business-day deadline automatically cancels your conference under Rule 17(14.1). Deliver a copy to the other party first.</p></div>';
     } else if (hoursRemaining <= 120) {
       banner.className += ' fe-urgency-info';
       banner.innerHTML =
-        '<span class="fe-urgency-icon">i</span>' +
+        '<span class="fe-urgency-icon" aria-hidden="true">&#x2139;</span>' +
         '<div><strong>Filing deadline: ' + deadlineStr + ' at 2:00 PM</strong>' +
         '<p>Reminder: You must file at least 3 business days before your conference. Deliver a copy to the other party before filing.</p></div>';
     } else {
       banner.className += ' fe-urgency-ok';
       banner.innerHTML =
-        '<span class="fe-urgency-icon">ok</span>' +
+        '<span class="fe-urgency-icon" aria-hidden="true">&#x2713;</span>' +
         '<div><strong>Filing deadline: ' + deadlineStr + ' at 2:00 PM</strong>' +
         '<p>You have time, but do not wait. File well in advance and deliver a copy to the other party first.</p></div>';
     }
