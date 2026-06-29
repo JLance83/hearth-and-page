@@ -1,0 +1,2438 @@
+// Hearth & Page — hp-patches.js
+// Self-contained: works on any build of the app (Railway or Perplexity)
+// Strategy:
+//   1. Auth token helper
+//   2. PDF patching (Form 35.1 and Form 13)
+//   3. Email PDF to user
+//   4. MutationObserver to inject "Email me this PDF" button into the download dialog
+
+// ─── Auth token ───────────────────────────────────────────────────────────────
+function __getFlap35Token() {
+  try {
+    var parts = (window.name || '').split('|');
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].indexOf('flap:') === 0) return parts[i].slice(5);
+    }
+  } catch(e) {}
+  try {
+    var m = document.cookie.match(/(?:^|;\s*)flap_token=([^;]+)/);
+    if (m) return decodeURIComponent(m[1]);
+  } catch(e) {}
+  return null;
+}
+
+function __authHdr() {
+  // Try all known token sources: in-memory window.__hp_token (set by React bundle at login),
+  // then optional getter function, then cookie/window.name fallback
+  var t = window.__hp_token
+       || (typeof window.__hp_getToken === 'function' && window.__hp_getToken())
+       || __getFlap35Token();
+  return t ? {'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json'} : {'Content-Type': 'application/json'};
+}
+
+// ─── Form 35.1 PDF patcher ────────────────────────────────────────────────────
+window.__patchForm35PDF_real = async function(pdfBlob, caseId) {
+  try {
+    if (!window.PDFLib) return null;
+    var resp = await fetch('/api/cases/' + caseId + '/form-data', {headers: __authHdr()});
+    if (!resp.ok) return null;
+    var rows = await resp.json();
+    var data = {};
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (!data[row.section]) data[row.section] = {};
+      data[row.section][row.fieldKey] = row.fieldValue;
+    }
+    var id = data['f351_identity'] || {};
+    var ap = data['applicant'] || {};
+    var pl = data['f351_plan'] || {};
+    var ch = data['children'] || {};
+    var caregiverName = id.fullName || ap.fullName || '';
+    var planAddress = pl.planAddress || '';
+    var workplace = pl.workplaceName || '';
+    if (!caregiverName && !planAddress && !workplace) return null;
+    var pdfDoc = await window.PDFLib.PDFDocument.load(await pdfBlob.arrayBuffer(), {ignoreEncryption: true});
+    var form = pdfDoc.getForm();
+    var count = Math.max(1, Math.min(parseInt(ch.count) || 0, 3));
+    var cgFields = [
+      'Name(s) of Caregiver(s) or children\'s aid society) 1',
+      'Name(s) of Caregiver(s) or children\'s aid society) 2',
+      'Name(s) of Caregiver(s) or children\'s aid society) 3'
+    ];
+    for (var j = 0; j < count; j++) {
+      try { var f = form.getTextField(cgFields[j]); if (f && caregiverName) f.setText(caregiverName); } catch(e) {}
+    }
+    try { var fa = form.getTextField('address'); if (fa && planAddress) fa.setText(planAddress); } catch(e) {}
+    try { var fw = form.getTextField('Name of your place of work or school'); if (fw && workplace) fw.setText(workplace); } catch(e) {}
+    var bytes = await pdfDoc.save({updateFieldAppearances: true});
+    return new Blob([bytes], {type: 'application/pdf'});
+  } catch(err) { console.warn('Form 35.1 patch error:', err); return null; }
+};
+
+// ─── Form 13 PDF patcher ──────────────────────────────────────────────────────
+window.__patchForm13PDF_real = async function(pdfBlob, caseId) {
+  try {
+    if (!window.PDFLib) return null;
+    var resp = await fetch('/api/cases/' + caseId + '/form-data', {headers: __authHdr()});
+    if (!resp.ok) return null;
+    var rows = await resp.json();
+    var data = {};
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (!data[row.section]) data[row.section] = {};
+      data[row.section][row.fieldKey] = row.fieldValue;
+    }
+    var exp = data['f13_expenses'] || {};
+    function v(val) { return (val != null && val !== '') ? String(val) : ''; }
+    var fm = [
+      ['CPP contributions [0.00]', v(exp.exp_auto_deductions)],
+      ['Rent or mortgage [0.00]', v(exp.exp_rent_mortgage)],
+      ['Property taxes [0.00]', v(exp.exp_property_tax)],
+      ['Property insurance [0.00]', v(exp.exp_property_insurance)],
+      ['Condominium fees [0.00]', v(exp.exp_condo_fees)],
+      ['Repairs and maintenance [0.00]', v(exp.exp_home_repairs)],
+      ['Water [0.00]', v(exp.exp_utilities)],
+      ['Gas and oil [0.00]', v(exp.exp_transit)],
+      ['Health insurance premiums [0.00]', v(exp.exp_health)],
+      ['Clothing [0.00]', v(exp.exp_clothing)],
+      ['Groceries [0.00]', v(exp.exp_groceries)],
+      ['Meals outside the home [0.00]', v(exp.exp_meals_out)],
+      ['Daycare expense [0.00]', v(exp.exp_childcare)],
+      ['Entertainment/recreation [0.00]', v(exp.exp_personal)],
+      ['Life Insurance premiums [0.00]', v(exp.exp_life_insurance)],
+      ['RRSP/RESP withdrawals [0.00]', v(exp.exp_rrsp)],
+      ['Vacations [0.00]', v(exp.exp_vacations)],
+      ["Children's activities [0.00]", v(exp.exp_children_activities)],
+      ['Debt payments [0.00]', v(exp.exp_debt_payments)],
+      ['Support paid for other children [0.00]', v(exp.exp_other_support)],
+      ['Other expenses [0.00]', v(exp.exp_other)],
+      ['Total Amount of Monthly Expenses [0.00]', v(exp.exp_total_monthly)]
+    ];
+    var hasData = fm.some(function(p) { return p[1]; });
+    if (!hasData) return null;
+    var pdfDoc = await window.PDFLib.PDFDocument.load(await pdfBlob.arrayBuffer(), {ignoreEncryption: true});
+    var form = pdfDoc.getForm();
+    for (var k = 0; k < fm.length; k++) {
+      if (!fm[k][1]) continue;
+      try { var fld = form.getTextField(fm[k][0]); if (fld) fld.setText(fm[k][1]); } catch(e) {}
+    }
+    var bytes = await pdfDoc.save({updateFieldAppearances: true});
+    return new Blob([bytes], {type: 'application/pdf'});
+  } catch(err) { console.warn('Form 13 patch error:', err); return null; }
+};
+
+// ─── Email PDF ────────────────────────────────────────────────────────────────
+// New approach: generate a 24hr secure download link, email that instead of
+// attaching the PDF. iCloud (and most providers) block large PDF attachments
+// from new domains — a plain link email always delivers.
+window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel) {
+  try {
+    var RAILWAY = 'https://api-production-2334.up.railway.app';
+    var token = window.__hp_getToken ? window.__hp_getToken() : null;
+    if (!token) { console.warn('No auth token for email'); return false; }
+
+    // Get caseId and formType from global state set by the bundle
+    var caseId = window.__hp_currentCaseId || '1';
+    var formType = window.__hp_currentFormKey || 'form8';
+
+    // Step 1: Generate a secure 24hr download link
+    var linkResp = await fetch(RAILWAY + '/api/cases/' + caseId + '/pdf-link/' + formType, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: '{}'
+    });
+    if (!linkResp.ok) {
+      console.warn('[emailPDF] pdf-link failed:', linkResp.status);
+      return false;
+    }
+    var linkData = await linkResp.json();
+    var downloadUrl = linkData.url;
+
+    // Step 2: Build a clean HTML email with the download link (no attachment)
+    var expiryDate = new Date(linkData.expiresAt).toLocaleDateString('en-CA', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    var html = [
+      '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;padding:32px 24px;background:#f9f7f4;color:#1a2a30">',
+      '<h2 style="color:#1B4150;margin-bottom:4px">Hearth &amp; Page</h2>',
+      '<p style="color:#6b8a99;font-size:13px;margin-top:0">Ontario Family Law Forms</p>',
+      '<hr style="border:none;border-top:1px solid #d0dde2;margin:20px 0">',
+      '<p style="font-size:16px">Your <strong>' + formLabel + '</strong> is ready to download.</p>',
+      '<p style="margin:24px 0">',
+      '<a href="' + downloadUrl + '" style="display:inline-block;padding:14px 28px;background:#1B4150;color:#ffffff;text-decoration:none;border-radius:8px;font-family:Georgia,serif;font-size:16px">',
+      '&#8595; Download Your PDF',
+      '</a>',
+      '</p>',
+      '<p style="color:#4a6470;font-size:14px">This link expires on <strong>' + expiryDate + '</strong>. After that, you can generate a new one from the app.</p>',
+      '<p style="color:#4a6470;font-size:14px">Print it or save it &mdash; then bring it to the courthouse or share it with your lawyer.</p>',
+      '<hr style="border:none;border-top:1px solid #d0dde2;margin:24px 0">',
+      '<p style="font-size:12px;color:#8a9fa8">Generated by <a href="https://hearthandpage.ca" style="color:#2E8B9A;text-decoration:none">Hearth &amp; Page</a> &bull; Your file is private and secure.</p>',
+      '</div>'
+    ].join('');
+
+    var text = [
+      'Your ' + formLabel + ' is ready.',
+      '',
+      'Download it here: ' + downloadUrl,
+      '',
+      'This link expires on ' + expiryDate + '.',
+      'Print it or save it, then bring it to the courthouse or share it with your lawyer.',
+      '',
+      '— Hearth & Page | hearthandpage.ca'
+    ].join('\n');
+
+    var payload = {
+      to: [userEmail],
+      subject: 'Your ' + formLabel + ' is ready – Hearth & Page',
+      html: html,
+      text: text
+    };
+
+    // Step 3: Send via Railway (no attachment — just a link)
+    var r = await fetch(RAILWAY + '/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return r.ok;
+  } catch(err) { console.warn('Email PDF error:', err); return false; }
+};
+
+// ─── Inject "Email me this PDF" button via MutationObserver ──────────────────
+// This works even when the bundle doesn’t have the button (e.g. Railway build)
+(function() {
+  var injected = false;
+
+  function tryInjectEmailButton() {
+    // The download button in the Official PDF dialog
+    var dlBtn = document.querySelector('[data-testid="button-review-download"]');
+    if (!dlBtn) return;
+    if (document.querySelector('[data-testid="button-email-pdf"]')) return; // already there
+
+    var emailBtn = document.createElement('button');
+    emailBtn.setAttribute('data-testid', 'button-email-pdf');
+    emailBtn.textContent = 'Email me this PDF';
+    emailBtn.style.cssText = [
+      'padding: 8px 16px',
+      'border: 1.5px solid #1B4150',
+      'border-radius: 6px',
+      'background: transparent',
+      'color: #1B4150',
+      'font-family: inherit',
+      'font-size: 14px',
+      'font-weight: 500',
+      'cursor: pointer',
+      'white-space: nowrap',
+      'flex-shrink: 0'
+    ].join(';');
+
+    emailBtn.addEventListener('click', async function() {
+      if (emailBtn.disabled) return;
+      emailBtn.textContent = 'Sending…';
+      emailBtn.disabled = true;
+
+      try {
+        var RAILWAY_BASE = 'https://api-production-2334.up.railway.app';
+
+        // Resolve caseId from URL hash — handles #/case/1/review and #/cases/1/review
+        var caseIdMatch = window.location.hash.match(/case[s]?\/([0-9]+)/);
+        var caseId = caseIdMatch ? caseIdMatch[1] : null;
+        if (!caseId) {
+          var allLinks = document.querySelectorAll('[href*="cases/"], [href*="case/"]');
+          for (var i = 0; i < allLinks.length; i++) {
+            var m2 = allLinks[i].getAttribute('href').match(/case[s]?\/([0-9]+)/);
+            if (m2) { caseId = m2[1]; break; }
+          }
+        }
+        // Store globally so __emailPDF_real can use it
+        window.__hp_currentCaseId = caseId || '1';
+
+        // Get user email
+        var userEmail = (window.__hp_user && window.__hp_user.email);
+        if (!userEmail) {
+          var me = await fetch(RAILWAY_BASE + '/api/auth/me', {headers: __authHdr()})
+            .then(function(r) { return r.json(); }).catch(function() { return null; });
+          userEmail = (me && me.user && me.user.email) || (me && me.email);
+        }
+
+        var formKey = window.__hp_currentFormKey || 'form8';
+        var formLabel = window.__hp_currentFormLabel || 'Court Form';
+
+        if (!userEmail) {
+          emailBtn.textContent = 'No email on account';
+          emailBtn.disabled = false;
+          return;
+        }
+        if (!caseId) {
+          emailBtn.textContent = 'Could not detect case';
+          emailBtn.disabled = false;
+          return;
+        }
+
+        // Generate secure 24hr download link + send email with the link (no attachment)
+        // iCloud silently discards PDF attachments from new/untrusted sending domains
+        var ok = await window.__emailPDF_real(null, formKey + '.pdf', userEmail, formLabel);
+
+        if (ok) {
+          emailBtn.textContent = '\u2713 Sent to ' + userEmail;
+          setTimeout(function() {
+            emailBtn.textContent = 'Email me this PDF';
+            emailBtn.disabled = false;
+          }, 5000);
+        } else {
+          emailBtn.textContent = 'Failed \u2014 try again';
+          emailBtn.disabled = false;
+        }
+      } catch(err) {
+        console.warn('Email button error:', err);
+        emailBtn.textContent = 'Error \u2014 try again';
+        emailBtn.disabled = false;
+      }
+    });
+
+    // Insert before the download button
+    dlBtn.parentNode.insertBefore(emailBtn, dlBtn);
+  }
+
+  // Also patch the bundle's download handler to expose formKey for the email button
+  var _origOpen = window.XMLHttpRequest ? window.XMLHttpRequest.prototype.open : null;
+
+  // Watch for the dialog to appear
+  var observer = new MutationObserver(function() {
+    tryInjectEmailButton();
+  });
+  observer.observe(document.body, {childList: true, subtree: true});
+
+  // Also try on click of any "Official Court PDF" or similar trigger
+  document.addEventListener('click', function(e) {
+    setTimeout(tryInjectEmailButton, 300);
+  }, true);
+
+  // Expose a way for the bundle to tell us the current form
+  window.__hp_setCurrentForm = function(formKey, formLabel) {
+    window.__hp_currentFormKey = formKey;
+    window.__hp_currentFormLabel = formLabel;
+  };
+})();
+
+// ─── Phone number auto-format ─────────────────────────────────────────────────
+// Formats as (416) 555-0123 while user types
+(function() {
+  function formatPhone(raw) {
+    var digits = raw.replace(/\D/g, '');
+    digits = digits.slice(0, 10);
+    if (digits.length === 0) return '';
+    if (digits.length <= 3) return '(' + digits;
+    if (digits.length <= 6) return '(' + digits.slice(0,3) + ') ' + digits.slice(3);
+    return '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
+  }
+
+  // Helper: trigger React's synthetic onChange on a controlled input
+  function triggerReactChange(input, value) {
+    // React tracks the last value set — we must use the native setter to bypass it
+    var nativeSet = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    nativeSet.call(input, value);
+    // Dispatch both input and change so React picks it up regardless of version
+    input.dispatchEvent(new Event('input',  { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function attachPhoneFormat(input) {
+    if (input.__hpPhoneAttached) return;
+    input.__hpPhoneAttached = true;
+    input.addEventListener('input', function() {
+      if (input.__hpFormatting) return; // prevent re-entry
+      input.__hpFormatting = true;
+      var pos = input.selectionStart;
+      var oldLen = input.value.length;
+      var formatted = formatPhone(input.value);
+      // Set cursor position before triggering React (which may re-render)
+      var newLen = formatted.length;
+      var newPos = Math.max(0, pos + (newLen - oldLen));
+      triggerReactChange(input, formatted);
+      try { input.setSelectionRange(newPos, newPos); } catch(e) {}
+      input.__hpFormatting = false;
+    });
+    input.addEventListener('blur', function() {
+      var formatted = formatPhone(input.value);
+      if (input.value !== formatted) {
+        triggerReactChange(input, formatted);
+      }
+    });
+  }
+
+  function scanPhoneInputs() {
+    // Match by type=tel, id/name/data-testid containing "phone" or "mobile" or "tel"
+    var candidates = document.querySelectorAll(
+      'input[type="tel"], input[id*="phone" i], input[name*="phone" i], ' +
+      'input[placeholder*="phone" i], input[id*="mobile" i], input[name*="mobile" i], ' +
+      'input[data-testid*="phone" i], input[data-testid*="mobile" i], input[data-testid*="tel" i]'
+    );
+    for (var i = 0; i < candidates.length; i++) attachPhoneFormat(candidates[i]);
+  }
+
+  // Run immediately
+  scanPhoneInputs();
+
+  // MutationObserver for dynamically added inputs
+  var phoneObs = new MutationObserver(function() { scanPhoneInputs(); });
+  function startPhoneObs() {
+    if (document.body) phoneObs.observe(document.body, {childList: true, subtree: true});
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startPhoneObs);
+  } else {
+    startPhoneObs();
+  }
+
+  // Fallback interval — React renders async so MutationObserver can miss the exact moment
+  var _scanCount = 0;
+  var _interval = setInterval(function() {
+    scanPhoneInputs();
+    _scanCount++;
+    if (_scanCount >= 30) clearInterval(_interval); // stop after 30s
+  }, 1000);
+})();
+
+// ─── Required field validation scroll ────────────────────────────────────────
+// Scroll to first invalid field on form submit / Next button click
+(function() {
+  var style = document.createElement('style');
+  style.textContent = [
+    '@keyframes hp-field-pulse {',
+    '  0%   { box-shadow: 0 0 0 0 rgba(123,45,62,0.6); }',
+    '  60%  { box-shadow: 0 0 0 8px rgba(123,45,62,0); }',
+    '  100% { box-shadow: 0 0 0 0 rgba(123,45,62,0); }',
+    '}',
+    '.hp-field-error {',
+    '  border-color: #7B2D3E !important;',
+    '  animation: hp-field-pulse 0.7s ease-out 2;',
+    '}'
+  ].join('\n');
+  document.head.appendChild(style);
+
+  function scrollToFirstInvalid() {
+    var invalid = document.querySelectorAll('input:invalid, select:invalid, textarea:invalid');
+    for (var i = 0; i < invalid.length; i++) {
+      var el = invalid[i];
+      if (el.offsetParent === null) continue;
+      el.classList.add('hp-field-error');
+      el.scrollIntoView({behavior: 'smooth', block: 'center'});
+      el.focus();
+      setTimeout(function(e) { e.classList.remove('hp-field-error'); }, 1800, el);
+      return true;
+    }
+    return false;
+  }
+
+  document.addEventListener('submit', function() {
+    setTimeout(function() {
+      if (document.querySelector('input:invalid, select:invalid, textarea:invalid')) {
+        scrollToFirstInvalid();
+      }
+    }, 50);
+  }, true);
+
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    if (!el || el.tagName !== 'BUTTON') return;
+    var txt = (el.textContent || '').trim().toLowerCase();
+    var isActionBtn = (el.type === 'submit' ||
+      ['next', 'continue', 'submit', 'save'].some(function(k) { return txt.indexOf(k) !== -1; }));
+    if (!isActionBtn) return;
+    setTimeout(function() {
+      if (document.querySelector('input:invalid, select:invalid, textarea:invalid')) {
+        scrollToFirstInvalid();
+      }
+    }, 100);
+  }, true);
+
+  window.__hp_scrollToFirstError = scrollToFirstInvalid;
+})();
+
+// ─── Email auto-populate ──────────────────────────────────────────────────────
+// When the user reaches the "About you" step, auto-fill the email field
+// with their account email if it's empty — they're already logged in,
+// no reason to make them type it again.
+(function() {
+  function triggerReactChange(input, value) {
+    var nativeSet = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    nativeSet.call(input, value);
+    input.dispatchEvent(new Event('input',  { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function tryAutoFillEmail() {
+    // Only run in the wizard (#/case/*/wizard)
+    if (!window.location.hash.includes('wizard')) return;
+
+    var userEmail = (window.__hp_user && window.__hp_user.email) || null;
+    if (!userEmail) return; // not logged in yet
+
+    // Find the email input that belongs to "About you" / applicant section
+    // It has id="field-email" or type=email and is NOT in a lawyer section
+    var emailInputs = document.querySelectorAll('input[type="email"]');
+    for (var i = 0; i < emailInputs.length; i++) {
+      var el = emailInputs[i];
+      if (el.value && el.value.trim() !== '') continue; // already filled
+      if (el.__hpEmailFilled) continue; // already auto-filled by us
+
+      // Only fill the applicant's own email, not a lawyer's email field
+      // Check label text nearby
+      var labelEl = document.querySelector('label[for="' + el.id + '"]') ||
+                    el.closest('[class*="field"]')?.querySelector('label');
+      var labelTxt = (labelEl ? labelEl.innerText : '').toLowerCase();
+      if (labelTxt.includes('lawyer') || labelTxt.includes('representative')) continue;
+
+      el.__hpEmailFilled = true;
+      triggerReactChange(el, userEmail);
+    }
+  }
+
+  // Run on a short interval so it catches when the step renders
+  var emailFillInterval = setInterval(tryAutoFillEmail, 800);
+  // Stop after 5 minutes
+  setTimeout(function() { clearInterval(emailFillInterval); }, 300000);
+
+  // Also run when hash changes (user navigates between steps)
+  window.addEventListener('hashchange', function() {
+    // Reset filled flags so re-navigation re-triggers
+    document.querySelectorAll('input[type="email"]').forEach(function(el) {
+      el.__hpEmailFilled = false;
+    });
+    setTimeout(tryAutoFillEmail, 500);
+  });
+})();
+
+// ─── Block auto-complete status change ───────────────────────────────────────
+// The bundle marks a case "complete" when the user clicks "Generate my forms".
+// This permanently switches the dashboard card from "Continue" to "Download PDF"
+// with no way back. We intercept that specific PATCH and downgrade it to
+// "in_progress" so the case always stays resumable.
+(function() {
+  var _originalFetch = window.fetch;
+  window.fetch = function(url, opts) {
+    try {
+      if (opts && opts.method === 'PATCH' && typeof url === 'string' && url.includes('/api/cases/')) {
+        var body = opts.body ? (typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body) : {};
+        if (body.status === 'complete') {
+          // Replace with in_progress so the case stays resumable
+          opts = Object.assign({}, opts, { body: JSON.stringify(Object.assign({}, body, { status: 'in_progress' })) });
+        }
+      }
+    } catch(e) {}
+    return _originalFetch.apply(this, arguments);
+  };
+})();
+
+
+// ─── Form 17A Coming Soon Card Injector ───────────────────────────────────────
+(function() {
+  var INJECTED_ID = 'hp-form17a-coming-soon';
+
+  function injectForm17ACard() {
+    // Don't inject twice
+    if (document.getElementById(INJECTED_ID)) return;
+
+    // Find the Form 17F card (last Form 17-series card) - we inject after it
+    var allFormBtns = document.querySelectorAll('[data-testid^="button-form-"]');
+    var form17fBtn = null;
+    var form17eBtn = null;
+    var form17cBtn = null;
+
+    allFormBtns.forEach(function(btn) {
+      var tid = btn.getAttribute('data-testid');
+      if (tid === 'button-form-form17f-confirmation-conference') form17fBtn = btn;
+      if (tid === 'button-form-form17e-trial-mgmt-brief') form17eBtn = btn;
+      if (tid === 'button-form-form17c-settlement-brief') form17cBtn = btn;
+    });
+
+    // Use the last available Form 17 sibling as anchor
+    var anchor = form17fBtn || form17eBtn || form17cBtn;
+    if (!anchor) return;
+
+    // Build the coming-soon card matching the existing form card style
+    var card = document.createElement('div');
+    card.id = INJECTED_ID;
+    card.style.cssText = [
+      'width:100%',
+      'text-align:left',
+      'border-radius:0.75rem',
+      'border:1px dashed rgba(46,139,154,0.35)',
+      'padding:1.25rem',
+      'background:rgba(27,65,80,0.08)',
+      'opacity:0.75',
+      'cursor:default',
+      'user-select:none',
+      'position:relative',
+      'overflow:hidden'
+    ].join(';');
+
+    card.innerHTML = [
+      '<div style="display:flex;align-items:flex-start;gap:1rem;">',
+        // Lock icon column
+        '<div style="flex-shrink:0;margin-top:0.125rem;">',
+          '<div style="height:1.25rem;width:1.25rem;border-radius:9999px;border:2px solid rgba(46,139,154,0.4);display:flex;align-items:center;justify-content:center;">',
+            '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="rgba(46,139,154,0.7)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">',
+              '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>',
+              '<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
+            '</svg>',
+          '</div>',
+        '</div>',
+        // Content column
+        '<div style="flex:1;min-width:0;">',
+          '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">',
+            '<span style="display:inline-flex;align-items:center;border-radius:9999px;padding:0.125rem 0.625rem;font-size:0.75rem;font-weight:600;background:rgba(46,139,154,0.12);color:rgba(46,139,154,0.8);">Form 17A</span>',
+            '<h3 style="font-family:\'Playfair Display\',serif;font-size:1rem;color:var(--foreground,#ede8df);margin:0;">Case Conference Brief</h3>',
+            '<span style="display:inline-flex;align-items:center;gap:0.25rem;border-radius:9999px;padding:0.125rem 0.625rem;font-size:0.7rem;font-weight:500;background:rgba(246,173,85,0.15);color:rgba(246,173,85,0.85);border:1px solid rgba(246,173,85,0.25);">',
+              '<svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+              'Coming soon',
+            '</span>',
+          '</div>',
+          '<p style="font-size:0.875rem;color:var(--muted-foreground,rgba(237,232,223,0.6));line-height:1.5;margin:0 0 0.5rem 0;">',
+            'Required for every case conference. Each party prepares their own brief at least 7 days in advance, outlining the issues, background, and what orders they are asking the judge to consider.',
+          '</p>',
+          '<p style="font-size:0.75rem;color:rgba(46,139,154,0.7);margin:0;">',
+            'Ontario currently provides this form as a Word document only — a fillable PDF version is coming soon.',
+          '</p>',
+        '</div>',
+      '</div>'
+    ].join('');
+
+    // Insert after the anchor card
+    if (anchor.nextSibling) {
+      anchor.parentNode.insertBefore(card, anchor.nextSibling);
+    } else {
+      anchor.parentNode.appendChild(card);
+    }
+  }
+
+  // Watch for DOM changes (React re-renders)
+  var observer = new MutationObserver(function() {
+    if (!document.getElementById(INJECTED_ID)) {
+      injectForm17ACard();
+    }
+  });
+
+  function startObserver() {
+    observer.observe(document.body, { childList: true, subtree: true });
+    injectForm17ACard();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(startObserver, 400); });
+  } else {
+    setTimeout(startObserver, 400);
+  }
+})();
+
+// ─── Add / Edit Forms on Existing Case ───────────────────────────────────────
+(function() {
+
+  // ── Full form catalogue (matches React bundle) ───────────────────────────
+  var ALL_FORMS = [
+    {id:'form8-general',      badge:'Form 8',    title:'Application (General)',                    tag:'Most cases start here'},
+    {id:'form8a-divorce',     badge:'Form 8A',   title:'Application (Divorce)',                    tag:'Divorce proceedings'},
+    {id:'form10-answer',      badge:'Form 10',   title:'Answer',                                   tag:'For Respondents'},
+    {id:'form10a-reply',      badge:'Form 10A',  title:'Reply',                                    tag:'Reply to Answer/Cross'},
+    {id:'form12-withdrawal',  badge:'Form 12',   title:'Notice of Withdrawal',                     tag:'Withdrawing a filed document'},
+    {id:'form35-affidavit',   badge:'Form 35.1', title:'Parenting Affidavit',                      tag:'Required for parenting claims'},
+    {id:'form36-divorce-affidavit', badge:'Form 36',  title:'Affidavit for Divorce',              tag:'Filed with Form 8A'},
+    {id:'form36a-certificate-clerk-divorce', badge:'Form 36A', title:'Certificate of Clerk (Divorce)', tag:'Clerk certificate — divorce file'},
+    {id:'form13-financial',          badge:'Form 13',   title:'Financial Statement (Support Claims)',  tag:'Required for support claims'},
+    {id:'form13_1-financial-property',badge:'Form 13.1',title:'Financial Statement (Property & Support)',tag:'Property division & equalization'},
+    {id:'form13b-net-family-property',badge:'Form 13B', title:'Net Family Property Statement',        tag:'Filed with Form 13.1'},
+    {id:'form4-change-representation',badge:'Form 4',   title:'Change in Representation',             tag:'Changing your lawyer'},
+    {id:'form6-acknowledgment-service',badge:'Form 6',  title:'Acknowledgment of Service',            tag:'Confirm you received documents'},
+    {id:'form6b-service',     badge:'Form 6B',   title:'Affidavit of Service',                     tag:'Required after serving documents'},
+    {id:'form6c-certificate-service',badge:'Form 6C',   title:'Certificate of Service',              tag:'Alternative proof of service'},
+    {id:'form14-notice-of-motion',    badge:'Form 14',  title:'Notice of Motion',                    tag:'Temporary orders'},
+    {id:'form14a-affidavit',          badge:'Form 14A', title:'Affidavit (General)',                  tag:'Supports motions'},
+    {id:'form14b-motion',             badge:'Form 14B', title:'Motion Form (Procedural / Consent)',   tag:'Procedural & consent orders'},
+    {id:'form14c-confirmation',       badge:'Form 14C', title:'Confirmation of Motion',              tag:'Due 3 days before motion'},
+    {id:'form14d-costs',              badge:'Form 14D', title:'Offer to Settle',                     tag:'Settlement offers'},
+    {id:'form15-motion-to-change',    badge:'Form 15',  title:'Motion to Change',                    tag:'Changing existing orders'},
+    {id:'form15b-response-motion-change',badge:'Form 15B',title:'Response to Motion to Change',      tag:'Responding to a Motion to Change'},
+    {id:'form15c-consent-motion-change',badge:'Form 15C',title:'Consent Motion to Change',           tag:'Agreed change to an order'},
+    {id:'form15d-consent-child-support',badge:'Form 15D',title:'Consent Motion to Change Child Support',tag:'Child support change by consent'},
+    {id:'form17-conference-notice',     badge:'Form 17', title:'Conference Notice',                  tag:'Conference scheduling'},
+    {id:'form17c-settlement-brief',     badge:'Form 17C',title:'Settlement Conference Brief',        tag:'Required for settlement conference'},
+    {id:'form17e-trial-mgmt-brief',     badge:'Form 17E',title:'Trial Management Conference Brief',  tag:'Required for trial management conference'},
+    {id:'form17f-confirmation-conference',badge:'Form 17F',title:'Confirmation of Conference',      tag:'Due 2 days before conference'},
+    {id:'form23c-uncontested-trial',    badge:'Form 23C',title:'Affidavit for Uncontested Trial',   tag:'Uncontested / no response from other party'},
+    {id:'form25-order-general',         badge:'Form 25', title:'Order (General)',                    tag:'General court order'},
+    {id:'form25a-order-divorce',        badge:'Form 25A',title:'Order (Divorce)',                    tag:'Divorce order'},
+    {id:'form25f-restraining-order-fla',badge:'Form 25F',title:'Restraining Order (FLA Part IV)',   tag:'Restraining order — conduct / contact'},
+    {id:'form25g-restraining-order-clra',badge:'Form 25G',title:'Restraining Order (CLRA)',         tag:'Restraining order — children / CLRA'},
+    {id:'form26-money-owed',            badge:'Form 26', title:'Statement of Money Owed',           tag:'Starting enforcement of support'},
+    {id:'form26a-enforcement-expenses', badge:'Form 26A',title:'Affidavit of Enforcement Expenses', tag:'Claiming enforcement costs'},
+    {id:'form27-request-financial-statement',badge:'Form 27',title:'Request for Financial Statement',tag:'Enforcement — financial disclosure'},
+    {id:'form27a-request-income-statement',badge:'Form 27A',title:'Request for Statement of Income',tag:'Enforcement — employer/bank income request'},
+    {id:'form29-request-garnishment',   badge:'Form 29', title:'Request for Garnishment',           tag:'Garnishing wages or bank accounts'},
+    {id:'form30-default-hearing',       badge:'Form 30', title:'Notice of Default Hearing',         tag:'Payor in default of support order'},
+  ];
+
+  // ── CSS injected once ─────────────────────────────────────────────────────
+  var STYLE_ID = 'hp-edit-forms-style';
+  function injectStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = [
+      '#hp-ef-overlay{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;}',
+      '@media(min-width:640px){#hp-ef-overlay{align-items:center;}}',
+      '#hp-ef-sheet{width:100%;max-width:580px;max-height:92vh;background:#111d23;border:1px solid rgba(255,255,255,0.08);border-radius:1.25rem 1.25rem 0 0;display:flex;flex-direction:column;overflow:hidden;animation:hp-ef-slidein 0.22s cubic-bezier(0.32,0.72,0,1);}',
+      '@media(min-width:640px){#hp-ef-sheet{border-radius:1.25rem;}}',
+      '@keyframes hp-ef-slidein{from{transform:translateY(24px);opacity:0;}to{transform:translateY(0);opacity:1;}}',
+      '#hp-ef-header{padding:1.25rem 1.25rem 1rem;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;}',
+      '#hp-ef-search{width:100%;background:#0b1419;border:1px solid rgba(255,255,255,0.1);border-radius:0.625rem;padding:0.625rem 0.875rem;color:#ede8df;font-size:0.875rem;outline:none;margin-top:0.75rem;font-family:DM Sans,system-ui,sans-serif;}',
+      '#hp-ef-search::placeholder{color:rgba(237,232,223,0.35);}',
+      '#hp-ef-search:focus{border-color:rgba(46,139,154,0.6);}',
+      '#hp-ef-list{flex:1;overflow-y:auto;padding:0.75rem 1rem;}',
+      '.hp-ef-row{display:flex;align-items:flex-start;gap:0.75rem;padding:0.75rem 0.875rem;border-radius:0.625rem;border:1px solid rgba(255,255,255,0.07);background:#0b1419;margin-bottom:0.5rem;cursor:pointer;transition:border-color 0.12s,background 0.12s;}',
+      '.hp-ef-row:hover{border-color:rgba(46,139,154,0.4);background:rgba(46,139,154,0.06);}',
+      '.hp-ef-row.selected{border-color:rgba(46,139,154,0.7);background:rgba(46,139,154,0.1);}',
+      '.hp-ef-row.current{border-color:rgba(46,139,154,0.35);background:rgba(46,139,154,0.05);cursor:default;}',
+      '.hp-ef-check{width:1.125rem;height:1.125rem;border-radius:0.25rem;border:2px solid rgba(237,232,223,0.25);flex-shrink:0;margin-top:0.125rem;display:flex;align-items:center;justify-content:center;transition:border-color 0.12s,background 0.12s;}',
+      '.hp-ef-row.selected .hp-ef-check,.hp-ef-row.current .hp-ef-check{background:#2E8B9A;border-color:#2E8B9A;}',
+      '.hp-ef-badge{display:inline-flex;align-items:center;border-radius:9999px;padding:0.1rem 0.5rem;font-size:0.7rem;font-weight:600;background:rgba(46,139,154,0.15);color:rgba(46,139,154,0.9);margin-bottom:0.25rem;}',
+      '.hp-ef-row.selected .hp-ef-badge,.hp-ef-row.current .hp-ef-badge{background:rgba(46,139,154,0.25);}',
+      '#hp-ef-footer{padding:1rem 1.25rem;border-top:1px solid rgba(255,255,255,0.07);flex-shrink:0;display:flex;gap:0.625rem;}',
+      '#hp-ef-save{flex:1;background:#2E8B9A;color:#fff;border:none;border-radius:0.625rem;padding:0.75rem 1rem;font-size:0.9375rem;font-weight:600;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;transition:background 0.12s;}',
+      '#hp-ef-save:hover{background:#1B4150;}',
+      '#hp-ef-save:disabled{opacity:0.5;cursor:default;}',
+      '#hp-ef-cancel{background:transparent;color:rgba(237,232,223,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:0.625rem;padding:0.75rem 1rem;font-size:0.9375rem;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;transition:background 0.12s;}',
+      '#hp-ef-cancel:hover{background:rgba(255,255,255,0.05);}',
+      '.hp-ef-current-tag{font-size:0.65rem;color:rgba(46,139,154,0.7);font-weight:500;margin-left:0.25rem;}',
+      '.hp-ef-addbtn{display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.625rem;border-radius:6px;border:1px solid rgba(46,139,154,0.4);background:transparent;color:rgba(46,139,154,0.85);font-size:0.75rem;font-weight:500;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;transition:background 0.12s,border-color 0.12s;white-space:nowrap;}',
+      '.hp-ef-addbtn:hover{background:rgba(46,139,154,0.12);border-color:rgba(46,139,154,0.7);}',
+      '#hp-ef-saving-msg{font-size:0.8rem;color:rgba(46,139,154,0.85);text-align:center;padding:0.25rem 0;display:none;}',
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  // ── Open the modal for a specific case ────────────────────────────────────
+  window.openEditForms = function openEditForms(caseId, currentTypeStr) {
+    injectStyle();
+
+    var currentSet = new Set(
+      (currentTypeStr || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean)
+    );
+    var selectedSet = new Set(currentSet); // starts as copy of current
+    var searchVal = '';
+
+    // ── Build overlay ──────────────────────────────────────────────────────
+    var overlay = document.createElement('div');
+    overlay.id = 'hp-ef-overlay';
+
+    overlay.innerHTML = [
+      '<div id="hp-ef-sheet">',
+        '<div id="hp-ef-header">',
+          '<div style="display:flex;align-items:center;justify-content:space-between;">',
+            '<div>',
+              '<h2 style="font-family:\'Playfair Display\',serif;font-size:1.125rem;color:#ede8df;margin:0 0 0.125rem;">Add or Remove Forms</h2>',
+              '<p style="font-size:0.8rem;color:rgba(237,232,223,0.5);margin:0;">Currently checked forms are on your case. Tick new ones to add them.</p>',
+            '</div>',
+            '<button id="hp-ef-x" style="background:transparent;border:none;color:rgba(237,232,223,0.5);cursor:pointer;padding:0.25rem;line-height:1;" aria-label="Close">',
+              '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+            '</button>',
+          '</div>',
+          '<input id="hp-ef-search" type="text" placeholder="Search forms — e.g. \'divorce\' or \'Form 13\'" autocomplete="off" />',
+        '</div>',
+        '<div id="hp-ef-list"></div>',
+        '<div id="hp-ef-footer">',
+          '<button id="hp-ef-cancel">Cancel</button>',
+          '<button id="hp-ef-save">Save Changes</button>',
+        '</div>',
+        '<div id="hp-ef-saving-msg">Saving…</div>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(overlay);
+
+    // ── Render list ────────────────────────────────────────────────────────
+    function renderList() {
+      var list = document.getElementById('hp-ef-list');
+      if (!list) return;
+      var q = searchVal.toLowerCase().trim();
+      var filtered = ALL_FORMS.filter(function(f) {
+        if (!q) return true;
+        return f.badge.toLowerCase().includes(q) || f.title.toLowerCase().includes(q) || f.tag.toLowerCase().includes(q);
+      });
+
+      list.innerHTML = filtered.map(function(f) {
+        var isCurrent = currentSet.has(f.id);
+        var isSelected = selectedSet.has(f.id);
+        var cls = 'hp-ef-row' + (isCurrent ? ' current' : '') + (isSelected ? ' selected' : '');
+        var checkMark = (isSelected || isCurrent)
+          ? '<svg width="11" height="11" viewBox="0 0 10 8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4l3 3 5-6"/></svg>'
+          : '';
+        var currentTag = isCurrent ? '<span class="hp-ef-current-tag">on your case</span>' : '';
+        return [
+          '<div class="'+cls+'" data-id="'+f.id+'" data-current="'+(isCurrent?'1':'0')+'">',
+            '<div class="hp-ef-check">'+checkMark+'</div>',
+            '<div style="flex:1;min-width:0;">',
+              '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.375rem;margin-bottom:0.2rem;">',
+                '<span class="hp-ef-badge">'+f.badge+'</span>',
+                currentTag,
+              '</div>',
+              '<div style="font-size:0.875rem;font-weight:500;color:#ede8df;font-family:\'Playfair Display\',serif;">'+f.title+'</div>',
+              '<div style="font-size:0.75rem;color:rgba(237,232,223,0.5);margin-top:0.125rem;">'+f.tag+'</div>',
+            '</div>',
+          '</div>'
+        ].join('');
+      }).join('');
+
+      // Attach click handlers
+      list.querySelectorAll('.hp-ef-row').forEach(function(row) {
+        row.addEventListener('click', function() {
+          var id = row.getAttribute('data-id');
+          if (selectedSet.has(id)) {
+            selectedSet.delete(id);
+          } else {
+            selectedSet.add(id);
+          }
+          renderList();
+          updateSaveBtn();
+        });
+      });
+    }
+
+    function updateSaveBtn() {
+      var btn = document.getElementById('hp-ef-save');
+      if (!btn) return;
+      // Count newly added forms (not in current)
+      var added = 0;
+      selectedSet.forEach(function(id) { if (!currentSet.has(id)) added++; });
+      // Count removed forms (were current, now unchecked)
+      var removed = 0;
+      currentSet.forEach(function(id) { if (!selectedSet.has(id)) removed++; });
+
+      if (added === 0 && removed === 0) {
+        btn.textContent = 'No Changes';
+        btn.disabled = true;
+      } else {
+        var parts = [];
+        if (added > 0) parts.push('Add ' + added + ' form' + (added > 1 ? 's' : ''));
+        if (removed > 0) parts.push('Remove ' + removed);
+        btn.textContent = parts.join(' · ');
+        btn.disabled = false;
+      }
+    }
+
+    renderList();
+    updateSaveBtn();
+
+    // ── Search ─────────────────────────────────────────────────────────────
+    var searchEl = document.getElementById('hp-ef-search');
+    if (searchEl) {
+      searchEl.addEventListener('input', function() {
+        searchVal = searchEl.value;
+        renderList();
+      });
+    }
+
+    // ── Close ──────────────────────────────────────────────────────────────
+    function closeModal() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+    document.getElementById('hp-ef-x').addEventListener('click', closeModal);
+    document.getElementById('hp-ef-cancel').addEventListener('click', closeModal);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+
+    // ── Save ───────────────────────────────────────────────────────────────
+    document.getElementById('hp-ef-save').addEventListener('click', function() {
+      var newType = Array.from(selectedSet).join(',');
+      var saveBtn = document.getElementById('hp-ef-save');
+      var savingMsg = document.getElementById('hp-ef-saving-msg');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      if (savingMsg) savingMsg.style.display = 'block';
+
+      var _RAILWAY = 'https://api-production-2334.up.railway.app';
+      fetch(_RAILWAY + '/api/cases/' + caseId, {
+        method: 'PATCH',
+        headers: __authHdr(),
+        body: JSON.stringify({ caseType: newType })
+      })
+      .then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+      })
+      .then(function() {
+        closeModal();
+        // Trigger React to re-fetch cases by reloading the page data
+        // Dispatch a custom event that React's query client might pick up,
+        // and fall back to a soft reload
+        try {
+          window.dispatchEvent(new CustomEvent('hp:casesChanged'));
+        } catch(e) {}
+        // Soft reload: just reload the page staying on dashboard
+        setTimeout(function() {
+          window.location.reload();
+        }, 120);
+      })
+      .catch(function() {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Error — Try Again';
+        if (savingMsg) savingMsg.style.display = 'none';
+      });
+    });
+  }
+
+  // ── Inject "+ Add Forms" button on each case card ─────────────────────────
+  var ATTR = 'data-hp-ef-injected';
+
+  function injectButtons() {
+    // Find all case cards by data-testid pattern
+    var cards = document.querySelectorAll('[data-testid^="card-case-"]');
+    cards.forEach(function(card) {
+      if (card.getAttribute(ATTR)) return; // already done
+      var testId = card.getAttribute('data-testid'); // e.g. card-case-3
+      var caseId = testId.replace('card-case-', '');
+
+      // Find the delete button — we’ll insert our button right before it
+      var deleteBtn = card.querySelector('[data-testid="button-delete-' + caseId + '"]');
+      if (!deleteBtn) return;
+
+      // Read caseType from the "Form X + Form Y" label text on the card
+      // It's stored in the badge next to the completion badge — or we can read from
+      // the data attribute we’ll attach
+      card.setAttribute(ATTR, '1');
+
+      // Build the button
+      var addBtn = document.createElement('button');
+      addBtn.className = 'hp-ef-addbtn';
+      addBtn.setAttribute('data-testid', 'button-add-forms-' + caseId);
+      addBtn.setAttribute('title', 'Add or remove forms on this case');
+      addBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Forms';
+
+      addBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Fetch the case to get its current caseType
+        fetch('https://api-production-2334.up.railway.app/api/cases', { headers: __authHdr() })
+          .then(function(r) { return r.json(); })
+          .then(function(cases) {
+            var thisCase = cases.find(function(c) { return String(c.id) === String(caseId); });
+            var currentType = thisCase ? (thisCase.caseType || '') : '';
+            openEditForms(caseId, currentType);
+          })
+          .catch(function() {
+            openEditForms(caseId, '');
+          });
+      });
+
+      // Insert before the delete button
+      deleteBtn.parentNode.insertBefore(addBtn, deleteBtn);
+    });
+  }
+
+  // ── Watch for React renders ───────────────────────────────────────────────
+  var observer = new MutationObserver(function() {
+    injectButtons();
+  });
+
+  function init() {
+    observer.observe(document.body, { childList: true, subtree: true });
+    injectButtons();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(init, 500); });
+  } else {
+    setTimeout(init, 500);
+  }
+
+})();
+
+
+// ─── Fix 2: Correct pricing page form count text ──────────────────────────────
+(function() {
+  var STYLE_ID = 'hp-pricing-fix-style';
+
+  // We can’t change the React bundle text directly, so we inject a MutationObserver
+  // that rewrites specific text nodes on the subscription/pricing page
+  var TARGET_PHRASES = {
+    'Form 8, 35.1, 13 wizards': 'All 35 Ontario court forms',
+    'All Free features': 'All Free features'   // keep this one
+  };
+
+  function fixPricingText() {
+    // Only run on the subscription page
+    var hash = window.location.hash || '';
+    if (!hash.includes('/subscription') && !hash.includes('/pricing')) return;
+
+    // Walk text nodes and replace
+    var walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    var node;
+    while ((node = walker.nextNode())) {
+      var val = node.nodeValue;
+      if (val && val.includes('Form 8, 35.1, 13 wizards')) {
+        node.nodeValue = val.replace('Form 8, 35.1, 13 wizards', 'All 35 Ontario court forms');
+      }
+    }
+  }
+
+  window.addEventListener('hashchange', function() {
+    setTimeout(fixPricingText, 400);
+  });
+
+  setTimeout(fixPricingText, 800);
+
+  var pricingObserver = new MutationObserver(function() {
+    var hash = window.location.hash || '';
+    if (hash.includes('/subscription') || hash.includes('/pricing')) {
+      fixPricingText();
+    }
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      pricingObserver.observe(document.body, { childList: true, subtree: true });
+      setTimeout(fixPricingText, 800);
+    });
+  } else {
+    pricingObserver.observe(document.body, { childList: true, subtree: true });
+    setTimeout(fixPricingText, 800);
+  }
+})();
+
+// ─── Fix 3: Add Forms button also inside the wizard (inside an open case) ────
+(function() {
+  var INJECTED_ATTR = 'data-hp-wiz-ef-injected';
+  var STYLE_ID = 'hp-wiz-ef-style';
+
+  function injectWizardStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = [
+      '.hp-wiz-addbtn{display:inline-flex;align-items:center;gap:0.35rem;padding:0.375rem 0.75rem;border-radius:8px;border:1px solid rgba(46,139,154,0.4);background:transparent;color:rgba(46,139,154,0.85);font-size:0.8rem;font-weight:500;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;transition:background 0.12s,border-color 0.12s;white-space:nowrap;text-decoration:none;}',
+      '.hp-wiz-addbtn:hover{background:rgba(46,139,154,0.12);border-color:rgba(46,139,154,0.7);}',
+      '#hp-wiz-addforms-bar{position:fixed;bottom:0;left:0;right:0;z-index:9998;display:flex;justify-content:center;padding:0.625rem 1rem;pointer-events:none;}',
+      '#hp-wiz-addforms-bar .hp-wiz-addbtn{pointer-events:all;box-shadow:0 2px 12px rgba(0,0,0,0.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);background:rgba(27,65,80,0.92);border-color:rgba(46,139,154,0.5);color:#ede8df;}',
+      '#hp-wiz-addforms-bar .hp-wiz-addbtn:hover{background:rgba(46,139,154,0.9);}',
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  function getCaseIdFromHash() {
+    var hash = window.location.hash || '';
+    var m = hash.match(/case[s]?\/([0-9]+)/);
+    return m ? m[1] : null;
+  }
+
+  function isWizardPage() {
+    var hash = window.location.hash || '';
+    return hash.includes('/wizard');
+  }
+
+  function injectWizardAddFormsBtn() {
+    var existing = document.getElementById('hp-wiz-addforms-bar');
+
+    if (!isWizardPage()) {
+      // Remove bar if we navigated away from wizard
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      return;
+    }
+
+    var caseId = getCaseIdFromHash();
+    if (!caseId) return;
+
+    if (existing) return; // already injected
+
+    injectWizardStyle();
+
+    var bar = document.createElement('div');
+    bar.id = 'hp-wiz-addforms-bar';
+
+    var btn = document.createElement('button');
+    btn.className = 'hp-wiz-addbtn';
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add / Remove Forms';
+
+    btn.addEventListener('click', function() {
+      // Fetch cases to get current caseType
+      fetch('https://api-production-2334.up.railway.app/api/cases', { headers: __authHdr() })
+        .then(function(r) { return r.json(); })
+        .then(function(cases) {
+          var thisCase = cases.find(function(c) { return String(c.id) === String(caseId); });
+          var currentType = thisCase ? (thisCase.caseType || '') : '';
+          // openEditForms is exposed globally from the Add/Edit Forms IIFE above
+          if (typeof window.openEditForms === 'function') {
+            window.openEditForms(caseId, currentType);
+          }
+        })
+        .catch(function() {
+          if (typeof window.openEditForms === 'function') window.openEditForms(caseId, '');
+        });
+    });
+
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+  }
+
+  // Watch for navigation to/from wizard
+  window.addEventListener('hashchange', function() {
+    setTimeout(injectWizardAddFormsBtn, 300);
+  });
+
+  var wizObserver = new MutationObserver(function() {
+    if (isWizardPage() && !document.getElementById('hp-wiz-addforms-bar')) {
+      injectWizardAddFormsBtn();
+    } else if (!isWizardPage() && document.getElementById('hp-wiz-addforms-bar')) {
+      var bar = document.getElementById('hp-wiz-addforms-bar');
+      if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+    }
+  });
+
+  function initWiz() {
+    wizObserver.observe(document.body, { childList: true, subtree: true });
+    injectWizardAddFormsBtn();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(initWiz, 600); });
+  } else {
+    setTimeout(initWiz, 600);
+  }
+})();
+
+// ─── Safety Overlay (shield icon in navbar calls window.__openSafetyOverlay) ──
+(function() {
+  var _RW = 'https://api-production-2334.up.railway.app';
+
+  function makeResourceCard(number, label, desc, href, isUrgent) {
+    var borderColor = isUrgent ? 'rgba(239,68,68,0.35)' : 'rgba(255,255,255,0.07)';
+    var numColor = isUrgent ? 'rgba(239,68,68,0.9)' : 'rgba(46,139,154,0.85)';
+    return [
+      '<a href="'+href+'" style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.875rem;border-radius:0.625rem;border:1px solid '+borderColor+';background:#0b1419;text-decoration:none;margin-bottom:0.5rem;">',
+        '<div style="flex:1;min-width:0;">',
+          '<p style="font-size:0.875rem;font-weight:600;color:#ede8df;margin:0 0 0.125rem;">'+label+'</p>',
+          '<p style="font-size:0.9375rem;font-weight:700;color:'+numColor+';margin:0 0 0.125rem;">'+number+'</p>',
+          '<p style="font-size:0.75rem;color:rgba(237,232,223,0.5);margin:0;">'+desc+'</p>',
+        '</div>',
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(237,232,223,0.3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:0.25rem;"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+      '</a>'
+    ].join('');
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function openSafetyOverlay() {
+    if (document.getElementById('hp-safety-overlay')) return;
+
+    // Inject slide-in animation if not already present
+    if (!document.getElementById('hp-safety-anim-style')) {
+      var anim = document.createElement('style');
+      anim.id = 'hp-safety-anim-style';
+      anim.textContent = '@keyframes hp-sft-slidein{from{transform:translateY(32px);opacity:0;}to{transform:translateY(0);opacity:1;}}';
+      document.head.appendChild(anim);
+    }
+
+    var overlay = document.createElement('div');
+    overlay.id = 'hp-safety-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;';
+
+    var sheet = document.createElement('div');
+    sheet.style.cssText = 'width:100%;max-width:540px;background:#111d23;border:1px solid rgba(255,255,255,0.08);border-radius:1.25rem 1.25rem 0 0;overflow-y:auto;max-height:88vh;animation:hp-sft-slidein 0.22s cubic-bezier(0.32,0.72,0,1);';
+
+    sheet.innerHTML = [
+      // Header
+      '<div style="padding:1.25rem 1.25rem 0.75rem;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#111d23;z-index:1;">',
+        '<div>',
+          '<h2 style="font-family:Playfair Display,serif;font-size:1.125rem;color:#ede8df;margin:0 0 0.2rem;">Safety & Emergency</h2>',
+          '<p style="font-size:0.78rem;color:rgba(237,232,223,0.5);margin:0;">Resources and your personal silent alert</p>',
+        '</div>',
+        '<button id="hp-safety-close" style="background:rgba(255,255,255,0.06);border:none;color:rgba(237,232,223,0.7);cursor:pointer;padding:0.5rem;border-radius:8px;display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;" aria-label="Close">',
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+        '</button>',
+      '</div>',
+      // Tabs
+      '<div style="display:flex;border-bottom:1px solid rgba(255,255,255,0.07);">',
+        '<button id="hp-sft-tab-resources" data-tab="resources" style="flex:1;padding:0.75rem;font-size:0.8125rem;font-weight:600;font-family:DM Sans,system-ui,sans-serif;background:transparent;border:none;border-bottom:2px solid #2E8B9A;cursor:pointer;color:#ede8df;min-height:44px;">Helplines</button>',
+        '<button id="hp-sft-tab-alert" data-tab="alert" style="flex:1;padding:0.75rem;font-size:0.8125rem;font-weight:500;font-family:DM Sans,system-ui,sans-serif;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;color:rgba(237,232,223,0.5);min-height:44px;">Safe Word Alert</button>',
+      '</div>',
+      // Helplines panel
+      '<div id="hp-sft-panel-resources" style="padding:1rem 1.25rem 1.5rem;">',
+        makeResourceCard('911','Emergency','Call immediately if you or your children are in danger','tel:911',true),
+        makeResourceCard('1-866-863-0511','Assaulted Women\u2019s Helpline','24/7, all languages, anonymous, TTY available','tel:18668630511',false),
+        makeResourceCard('1-800-668-6868','Kids Help Phone','24/7 support for youth','tel:18006686868',false),
+        makeResourceCard('sheltersafe.ca','Sheltersafe.ca','Find emergency shelter near you','https://sheltersafe.ca',false),
+        makeResourceCard('1-888-579-2888','Victim Crisis Assistance','24/7 Ontario crisis support line','tel:18885792888',false),
+        '<div style="border-radius:0.75rem;border:1px solid rgba(46,139,154,0.2);background:rgba(46,139,154,0.06);padding:1rem;margin-top:0.5rem;">',
+          '<p style="font-size:0.8125rem;color:#ede8df;line-height:1.6;margin:0;"><strong>You can also ask for an emergency court order</strong> \u2014 called a \u201cwithout notice\u201d or \u201cex parte\u201d motion \u2014 that keeps the other person away without them being told first. This app will help you with those forms.</p>',
+        '</div>',
+      '</div>',
+      // Safe Word panel (hidden)
+      '<div id="hp-sft-panel-alert" style="padding:1rem 1.25rem 1.5rem;display:none;">',
+        // Code word
+        '<p style="font-size:0.75rem;font-weight:600;color:rgba(237,232,223,0.6);text-transform:uppercase;letter-spacing:0.05em;margin:0 0 0.375rem;">Your Secret Code Word</p>',
+        '<p style="font-size:0.8rem;color:rgba(237,232,223,0.5);line-height:1.5;margin:0 0 0.625rem;">Set a secret word. If you ever type it into any field in the app, a silent alert fires to your contacts without any visible sign on screen.</p>',
+        '<div style="display:flex;gap:0.5rem;margin-bottom:0.375rem;">',
+          '<input id="hp-sft-codeword-input" type="password" placeholder="Enter a secret word\u2026" autocomplete="new-password" style="flex:1;background:#0b1419;border:1px solid rgba(255,255,255,0.1);border-radius:0.5rem;padding:0.625rem 0.875rem;color:#ede8df;font-size:0.875rem;font-family:DM Sans,system-ui,sans-serif;outline:none;min-height:44px;" />',
+          '<button id="hp-sft-codeword-save" style="background:#2E8B9A;color:#fff;border:none;border-radius:0.5rem;padding:0.625rem 1rem;font-size:0.875rem;font-weight:600;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;white-space:nowrap;min-height:44px;">Save</button>',
+        '</div>',
+        '<p id="hp-sft-codeword-status" style="font-size:0.75rem;color:rgba(46,139,154,0.8);margin:0 0 1.25rem;min-height:1rem;"></p>',
+        // Contacts
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">',
+          '<p style="font-size:0.75rem;font-weight:600;color:rgba(237,232,223,0.6);text-transform:uppercase;letter-spacing:0.05em;margin:0;">Alert Contacts</p>',
+          '<button id="hp-sft-contact-add-btn" style="background:transparent;border:1px solid rgba(46,139,154,0.4);color:rgba(46,139,154,0.85);border-radius:6px;padding:0.25rem 0.625rem;font-size:0.75rem;font-weight:500;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;min-height:36px;">+ Add Contact</button>',
+        '</div>',
+        '<p style="font-size:0.8rem;color:rgba(237,232,223,0.5);line-height:1.5;margin:0 0 0.75rem;">Family, friends, a lawyer, or a shelter. They get an email when your code word is typed or the alert button below is tapped.</p>',
+        '<div id="hp-sft-contact-form" style="display:none;background:#0b1419;border-radius:0.625rem;padding:0.875rem;margin-bottom:0.75rem;border:1px solid rgba(255,255,255,0.07);">',
+          '<input id="hp-sft-cf-name" placeholder="Name (e.g. Mom, Lawyer)" autocomplete="off" style="width:100%;box-sizing:border-box;background:#111d23;border:1px solid rgba(255,255,255,0.1);border-radius:0.375rem;padding:0.5rem 0.75rem;color:#ede8df;font-size:0.8rem;font-family:DM Sans,system-ui,sans-serif;outline:none;margin-bottom:0.5rem;min-height:40px;" />',
+          '<input id="hp-sft-cf-email" type="email" placeholder="Email address" autocomplete="off" style="width:100%;box-sizing:border-box;background:#111d23;border:1px solid rgba(255,255,255,0.1);border-radius:0.375rem;padding:0.5rem 0.75rem;color:#ede8df;font-size:0.8rem;font-family:DM Sans,system-ui,sans-serif;outline:none;margin-bottom:0.5rem;min-height:40px;" />',
+          '<button id="hp-sft-cf-save" style="width:100%;background:#2E8B9A;color:#fff;border:none;border-radius:0.375rem;padding:0.5rem;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;min-height:40px;">Add Contact</button>',
+        '</div>',
+        '<div id="hp-sft-contacts-list"></div>',
+        // Manual trigger
+        '<div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid rgba(255,255,255,0.07);">',
+          '<p style="font-size:0.8rem;color:rgba(237,232,223,0.5);margin:0 0 0.625rem;">Or send the alert right now if you need help immediately:</p>',
+          '<button id="hp-sft-trigger-btn" style="width:100%;background:rgba(123,45,62,0.15);border:1px solid rgba(123,45,62,0.5);color:rgba(237,140,140,0.9);border-radius:0.625rem;padding:0.875rem;font-size:0.9375rem;font-weight:600;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;min-height:50px;">Send Silent Alert Now</button>',
+          '<p id="hp-sft-trigger-status" style="font-size:0.75rem;text-align:center;color:rgba(46,139,154,0.8);margin:0.375rem 0 0;min-height:1rem;"></p>',
+        '</div>',
+      '</div>',
+    ].join('');
+
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    // Close
+    function closeOverlay() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+    document.getElementById('hp-safety-close').addEventListener('click', closeOverlay);
+    document.getElementById('hp-safety-close').addEventListener('touchend', function(e){ e.preventDefault(); closeOverlay(); });
+    overlay.addEventListener('click', function(e){ if(e.target===overlay) closeOverlay(); });
+
+    // Tabs
+    var tabs = sheet.querySelectorAll('[data-tab]');
+    tabs.forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        var target = tab.getAttribute('data-tab');
+        tabs.forEach(function(t) {
+          var active = t.getAttribute('data-tab') === target;
+          t.style.borderBottomColor = active ? '#2E8B9A' : 'transparent';
+          t.style.color = active ? '#ede8df' : 'rgba(237,232,223,0.5)';
+          t.style.fontWeight = active ? '600' : '500';
+        });
+        document.getElementById('hp-sft-panel-resources').style.display = target === 'resources' ? 'block' : 'none';
+        document.getElementById('hp-sft-panel-alert').style.display = target === 'alert' ? 'block' : 'none';
+        if (target === 'alert') loadSafetyData();
+      });
+    });
+
+    // Load data immediately on every open (not just tab switch)
+    // Small delay so DOM is fully ready
+    setTimeout(loadSafetyData, 300);
+
+    // Load data
+    function loadSafetyData() {
+      fetch(_RW + '/api/safety/settings', { headers: __authHdr() })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var inp = document.getElementById('hp-sft-codeword-input');
+          if (inp && d.codeWord) inp.placeholder = 'Code word set \u2014 enter new to change';
+        }).catch(function(){});
+      fetch(_RW + '/api/safety/contacts', { headers: __authHdr() })
+        .then(function(r){ return r.json(); })
+        .then(function(contacts){ renderContacts(contacts); })
+        .catch(function(){ renderContacts([]); });
+    }
+
+    function renderContacts(contacts) {
+      var list = document.getElementById('hp-sft-contacts-list');
+      if (!list) return;
+      if (!contacts.length) {
+        list.innerHTML = '<p style="font-size:0.8rem;color:rgba(237,232,223,0.3);text-align:center;padding:0.5rem;">No contacts yet</p>';
+        return;
+      }
+      list.innerHTML = contacts.map(function(c) {
+        return '<div style="display:flex;align-items:center;gap:0.75rem;padding:0.625rem 0.875rem;background:#0b1419;border-radius:0.5rem;border:1px solid rgba(255,255,255,0.07);margin-bottom:0.5rem;"><div style="flex:1;min-width:0;"><p style="font-size:0.875rem;font-weight:500;color:#ede8df;margin:0;">'+escHtml(c.name)+'</p><p style="font-size:0.75rem;color:rgba(237,232,223,0.5);margin:0;">'+escHtml(c.contactValue)+'</p></div><button data-contact-id="'+c.id+'" class="hp-sft-del-contact" style="background:transparent;border:none;color:rgba(237,232,223,0.35);cursor:pointer;padding:0.375rem;min-width:36px;min-height:36px;" title="Remove"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button></div>';
+      }).join('');
+      list.querySelectorAll('.hp-sft-del-contact').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          fetch(_RW + '/api/safety/contacts/' + btn.getAttribute('data-contact-id'), { method:'DELETE', headers:__authHdr() })
+            .then(function(){ loadSafetyData(); }).catch(function(){});
+        });
+      });
+    }
+
+    // Save code word
+    document.getElementById('hp-sft-codeword-save').addEventListener('click', function() {
+      var inp = document.getElementById('hp-sft-codeword-input');
+      var status = document.getElementById('hp-sft-codeword-status');
+      var word = inp ? inp.value.trim() : '';
+      if (!word) { if(status) status.textContent='Please enter a code word.'; return; }
+      fetch(_RW + '/api/safety/settings', { method:'PUT', headers:__authHdr(), body:JSON.stringify({codeWord:word}) })
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          if(status) status.textContent = 'Code word saved \u2713';
+          if(inp){ inp.value=''; inp.placeholder='Code word set \u2014 enter new to change'; }
+          startCodeWordMonitor();
+        }).catch(function(){ if(status) status.textContent='Error saving. Try again.'; });
+    });
+
+    // Toggle add contact form
+    document.getElementById('hp-sft-contact-add-btn').addEventListener('click', function() {
+      var form = document.getElementById('hp-sft-contact-form');
+      if(form) form.style.display = form.style.display==='none' ? 'block' : 'none';
+    });
+
+    // Save contact
+    document.getElementById('hp-sft-cf-save').addEventListener('click', function() {
+      var name = (document.getElementById('hp-sft-cf-name')||{}).value||'';
+      var email = (document.getElementById('hp-sft-cf-email')||{}).value||'';
+      if (!name.trim() || !email.trim()) return;
+      fetch(_RW + '/api/safety/contacts', { method:'POST', headers:__authHdr(), body:JSON.stringify({name:name.trim(),contactType:'email',contactValue:email.trim()}) })
+        .then(function(r){ return r.json(); })
+        .then(function(){
+          document.getElementById('hp-sft-cf-name').value='';
+          document.getElementById('hp-sft-cf-email').value='';
+          var form=document.getElementById('hp-sft-contact-form');
+          if(form) form.style.display='none';
+          loadSafetyData();
+        }).catch(function(){});
+    });
+
+    // Manual trigger
+    document.getElementById('hp-sft-trigger-btn').addEventListener('click', function() {
+      var btn=document.getElementById('hp-sft-trigger-btn');
+      var status=document.getElementById('hp-sft-trigger-status');
+      if(btn){btn.disabled=true;btn.textContent='Sending\u2026';}
+      fetch(_RW + '/api/safety/trigger', { method:'POST', headers:__authHdr(), body:JSON.stringify({method:'button'}) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(btn){btn.textContent='Alert Sent \u2713';btn.style.background='rgba(46,139,154,0.15)';btn.style.borderColor='rgba(46,139,154,0.5)';btn.style.color='rgba(46,139,154,0.9)';}
+          if(status) status.textContent='Alert sent to '+(d.sent||0)+' contact(s).';
+        }).catch(function(){
+          if(btn){btn.disabled=false;btn.textContent='Send Silent Alert Now';}
+          if(status) status.textContent='Error. Make sure contacts are set up first.';
+        });
+    });
+  }
+
+  // Code word monitor — listens for code word typed ANYWHERE on page
+  // Uses a rolling buffer and checks if the buffer CONTAINS the code word
+  // Does NOT reset on backspace/non-printable keys so typing in form fields works
+  var _codeWordActive = false;
+  // Use window so the cooldown survives React re-renders and script re-evals
+  function _cwIsOnCooldown() {
+    return window.__hp_cw_lastTrigger && (Date.now() - window.__hp_cw_lastTrigger) < 65000;
+  }
+  var _cwFiring = false; // in-flight guard — only one trigger attempt at a time
+  function startCodeWordMonitor() {
+    if (_codeWordActive) return;
+    _codeWordActive = true;
+    var buffer = '';
+    document.addEventListener('keydown', function(e) {
+      // Only collect printable single characters — don’t reset on non-printable keys
+      if (!e.key || e.key.length !== 1) return;
+      if (_cwIsOnCooldown()) return; // skip all processing during cooldown
+      buffer += e.key.toLowerCase();
+      if (buffer.length > 80) buffer = buffer.slice(-80);
+      clearTimeout(window._hp_cwTimeout);
+      window._hp_cwTimeout = setTimeout(function() {
+        // Double-check cooldown and in-flight guard before fetching
+        if (_cwIsOnCooldown() || _cwFiring) return;
+        var checkWord = buffer; // snapshot buffer before any async
+        _cwFiring = true; // block any concurrent debounce from also fetching
+        fetch(_RW + '/api/safety/check-codeword', { method:'POST', headers:__authHdr(), body:JSON.stringify({word:checkWord}) })
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            if (d.match && !_cwIsOnCooldown()) {
+              // Set cooldown IMMEDIATELY before firing trigger — prevents race
+              window.__hp_cw_lastTrigger = Date.now();
+              buffer = ''; // clear buffer so it can’t match again
+              clearTimeout(window._hp_cwTimeout); // cancel any pending debounce
+              fetch(_RW + '/api/safety/trigger', { method:'POST', headers:__authHdr(), body:JSON.stringify({method:'codeword'}) }).catch(function(){});
+            } else {
+              _cwFiring = false; // no match — release guard so future keystrokes can check
+            }
+          }).catch(function(){ _cwFiring = false; }); // network error — release guard
+      }, 800);
+    }, true);
+  }
+
+  // Expose globally — use _real suffix so the bootstrap stub can forward to us
+  window.__openSafetyOverlay_real = openSafetyOverlay;
+  // Also set directly in case patches load before React bundle shield click
+  window.__openSafetyOverlay = openSafetyOverlay;
+
+  // ── Pricing page text fix ───────────────────────────────────────────────────
+  // Patch the in-app pricing/upgrade screen to show accurate form availability
+  // instead of the outdated "Form 8, 35.1, 13 wizards" bullet.
+  (function patchPricingText() {
+    var INTERVAL_ID = setInterval(function() {
+      var changed = 0;
+
+      // Fix 1: Standard plan feature bullet
+      document.querySelectorAll('li, span, p, div').forEach(function(el) {
+        if (el.children.length === 0 && el.textContent.trim() === 'Form 8, 35.1, 13 wizards') {
+          el.textContent = 'All 35 Ontario court forms';
+          changed++;
+        }
+      });
+
+      // Fix 2: Hero/landing strip bullet inside the app
+      document.querySelectorAll('li, span, p, div').forEach(function(el) {
+        if (el.children.length === 0 && el.textContent.trim() === 'Step-by-step wizards for Form 8, 35.1, 13, and more') {
+          el.textContent = 'Step-by-step wizards for all 35 Ontario court forms';
+          changed++;
+        }
+      });
+
+      if (changed > 0) clearInterval(INTERVAL_ID);
+    }, 600);
+    // Stop polling after 20 seconds regardless
+    setTimeout(function() { clearInterval(INTERVAL_ID); }, 20000);
+  })();
+
+  // Auto-start code word monitor on login
+  setTimeout(function() {
+    if (!window.__hp_token) return;
+    fetch(_RW + '/api/safety/settings', { headers:__authHdr() })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if(d && d.codeWord) startCodeWordMonitor(); })
+      .catch(function(){});
+  }, 2500);
+
+
+  // ── Subscription Enforcement UI ──────────────────────────────────────────────
+
+  var TEAL   = '#2E8B9A';
+  var TEAL_D = '#1B4150';
+  var BURG   = '#7B2D3E';
+  var FREE_FORM_IDS = ['form8'];
+
+  // ── Upgrade Modal ─────────────────────────────────────────────────────────────
+  function showUpgradeModal(reason) {
+    if (document.getElementById('hp-upgrade-modal')) return;
+    var heading = reason === 'pdf'
+      ? 'Subscribe to Download Your PDF'
+      : 'Subscribe to Access This Form';
+    var body = reason === 'pdf'
+      ? 'You\u2019ve completed Form 8 \u2014 great work! Subscribe to download your court-ready PDF and unlock all 35 Ontario family court forms.'
+      : 'This form is available on Standard and Plus plans. Subscribe to access all 35 Ontario court forms and download court-ready PDFs.';
+
+    var overlay = document.createElement('div');
+    overlay.id = 'hp-upgrade-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:32px 28px;max-width:440px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.25);text-align:center;">' +
+        '<div style="width:56px;height:56px;border-radius:50%;background:' + TEAL_D + ';display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">' +
+          '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' +
+        '</div>' +
+        '<h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:' + TEAL_D + ';">' + heading + '</h2>' +
+        '<p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.5;">' + body + '</p>' +
+        '<div style="display:flex;flex-direction:column;gap:10px;">' +
+          '<button id="hp-upgrade-std" style="background:' + TEAL_D + ';color:#fff;border:none;border-radius:10px;padding:14px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">Standard \u2014 $9.99/mo CAD</button>' +
+          '<button id="hp-upgrade-plus" style="background:' + BURG + ';color:#fff;border:none;border-radius:10px;padding:14px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">Plus \u2014 $19.99/mo CAD</button>' +
+          '<button id="hp-upgrade-close" style="background:transparent;color:#888;border:1px solid #ddd;border-radius:10px;padding:11px 20px;font-size:14px;cursor:pointer;width:100%;">Not right now</button>' +
+        '</div>' +
+        '<p style="margin:16px 0 0;font-size:11px;color:#aaa;">Billed monthly. Cancel anytime from account settings.</p>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('hp-upgrade-std').addEventListener('click', function() { launchCheckout('standard'); });
+    document.getElementById('hp-upgrade-plus').addEventListener('click', function() { launchCheckout('plus'); });
+    document.getElementById('hp-upgrade-close').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  }
+
+  function launchCheckout(plan) {
+    var priceId = plan === 'plus' ? 'price_1TduyXDyokC7Tv7bKKoeeh1v' : 'price_1Tduf0DyokC7Tv7bDRAZBk57';
+    fetch(_RW + '/api/stripe/create-checkout', {
+      method: 'POST',
+      headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+      body: JSON.stringify({ priceId: priceId, successUrl: window.location.href + '?checkout=success', cancelUrl: window.location.href })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (d && d.url) window.location.href = d.url; else alert('Could not open checkout. Please try again.'); })
+    .catch(function(){ alert('Could not open checkout. Please try again.'); });
+  }
+
+  // Handle Stripe checkout success redirect
+  (function checkCheckoutReturn() {
+    if (window.location.search.indexOf('checkout=success') === -1) return;
+    var clean = window.location.href.replace(/[?&]checkout=success/, '');
+    if (!window.__hp_token) { window.history.replaceState({}, '', clean); return; }
+    fetch(_RW + '/api/stripe/sync', { method: 'POST', headers: __authHdr() })
+      .then(function(r){ return r.json(); })
+      .then(function() { window.history.replaceState({}, '', clean); window.location.reload(); })
+      .catch(function() { window.history.replaceState({}, '', clean); });
+  })();
+
+  // ── Past-due payment banner ───────────────────────────────────────────────────
+  function showPastDueBanner() {
+    if (document.getElementById('hp-pastdue-banner')) return;
+    var banner = document.createElement('div');
+    banner.id = 'hp-pastdue-banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#7B2D3E;color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-family:inherit;gap:12px;';
+    banner.innerHTML =
+      '<span>\u26a0\ufe0f Your last payment failed. Please update your card to keep access.</span>' +
+      '<a id="hp-pastdue-fix" href="#" style="color:#ffd0d8;font-weight:700;white-space:nowrap;text-decoration:none;">Update Card &rarr;</a>';
+    document.body.prepend(banner);
+    document.body.style.paddingTop = (parseInt(document.body.style.paddingTop || '0') + 44) + 'px';
+    document.getElementById('hp-pastdue-fix').addEventListener('click', function(e) {
+      e.preventDefault(); openBillingPortal();
+    });
+  }
+
+  function openBillingPortal() {
+    fetch(_RW + '/api/stripe/billing-portal', {
+      method: 'POST',
+      headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+      body: JSON.stringify({ returnUrl: window.location.href })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (d && d.url) window.location.href = d.url; })
+    .catch(function(){});
+  }
+
+  // ── Lock non-free form cards on form selector ─────────────────────────────────
+  function applyFormLocks(subStatus, plan) {
+    var isPaid = (subStatus === 'active' || subStatus === 'past_due') && plan !== 'free';
+    if (isPaid) return;
+    var LOCK_IV = setInterval(function() {
+      var cards = document.querySelectorAll('[data-form-id],[href*="/wizard/"],[href*="form"]');
+      if (!cards.length) return;
+      var found = 0;
+      cards.forEach(function(card) {
+        var formId = card.getAttribute('data-form-id') || '';
+        if (!formId) {
+          var m = (card.href || card.getAttribute('href') || '').match(/form[0-9a-z_]+/i);
+          formId = m ? m[0] : '';
+        }
+        if (!formId) return;
+        var fid = formId.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (FREE_FORM_IDS.includes(fid)) return;
+        if (card.getAttribute('data-hp-locked')) return;
+        card.setAttribute('data-hp-locked', '1');
+        card.style.position = 'relative';
+        var badge = document.createElement('span');
+        badge.textContent = 'SUBSCRIBE';
+        badge.style.cssText = 'position:absolute;top:8px;right:8px;background:' + TEAL_D + ';color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;pointer-events:none;z-index:10;';
+        card.appendChild(badge);
+        card.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); showUpgradeModal('form'); }, true);
+        found++;
+      });
+      if (found > 0) clearInterval(LOCK_IV);
+    }, 900);
+    setTimeout(function(){ clearInterval(LOCK_IV); }, 15000);
+  }
+
+  // ── Boot: fetch user plan and apply UI ────────────────────────────────────────
+  function bootSubscriptionUI() {
+    if (!window.__hp_token) return;
+    fetch(_RW + '/api/auth/me', { headers: __authHdr() })
+      .then(function(r){ return r.json(); })
+      .then(function(user) {
+        var status = user.subscriptionStatus || 'free';
+        var plan   = user.plan || 'free';
+        window.__hp_sub_status = status;
+        window.__hp_plan = plan;
+        if (status === 'past_due') showPastDueBanner();
+        if (status !== 'active' || plan === 'free') {
+          setTimeout(function(){ applyFormLocks(status, plan); }, 1500);
+        }
+      })
+      .catch(function(){});
+  }
+
+  // Intercept 403 responses from fetch to show upgrade modal
+  (function interceptApiLock() {
+    var origFetch = window.fetch;
+    window.fetch = function() {
+      return origFetch.apply(this, arguments).then(function(resp) {
+        if (resp.status === 403) {
+          resp.clone().json().then(function(data) {
+            if (data && data.code === 'PDF_LOCKED') showUpgradeModal('pdf');
+            else if (data && data.code === 'SUBSCRIPTION_REQUIRED') showUpgradeModal('form');
+          }).catch(function(){});
+        }
+        return resp;
+      });
+    };
+  })();
+
+  setTimeout(bootSubscriptionUI, 1800);
+
+  // ── Account Settings Page ────────────────────────────────────────────────────
+
+  window.__openAccountSettings_real = function() {
+    if (document.getElementById('hp-account-settings')) return;
+
+    var overlay = document.createElement('div');
+    overlay.id = 'hp-account-settings';
+    overlay.style.cssText = [
+      'position:fixed;inset:0;z-index:99990;',
+      'background:rgba(11,20,25,0.92);',
+      'display:flex;align-items:flex-start;justify-content:center;',
+      'padding:0;overflow-y:auto;'
+    ].join('');
+
+    function formatDate(ms) {
+      if (!ms) return 'N/A';
+      return new Date(ms).toLocaleDateString('en-CA', { year:'numeric', month:'long', day:'numeric' });
+    }
+
+    function planLabel(plan, status) {
+      if (!plan || plan === 'free') return 'Free';
+      if (plan === 'plus') return 'Plus';
+      if (plan === 'standard') return 'Standard';
+      return plan.charAt(0).toUpperCase() + plan.slice(1);
+    }
+
+    function statusBadge(status) {
+      var map = {
+        'active':   ['#edf7ed','#2d6a2d','Active'],
+        'past_due': ['#fff4e5','#7a3e00','Payment Failed'],
+        'canceled': ['#fdecea','#8c1c13','Cancelled'],
+        'free':     ['#dff0f3','#1B4150','Free'],
+      };
+      var s = map[status] || map['free'];
+      return '<span style="background:'+s[0]+';color:'+s[1]+';font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.03em;">'+s[2]+'</span>';
+    }
+
+    // Build the panel shell immediately with a loading state
+    overlay.innerHTML =
+      '<div id="hp-acc-panel" style="'+
+        'background:#111d23;border-radius:0;min-height:100vh;width:100%;max-width:560px;'+
+        'margin:0 auto;display:flex;flex-direction:column;'+
+        'font-family:DM Sans,system-ui,sans-serif;color:#ede8df;'+
+      '">'+
+        // Header
+        '<div style="background:#1B4150;padding:20px 24px 18px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10;">'+
+          '<button id="hp-acc-back" style="background:rgba(255,255,255,0.1);border:none;border-radius:8px;color:#fff;width:36px;height:36px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">&#8592;</button>'+
+          '<div>'+
+            '<h1 style="margin:0;font-size:19px;font-weight:700;color:#fff;">Account Settings</h1>'+
+            '<p style="margin:2px 0 0;font-size:12px;color:rgba(255,255,255,0.6);">Manage your profile and subscription</p>'+
+          '</div>'+
+        '</div>'+
+        // Body
+        '<div id="hp-acc-body" style="padding:24px;flex:1;display:flex;flex-direction:column;gap:20px;">'+
+          '<div style="color:#7fb8c4;font-size:13px;text-align:center;padding:40px 0;">Loading your account&#8230;</div>'+
+        '</div>'+
+      '</div>';
+
+    document.body.appendChild(overlay);
+
+    // Back button
+    document.getElementById('hp-acc-back').addEventListener('click', function() {
+      overlay.remove();
+    });
+
+    // Load user data then render
+    fetch(_RW + '/api/auth/me', { headers: __authHdr() })
+      .then(function(r){ return r.json(); })
+      .then(function(resp) {
+        var user = resp.user || resp;
+        var plan   = user.plan || 'free';
+        var status = user.subscriptionStatus || 'free';
+        var periodEnd = user.subscriptionCurrentPeriodEnd;
+        var isPaid = (status === 'active' || status === 'past_due') && plan !== 'free';
+
+        var planName = planLabel(plan, status);
+        var body = document.getElementById('hp-acc-body');
+
+        body.innerHTML =
+
+          // ── Profile section ──
+          '<div style="background:#0b1419;border-radius:14px;padding:20px;border:1px solid #1e2f38;">'+
+            '<h2 style="margin:0 0 16px;font-size:14px;font-weight:700;color:#2E8B9A;text-transform:uppercase;letter-spacing:0.06em;">Profile</h2>'+
+
+            '<label style="display:block;font-size:12px;color:#8a9ba8;margin-bottom:6px;font-weight:600;">Email Address</label>'+
+            '<div style="display:flex;gap:8px;align-items:center;">'+
+              '<input id="hp-acc-email" type="email" value="'+user.email+'" style="'+
+                'flex:1;background:#111d23;border:1.5px solid #1e2f38;border-radius:9px;'+
+                'color:#ede8df;font-size:14px;padding:11px 14px;outline:none;'+
+                'font-family:inherit;transition:border-color 0.2s;'+
+              '" />'+
+              '<button id="hp-acc-save-email" style="'+
+                'background:#2E8B9A;color:#fff;border:none;border-radius:9px;'+
+                'padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;'+
+                'font-family:inherit;flex-shrink:0;'+
+              '">Save</button>'+
+            '</div>'+
+            '<div id="hp-acc-email-msg" style="margin-top:8px;font-size:12px;min-height:16px;"></div>'+
+
+            '<div style="border-top:1px solid #1e2f38;margin:18px 0;"></div>'+
+
+            '<label style="display:block;font-size:12px;color:#8a9ba8;margin-bottom:6px;font-weight:600;">Change Password</label>'+
+            '<input id="hp-acc-curpw" type="password" placeholder="Current password" style="'+
+              'width:100%;box-sizing:border-box;background:#111d23;border:1.5px solid #1e2f38;border-radius:9px;'+
+              'color:#ede8df;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;margin-bottom:8px;'+
+            '" />'+
+            '<input id="hp-acc-newpw" type="password" placeholder="New password (min 8 characters)" style="'+
+              'width:100%;box-sizing:border-box;background:#111d23;border:1.5px solid #1e2f38;border-radius:9px;'+
+              'color:#ede8df;font-size:14px;padding:11px 14px;outline:none;font-family:inherit;margin-bottom:8px;'+
+            '" />'+
+            '<button id="hp-acc-save-pw" style="'+
+              'background:#1B4150;color:#fff;border:none;border-radius:9px;'+
+              'padding:11px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;'+
+            '">Update Password</button>'+
+            '<div id="hp-acc-pw-msg" style="margin-top:8px;font-size:12px;min-height:16px;"></div>'+
+          '</div>'+
+
+          // ── Subscription section ──
+          '<div style="background:#0b1419;border-radius:14px;padding:20px;border:1px solid #1e2f38;">'+
+            '<h2 style="margin:0 0 16px;font-size:14px;font-weight:700;color:#2E8B9A;text-transform:uppercase;letter-spacing:0.06em;">Subscription</h2>'+
+
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'+
+              '<div>'+
+                '<div style="font-size:16px;font-weight:700;color:#ede8df;">'+planName+' Plan</div>'+
+                (isPaid && periodEnd ?
+                  '<div style="font-size:12px;color:#8a9ba8;margin-top:3px;">Next billing: '+formatDate(periodEnd)+'</div>' :
+                  '<div style="font-size:12px;color:#8a9ba8;margin-top:3px;">Form 8 free &mdash; subscribe for all 35 forms</div>'
+                )+
+              '</div>'+
+              statusBadge(isPaid ? status : 'free')+
+            '</div>'+
+
+            (status === 'past_due' ?
+              '<div style="background:#3d1020;border:1px solid #7B2D3E;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#ffd0d8;">'+
+                '&#9888;&#65039; Your last payment failed. Update your card to keep access.'+
+              '</div>' : ''
+            )+
+
+            (isPaid ?
+              // Paid user — billing portal button
+              '<button id="hp-acc-portal" style="'+
+                'width:100%;background:#1B4150;color:#fff;border:none;border-radius:10px;'+
+                'padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;'+
+                'display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;'+
+              '">'+
+                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>'+
+                'Manage Billing &amp; Subscription'+
+              '</button>'+
+              '<p style="font-size:11px;color:#6a8090;text-align:center;margin:0;">Update payment method, download invoices, or cancel your plan</p>'
+            :
+              // Free user — upgrade buttons
+              '<div style="display:flex;flex-direction:column;gap:10px;">'+
+                '<button id="hp-acc-std" style="'+
+                  'background:#1B4150;color:#fff;border:none;border-radius:10px;'+
+                  'padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;'+
+                '">Standard &mdash; $9.99/mo CAD</button>'+
+                '<button id="hp-acc-plus" style="'+
+                  'background:#7B2D3E;color:#fff;border:none;border-radius:10px;'+
+                  'padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;'+
+                '">Plus &mdash; $19.99/mo CAD</button>'+
+                '<p style="font-size:11px;color:#6a8090;text-align:center;margin:4px 0 0;">Billed monthly. Cancel anytime.</p>'+
+              '</div>'
+            )+
+          '</div>'+
+
+          // ── Danger zone ──
+          '<div style="background:#0b1419;border-radius:14px;padding:20px;border:1px solid #2a1520;">'+
+            '<h2 style="margin:0 0 12px;font-size:14px;font-weight:700;color:#7B2D3E;text-transform:uppercase;letter-spacing:0.06em;">Account</h2>'+
+            '<button id="hp-acc-logout" style="'+
+              'width:100%;background:transparent;color:#7B2D3E;border:1.5px solid #7B2D3E;border-radius:10px;'+
+              'padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;'+
+            '">Sign Out</button>'+
+          '</div>'+
+
+          '<div style="height:32px;"></div>';
+
+        // ── Wire events ──
+
+        // Focus styling on inputs
+        ['hp-acc-email','hp-acc-curpw','hp-acc-newpw'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener('focus', function() { this.style.borderColor = '#2E8B9A'; });
+          el.addEventListener('blur',  function() { this.style.borderColor = '#1e2f38'; });
+        });
+
+        // Save email
+        document.getElementById('hp-acc-save-email').addEventListener('click', function() {
+          var newEmail = document.getElementById('hp-acc-email').value.trim();
+          var msg = document.getElementById('hp-acc-email-msg');
+          if (!newEmail || !newEmail.includes('@')) {
+            msg.style.color = '#e57373'; msg.textContent = 'Please enter a valid email address.'; return;
+          }
+          var btn = this; btn.disabled = true; btn.textContent = 'Saving…';
+          fetch(_RW + '/api/auth/me', {
+            method: 'PATCH',
+            headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+            body: JSON.stringify({ email: newEmail })
+          })
+          .then(function(r){ return r.json(); })
+          .then(function(d) {
+            if (d.user) {
+              msg.style.color = '#66bb6a'; msg.textContent = 'Email updated successfully.';
+            } else {
+              msg.style.color = '#e57373'; msg.textContent = d.message || 'Update failed.';
+            }
+          })
+          .catch(function(){ msg.style.color = '#e57373'; msg.textContent = 'Update failed. Please try again.'; })
+          .finally(function(){ btn.disabled = false; btn.textContent = 'Save'; });
+        });
+
+        // Change password
+        document.getElementById('hp-acc-save-pw').addEventListener('click', function() {
+          var cur = document.getElementById('hp-acc-curpw').value;
+          var nw  = document.getElementById('hp-acc-newpw').value;
+          var msg = document.getElementById('hp-acc-pw-msg');
+          if (!cur || !nw) { msg.style.color='#e57373'; msg.textContent='Both fields are required.'; return; }
+          if (nw.length < 8) { msg.style.color='#e57373'; msg.textContent='New password must be at least 8 characters.'; return; }
+          var btn = this; btn.disabled = true; btn.textContent = 'Updating…';
+          fetch(_RW + '/api/auth/change-password', {
+            method: 'POST',
+            headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+            body: JSON.stringify({ currentPassword: cur, newPassword: nw })
+          })
+          .then(function(r){ return r.json(); })
+          .then(function(d) {
+            if (d.ok) {
+              msg.style.color='#66bb6a'; msg.textContent='Password updated successfully.';
+              document.getElementById('hp-acc-curpw').value = '';
+              document.getElementById('hp-acc-newpw').value = '';
+            } else {
+              msg.style.color='#e57373'; msg.textContent = d.message || 'Update failed.';
+            }
+          })
+          .catch(function(){ msg.style.color='#e57373'; msg.textContent='Update failed. Please try again.'; })
+          .finally(function(){ btn.disabled=false; btn.textContent='Update Password'; });
+        });
+
+        // Billing portal (paid users)
+        var portalBtn = document.getElementById('hp-acc-portal');
+        if (portalBtn) {
+          portalBtn.addEventListener('click', function() {
+            portalBtn.disabled = true; portalBtn.textContent = 'Opening…';
+            fetch(_RW + '/api/stripe/billing-portal', {
+              method: 'POST',
+              headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+              body: JSON.stringify({ returnUrl: window.location.href })
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (d.url) window.location.href = d.url; })
+            .catch(function(){})
+            .finally(function(){ portalBtn.disabled=false; portalBtn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Manage Billing &amp; Subscription'; });
+          });
+        }
+
+        // Upgrade buttons (free users)
+        var stdBtn = document.getElementById('hp-acc-std');
+        var plusBtn = document.getElementById('hp-acc-plus');
+        if (stdBtn) stdBtn.addEventListener('click', function() { launchCheckout('standard'); });
+        if (plusBtn) plusBtn.addEventListener('click', function() { launchCheckout('plus'); });
+
+        // Sign out
+        document.getElementById('hp-acc-logout').addEventListener('click', function() {
+          fetch(_RW + '/api/auth/logout', { method:'POST', headers: __authHdr() })
+            .finally(function() {
+              window.__hp_token = null;
+              overlay.remove();
+              window.location.reload();
+            });
+        });
+      })
+      .catch(function() {
+        document.getElementById('hp-acc-body').innerHTML =
+          '<div style="color:#e57373;text-align:center;padding:40px 0;">Failed to load account. Please try again.</div>';
+      });
+  };
+  // Alias so bootstrap stub can call _real version
+  window.__openAccountSettings = window.__openAccountSettings_real;
+
+  // ── Inject Account Settings button into navbar ──────────────────────────────
+  // Uses MutationObserver to re-inject after React re-renders the navbar on route change
+  (function injectAccountBtn() {
+    function makeAccBtn() {
+      var btn = document.createElement('button');
+      btn.setAttribute('data-testid', 'button-account');
+      btn.setAttribute('aria-label', 'Account settings');
+      btn.setAttribute('title', 'Account settings');
+      btn.style.cssText = [
+        'display:inline-flex;align-items:center;justify-content:center;',
+        'height:2.25rem;width:2.25rem;min-width:44px;min-height:44px;',
+        'border-radius:0.375rem;background:transparent;border:none;cursor:pointer;',
+        'color:rgba(237,232,223,0.6);flex-shrink:0;'
+      ].join('');
+      btn.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+
+          '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>'+
+          '<circle cx="12" cy="7" r="4"/>'+
+        '</svg>';
+      btn.addEventListener('click', function() {
+        if (typeof window.__openAccountSettings_real === 'function') window.__openAccountSettings_real();
+        else if (typeof window.__openAccountSettings === 'function') window.__openAccountSettings();
+      });
+      return btn;
+    }
+
+    function tryInject() {
+      var logoutBtn = document.querySelector('[data-testid="button-logout"]');
+      if (!logoutBtn) return;
+      if (document.querySelector('[data-testid="button-account"]')) return; // already there
+      logoutBtn.parentNode.insertBefore(makeAccBtn(), logoutBtn);
+      console.log('[HP] Account button injected');
+    }
+
+    // Initial injection attempt with polling
+    var IV = setInterval(function() {
+      if (document.querySelector('[data-testid="button-logout"]')) {
+        tryInject();
+        clearInterval(IV);
+      }
+    }, 400);
+    setTimeout(function(){ clearInterval(IV); }, 20000);
+
+    // MutationObserver — re-inject whenever React re-renders the navbar
+    var observer = new MutationObserver(function() {
+      tryInject();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  })();
+
+  // Signal the bootstrap that hp-patches.js has fully loaded and all functions are ready
+  window.__hp_patches_ready = true;
+  // Drain any queued calls that arrived before we finished loading
+  if (Array.isArray(window.__hp_patches_queue)) {
+    var _q = window.__hp_patches_queue;
+    window.__hp_patches_queue = [];
+    for (var _i = 0; _i < _q.length; _i++) { try { _q[_i](); } catch(e) {} }
+  }
+  console.log('[HP] hp-patches.js ready');
+
+  // ── Email Verification Screen ────────────────────────────────
+  function checkAndHandleVerification() {
+    var user = window.__hp_currentUser;
+    if (!user) return;
+    if (user.emailVerified) {
+      // Check if this is a brand new user (0 cases) — show onboarding
+      checkAndShowOnboarding();
+      return;
+    }
+
+    // User is not verified — show verification gate
+    var existing = document.getElementById('__hp_verify_gate');
+    if (existing) return;
+
+    var overlay = document.createElement('div');
+    overlay.id = '__hp_verify_gate';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0a0f1e;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+    overlay.innerHTML = [
+      '<div style="background:#111827;border-radius:16px;padding:40px;max-width:440px;width:100%;text-align:center;border:1px solid #1f2937;">',
+        '<div style="font-size:40px;margin-bottom:16px;">📬</div>',
+        '<h2 style="color:#f9fafb;font-size:20px;margin:0 0 12px;font-family:DM Sans,sans-serif;">Check your email</h2>',
+        '<p style="color:#9ca3af;font-size:14px;line-height:1.6;margin:0 0 24px;">',
+          'We sent a verification link to <strong style="color:#e5e7eb;">' + (user.email || '') + '</strong>. ',
+          'Click the link in that email to activate your account.',
+        '</p>',
+        '<div id="__hp_verify_status" style="min-height:20px;margin-bottom:16px;"></div>',
+        '<button id="__hp_verify_check" style="width:100%;padding:13px;background:#0d9488;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:12px;">I\u2019ve verified \u2014 continue</button>',
+        '<button id="__hp_verify_resend" style="width:100%;padding:13px;background:transparent;color:#6b7280;border:1px solid #374151;border-radius:10px;font-size:14px;cursor:pointer;">Resend verification email</button>',
+        '<p style="color:#4b5563;font-size:12px;margin-top:20px;">Check your spam folder if you don’t see it. The link expires in 24 hours.</p>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(overlay);
+
+    // Handle URL token on load (user clicked link, came back to app)
+    var hash = window.location.hash || '';
+    var tokenMatch = hash.match(/[?&]token=([a-f0-9]+)/);
+    if (tokenMatch) {
+      var urlToken = tokenMatch[1];
+      fetch(_RW + '/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: urlToken })
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.ok) {
+          if (window.__hp_currentUser) window.__hp_currentUser.emailVerified = true;
+          overlay.remove();
+          showVerifySuccess();
+          checkAndShowOnboarding();
+        }
+      }).catch(function() {});
+    }
+
+    // "I’ve verified" button — re-check server
+    document.getElementById('__hp_verify_check').addEventListener('click', function() {
+      var btn = document.getElementById('__hp_verify_check');
+      var status = document.getElementById('__hp_verify_status');
+      btn.textContent = 'Checking...';
+      btn.disabled = true;
+      fetch(_RW + '/api/auth/me', { headers: __authHdr() })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var u = d.user || d;
+          if (u.emailVerified) {
+            if (window.__hp_currentUser) window.__hp_currentUser.emailVerified = true;
+            overlay.remove();
+            showVerifySuccess();
+            checkAndShowOnboarding();
+          } else {
+            btn.textContent = 'I’ve verified — continue';
+            btn.disabled = false;
+            status.innerHTML = '<p style="color:#f87171;font-size:13px;">Email not verified yet. Check your inbox and click the link first.</p>';
+          }
+        }).catch(function() {
+          btn.textContent = 'I’ve verified — continue';
+          btn.disabled = false;
+        });
+    });
+
+    // Resend button
+    document.getElementById('__hp_verify_resend').addEventListener('click', function() {
+      var btn = document.getElementById('__hp_verify_resend');
+      var status = document.getElementById('__hp_verify_status');
+      btn.textContent = 'Sending...';
+      btn.disabled = true;
+      fetch(_RW + '/api/auth/resend-verify', { method: 'POST', headers: __authHdr() })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          status.innerHTML = '<p style="color:#34d399;font-size:13px;">✓ New verification email sent — check your inbox.</p>';
+          btn.textContent = 'Resend verification email';
+          btn.disabled = false;
+        }).catch(function() {
+          btn.textContent = 'Resend verification email';
+          btn.disabled = false;
+        });
+    });
+  }
+
+  function showVerifySuccess() {
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#065f46;color:#d1fae5;padding:14px 24px;border-radius:10px;font-size:14px;font-weight:600;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,0.4);';
+    toast.textContent = '✓ Email verified — welcome to Hearth & Page!';
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 4000);
+  }
+
+  // ── New User Onboarding ───────────────────────────────────────
+  function checkAndShowOnboarding() {
+    // Only show if user has 0 cases
+    fetch(_RW + '/api/cases', { headers: __authHdr() })
+      .then(function(r) { return r.json(); })
+      .then(function(cases) {
+        if (!Array.isArray(cases) || cases.length > 0) return; // has cases — skip
+        showOnboarding();
+      }).catch(function() {});
+  }
+
+
+  function showOnboarding() {
+    if (document.getElementById('__hp_onboarding')) return;
+
+    var overlay = document.createElement('div');
+    overlay.id = '__hp_onboarding';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;padding:16px;font-family:DM Sans,sans-serif;';
+
+    var ROUTING = {'married|divorce':{label:"Divorce",caseType:"form8-general,form36-divorce,form25a-divorce-order",icon:"\ud83d\udcc4"},'married|support':{label:"Child or spousal support",caseType:"form8-general,form13-financial",icon:"\ud83d\udcb0"},'married|property':{label:"Property & equalization",caseType:"form8-general,form13_1-property,form13b-net-family-property",icon:"\ud83c\udfe0"},'married|parenting':{label:"Custody & parenting time",caseType:"form8-general,form35_1-custody-affidavit",icon:"\ud83d\udc76"},'married|motion':{label:"Bring a motion",caseType:"form14-motion,form14a-affidavit",icon:"\u2696\ufe0f"},'married|respond':{label:"Respond to an application",caseType:"form10-answer,form6b-service",icon:"\ud83d\udcec"},'married|change':{label:"Change an existing order",caseType:"form15-motion-to-change,form15c-consent-change",icon:"\ud83d\udd04"},'married|conference':{label:"Prepare for a conference",caseType:"form17-conference-notice,form17e-trial-brief",icon:"\ud83d\udccb"},'common_law|support':{label:"Child or spousal support",caseType:"form8-general,form13-financial",icon:"\ud83d\udcb0"},'common_law|parenting':{label:"Custody & parenting time",caseType:"form8-general,form35_1-custody-affidavit",icon:"\ud83d\udc76"},'common_law|property':{label:"Property & equalization",caseType:"form8-general,form13_1-property",icon:"\ud83c\udfe0"},'common_law|motion':{label:"Bring a motion",caseType:"form14-motion,form14a-affidavit",icon:"\u2696\ufe0f"},'common_law|respond':{label:"Respond to an application",caseType:"form10-answer,form6b-service",icon:"\ud83d\udcec"},'common_law|change':{label:"Change an existing order",caseType:"form15-motion-to-change,form15c-consent-change",icon:"\ud83d\udd04"},'common_law|conference':{label:"Prepare for a conference",caseType:"form17-conference-notice,form17e-trial-brief",icon:"\ud83d\udccb"},'never_together|parenting':{label:"Custody & parenting time",caseType:"form8-general,form35_1-custody-affidavit",icon:"\ud83d\udc76"},'never_together|support':{label:"Child or spousal support",caseType:"form8-general,form13-financial",icon:"\ud83d\udcb0"},'never_together|motion':{label:"Bring a motion",caseType:"form14-motion,form14a-affidavit",icon:"\u2696\ufe0f"},'never_together|respond':{label:"Respond to an application",caseType:"form10-answer,form6b-service",icon:"\ud83d\udcec"}};
+
+    // State
+    var q1 = null, q2 = null;
+
+    // ── Shared helpers ────────────────────────────────────────────────────
+    function card(style) {
+      var d = document.createElement('div');
+      d.style.cssText = 'background:#111827;border-radius:18px;padding:36px 32px;max-width:540px;width:100%;border:1px solid #1f2937;position:relative;' + (style||'');
+      return d;
+    }
+
+    function label(text) {
+      var d = document.createElement('div');
+      d.style.cssText = 'font-size:11px;color:#5eead4;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;';
+      d.textContent = text;
+      return d;
+    }
+
+    function heading(text) {
+      var h = document.createElement('h2');
+      h.style.cssText = 'color:#f9fafb;font-size:22px;margin:0 0 8px;font-weight:700;line-height:1.3;';
+      h.textContent = text;
+      return h;
+    }
+
+    function sub(text) {
+      var p = document.createElement('p');
+      p.style.cssText = 'color:#6b7280;font-size:14px;margin:0 0 28px;line-height:1.6;';
+      p.textContent = text;
+      return p;
+    }
+
+    function optBtn(icon, title, desc, onClick) {
+      var b = document.createElement('button');
+      b.style.cssText = 'background:#1f2937;border:1.5px solid #374151;border-radius:12px;padding:16px 18px;text-align:left;cursor:pointer;width:100%;transition:border-color 0.15s,background 0.15s;display:flex;align-items:flex-start;gap:14px;margin-bottom:10px;';
+      b.innerHTML = '<span style="font-size:26px;line-height:1;flex-shrink:0;margin-top:2px;">' + icon + '</span>'
+        + '<span style="flex:1;">'
+        + '<span style="display:block;font-weight:700;color:#f9fafb;font-size:15px;margin-bottom:3px;">' + title + '</span>'
+        + (desc ? '<span style="display:block;color:#9ca3af;font-size:13px;line-height:1.45;">' + desc + '</span>' : '')
+        + '</span>';
+      b.addEventListener('mouseenter', function() { b.style.borderColor='#5eead4'; b.style.background='#1a2e35'; });
+      b.addEventListener('mouseleave', function() { b.style.borderColor='#374151'; b.style.background='#1f2937'; });
+      b.addEventListener('click', onClick);
+      return b;
+    }
+
+    function backBtn(onClick) {
+      var b = document.createElement('button');
+      b.style.cssText = 'background:transparent;border:none;color:#4b5563;font-size:13px;cursor:pointer;margin-top:16px;padding:0;display:flex;align-items:center;gap:6px;';
+      b.innerHTML = '<span style="font-size:16px;">←</span> Back';
+      b.addEventListener('click', onClick);
+      return b;
+    }
+
+    function skipBtn() {
+      var b = document.createElement('button');
+      b.style.cssText = 'background:transparent;border:none;color:#4b5563;font-size:13px;cursor:pointer;text-decoration:underline;margin-top:20px;display:block;';
+      b.textContent = 'Skip — I\'ll choose forms myself';
+      b.addEventListener('click', function() { overlay.remove(); });
+      return b;
+    }
+
+    function progressDots(active) {
+      var d = document.createElement('div');
+      d.style.cssText = 'display:flex;gap:6px;margin-bottom:24px;';
+      [0,1,2].forEach(function(i) {
+        var dot = document.createElement('div');
+        dot.style.cssText = 'width:' + (i===active?'20px':'6px') + ';height:6px;border-radius:3px;background:' + (i===active?'#5eead4':'#374151') + ';transition:all 0.2s;';
+        d.appendChild(dot);
+      });
+      return d;
+    }
+
+    function setScreen(el) {
+      overlay.innerHTML = '';
+      overlay.appendChild(el);
+    }
+
+    // ── Screen 0: Welcome ─────────────────────────────────────────────────
+    function showWelcome() {
+      var c = card();
+      c.innerHTML = [
+        '<div style="width:44px;height:44px;background:linear-gradient(135deg,#0d4f3c,#1a7a5e);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:24px;">',
+          '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5eead4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+        '</div>',
+        '<div style="font-size:11px;color:#5eead4;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;">Welcome to Hearth & Page</div>',
+        '<h2 style="color:#f9fafb;font-size:24px;margin:0 0 14px;font-weight:700;line-height:1.3;">You\'re not alone in this.</h2>',
+        '<p style="color:#9ca3af;font-size:15px;margin:0 0 12px;line-height:1.7;">Family court paperwork can feel overwhelming. This tool walks you through Ontario\'s forms one step at a time — in plain language, at your own pace.</p>',
+        '<p style="color:#9ca3af;font-size:15px;margin:0 0 28px;line-height:1.7;">We\'ll ask you three quick questions to find the right forms for your situation. It takes about 60 seconds.</p>',
+        '<div style="background:#0d2d22;border:1px solid #1a4030;border-radius:10px;padding:14px 16px;margin-bottom:28px;display:flex;gap:12px;align-items:flex-start;">',
+          '<span style="color:#5eead4;font-size:18px;flex-shrink:0;">🔒</span>',
+          '<span style="color:#6b7280;font-size:13px;line-height:1.5;">Everything you enter is saved privately to your account. Only you can see it.</span>',
+        '</div>',
+      ].join('');
+
+      var startBtn = document.createElement('button');
+      startBtn.style.cssText = 'background:#0d9e6e;color:#fff;border:none;border-radius:10px;padding:15px 28px;font-size:16px;font-weight:700;cursor:pointer;width:100%;transition:background 0.15s;';
+      startBtn.textContent = "Let's get started →";
+      startBtn.addEventListener('mouseenter', function() { startBtn.style.background='#0b8a5f'; });
+      startBtn.addEventListener('mouseleave', function() { startBtn.style.background='#0d9e6e'; });
+      startBtn.addEventListener('click', showQ1);
+      c.appendChild(startBtn);
+
+      var sk = document.createElement('button');
+      sk.style.cssText = 'background:transparent;border:none;color:#4b5563;font-size:13px;cursor:pointer;text-decoration:underline;margin-top:16px;display:block;width:100%;text-align:center;';
+      sk.textContent = 'Skip — I\'ll choose forms myself';
+      sk.addEventListener('click', function() { overlay.remove(); });
+      c.appendChild(sk);
+
+      setScreen(c);
+    }
+
+    // ── Screen 1: Q1 — Relationship type ─────────────────────────────────
+    function showQ1() {
+      var c = card();
+      c.appendChild(progressDots(0));
+      c.appendChild(label('Step 1 of 3'));
+      c.appendChild(heading('What was your relationship with the other person?'));
+      c.appendChild(sub('This helps us show you the right forms. You can always change this later.'));
+
+      c.appendChild(optBtn('💍', 'Married', 'We were legally married', function() { q1='married'; showQ2(); }));
+      c.appendChild(optBtn('🏡', 'Common-law', 'We lived together but were not married', function() { q1='common_law'; showQ2(); }));
+      c.appendChild(optBtn('👤', 'Never lived together', 'We share a child but were never in a relationship', function() { q1='never_together'; showQ2(); }));
+
+      var bk = backBtn(showWelcome);
+      c.appendChild(bk);
+      c.appendChild(skipBtn());
+      setScreen(c);
+    }
+
+    // ── Screen 2: Q2 — What do you need help with ─────────────────────────
+    function showQ2() {
+      var c = card();
+      c.appendChild(progressDots(1));
+      c.appendChild(label('Step 2 of 3'));
+      c.appendChild(heading('What do you need help with?'));
+      c.appendChild(sub('Pick the one that fits best. You can add more forms to your case later.'));
+
+      var opts = [];
+      if (q1 === 'married') {
+        opts = [
+          ['📄','Divorce','Apply for a divorce','divorce'],
+          ['💰','Child or spousal support','Set, calculate, or change support payments','support'],
+          ['🏠','Property & assets','Divide property, debts, and equalization','property'],
+          ['👶','Parenting & custody','Decide where the children live and schedules','parenting'],
+          ['⚖️','Bring a motion','Ask the court for a temporary or urgent order','motion'],
+          ['📬','Respond to paperwork','Someone filed against me','respond'],
+          ['🔄','Change an existing order','Support, parenting, or other terms have changed','change'],
+          ['📋','Prepare for a conference','Case, settlement, or trial management conference','conference'],
+        ];
+      } else if (q1 === 'common_law') {
+        opts = [
+          ['💰','Child or spousal support','Set, calculate, or change support payments','support'],
+          ['👶','Parenting & custody','Decide where the children live and schedules','parenting'],
+          ['🏠','Property & assets','Divide shared property or debts','property'],
+          ['⚖️','Bring a motion','Ask the court for a temporary or urgent order','motion'],
+          ['📬','Respond to paperwork','Someone filed against me','respond'],
+          ['🔄','Change an existing order','Support, parenting, or other terms have changed','change'],
+          ['📋','Prepare for a conference','Case, settlement, or trial management conference','conference'],
+        ];
+      } else {
+        opts = [
+          ['👶','Parenting & custody','Decide where the children live and schedules','parenting'],
+          ['💰','Child support','Set or change child support payments','support'],
+          ['⚖️','Bring a motion','Ask the court for a temporary or urgent order','motion'],
+          ['📬','Respond to paperwork','Someone filed against me','respond'],
+        ];
+      }
+
+      var scroll = document.createElement('div');
+      scroll.style.cssText = 'max-height:300px;overflow-y:auto;margin-bottom:4px;padding-right:4px;';
+      opts.forEach(function(o) {
+        scroll.appendChild(optBtn(o[0], o[1], o[2], function(val) { return function() { q2=val; showQ3(); }; }(o[3])));
+      });
+      c.appendChild(scroll);
+
+      c.appendChild(backBtn(showQ1));
+      c.appendChild(skipBtn());
+      setScreen(c);
+    }
+
+    // ── Screen 3: Q3 — Has the other party filed? ─────────────────────────
+    function showQ3() {
+      var c = card();
+      c.appendChild(progressDots(2));
+      c.appendChild(label('Step 3 of 3'));
+      c.appendChild(heading('Has the other person already filed paperwork with the court?'));
+      c.appendChild(sub('If they filed first, you will need to file an Answer (Form 10) as well.'));
+
+      c.appendChild(optBtn('📬','Yes — I received court documents from them','I need to respond', function() {
+        // Override: if they've been served, always lead with Answer
+        q2 = 'respond';
+        finalize(true);
+      }));
+      c.appendChild(optBtn('📝','No — I am filing first','I am starting the process', function() { finalize(false); }));
+      c.appendChild(optBtn('🤷','I\'m not sure','I\'ll figure it out with the forms', function() { finalize(false); }));
+
+      c.appendChild(backBtn(showQ2));
+      c.appendChild(skipBtn());
+      setScreen(c);
+    }
+
+    // ── Finalize: resolve route and create case ────────────────────────────
+    function finalize(theyFiled) {
+      var key = q1 + '|' + q2;
+      var route = ROUTING[key];
+
+      if (!route) {
+        // Fallback — open form selector
+        overlay.remove();
+        return;
+      }
+
+      var caseType = route.caseType;
+      // If they were served first, prepend Answer if not already there
+      if (theyFiled && caseType.indexOf('form10-answer') === -1) {
+        caseType = 'form10-answer,form6b-service,' + caseType;
+      }
+
+      // Show confirmation screen
+      var c = card();
+      c.innerHTML = [
+        '<div style="text-align:center;padding:8px 0 24px;">',
+          '<div style="font-size:52px;margin-bottom:16px;">' + route.icon + '</div>',
+          '<div style="font-size:11px;color:#5eead4;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;">We\'ve found the right forms</div>',
+          '<h2 style="color:#f9fafb;font-size:20px;margin:0 0 10px;font-weight:700;">' + route.label + '</h2>',
+          '<p style="color:#9ca3af;font-size:14px;margin:0 0 24px;line-height:1.6;">We\'ll create your case and load the forms you need. You can fill them out in any order and come back any time — your answers are saved automatically.</p>',
+          '<div style="background:#0d2d22;border:1px solid #1a4030;border-radius:10px;padding:14px 16px;margin-bottom:28px;text-align:left;">',
+            '<div style="font-size:12px;color:#5eead4;font-weight:600;margin-bottom:6px;">Forms in this path</div>',
+            '<div style="color:#6b7280;font-size:13px;line-height:1.7;">' + caseType.split(',').map(function(ct) {
+              var parts = ct.split('-');
+              return '• ' + (parts[0] || '').replace('form','Form ').trim() + ' — ' + parts.slice(1).join(' ').replace(/-/g,' ');
+            }).join('<br>') + '</div>',
+          '</div>',
+        '</div>',
+      ].join('');
+
+      var goBtn = document.createElement('button');
+      goBtn.style.cssText = 'background:#0d9e6e;color:#fff;border:none;border-radius:10px;padding:15px 28px;font-size:16px;font-weight:700;cursor:pointer;width:100%;transition:background 0.15s;';
+      goBtn.textContent = 'Create my case →';
+      goBtn.addEventListener('mouseenter', function() { goBtn.style.background='#0b8a5f'; });
+      goBtn.addEventListener('mouseleave', function() { goBtn.style.background='#0d9e6e'; });
+      goBtn.addEventListener('click', function() {
+        overlay.remove();
+        createFirstCase(route.label, caseType);
+      });
+      c.appendChild(goBtn);
+
+      var changeMind = document.createElement('button');
+      changeMind.style.cssText = 'background:transparent;border:none;color:#4b5563;font-size:13px;cursor:pointer;margin-top:16px;display:block;width:100%;text-align:center;';
+      changeMind.textContent = '← Start over';
+      changeMind.addEventListener('click', showWelcome);
+      c.appendChild(changeMind);
+
+      setScreen(c);
+    }
+
+    // ── Boot ──────────────────────────────────────────────────────────────
+    document.body.appendChild(overlay);
+    showWelcome();
+  }
+
+    function createFirstCase(title, caseType) {
+    fetch(_RW + '/api/cases', {
+      method: 'POST',
+      headers: __authHdr(),
+      body: JSON.stringify({ title: 'My ' + title + ' case', caseType: caseType })
+    }).then(function(r) { return r.json(); })
+      .then(function(newCase) {
+        if (newCase.id) {
+          // Show success toast
+          var toast = document.createElement('div');
+          toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#065f46;color:#d1fae5;padding:14px 24px;border-radius:10px;font-size:14px;font-weight:600;z-index:99999;';
+          toast.textContent = '✓ Case created — let\u2019s get started';
+          document.body.appendChild(toast);
+          setTimeout(function() { toast.remove(); }, 3000);
+          // Trigger React to refresh dashboard
+          setTimeout(function() { window.dispatchEvent(new Event('hp:casecreated')); }, 300);
+        } else if (newCase.code === 'SUBSCRIPTION_REQUIRED') {
+          // Free user picked a locked form type — redirect to subscription
+          if (window.location.hash !== '#/subscription') {
+            window.location.hash = '#/subscription';
+          }
+        }
+      }).catch(function() {});
+  }
+
+  // ── Free-to-paid conversion banner ────────────────────────────
+  function injectConversionBanner() {
+    var user = window.__hp_currentUser;
+    if (!user) return;
+    var isPaid = (user.subscriptionStatus === 'active' || user.subscriptionStatus === 'past_due') && user.plan !== 'free';
+    if (isPaid) return; // paid users don’t see it
+    if (document.getElementById('__hp_conversion_banner')) return;
+
+    var banner = document.createElement('div');
+    banner.id = '__hp_conversion_banner';
+    banner.style.cssText = 'background:linear-gradient(135deg,#0d9488,#0284c7);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;';
+    banner.innerHTML = [
+      '<div style="color:#fff;font-size:13px;line-height:1.4;">',
+        '<strong>Form 8 is free.</strong> Subscribe to export court-ready PDFs and access all 35 Ontario forms.',
+      '</div>',
+      '<a href="#/subscription" style="background:#fff;color:#0d9488;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">See plans →</a>'
+    ].join('');
+
+    // Inject below navbar
+    var navbar = document.querySelector('header,nav,[role=navigation],.navbar') || document.querySelector('#root > div > div');
+    if (navbar && navbar.parentNode) {
+      navbar.parentNode.insertBefore(banner, navbar.nextSibling);
+    } else {
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+  }
+
+  // ── Hook into app ready ────────────────────────────────────────
+  // Watch for user data to appear in the React app
+  var _ob_userCheckInterval = null;
+  function startUserWatch() {
+    if (_ob_userCheckInterval) return;
+    _ob_userCheckInterval = setInterval(function() {
+      // Try to get user from the auth/me endpoint if we have a token
+      if (!window.__hp_token) return;
+      if (window.__hp_currentUser) {
+        clearInterval(_ob_userCheckInterval);
+        _ob_userCheckInterval = null;
+        checkAndHandleVerification();
+        injectConversionBanner();
+        return;
+      }
+      // Fetch user if not cached
+      fetch(_RW + '/api/auth/me', { headers: __authHdr() })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.user) {
+            window.__hp_currentUser = d.user;
+            clearInterval(_ob_userCheckInterval);
+            _ob_userCheckInterval = null;
+            checkAndHandleVerification();
+            injectConversionBanner();
+          }
+        }).catch(function() {});
+    }, 1500);
+  }
+
+  // Start watching after patches load
+  setTimeout(startUserWatch, 2000);
+
+  // Also trigger on login events
+  var _orig_fetch = window.fetch;
+  window.fetch = function(url) {
+    var result = _orig_fetch.apply(this, arguments);
+    if (typeof url === 'string' && (url.includes('/api/auth/login') || url.includes('/api/auth/register'))) {
+      result.then(function(r) {
+        return r.clone().json().catch(function() { return {}; });
+      }).then(function(d) {
+        if (d.token) {
+          window.__hp_token = d.token;
+          if (d.user) window.__hp_currentUser = d.user;
+          setTimeout(function() {
+            checkAndHandleVerification();
+            injectConversionBanner();
+          }, 800);
+        }
+      }).catch(function() {});
+    }
+    return result;
+  };
+
+    // Register FormEngine form definitions
+  window.__hp_formDefs = window.__hp_formDefs || {};
+  window.__hp_formDefs['ON-F8'] = {"formId":"ON-F8","jurisdiction":"ON","pdfFileName":"form8.pdf","title":"Form 8 \u2014 Application (General)","subtitle":"Ontario Family Court \u2014 Family Law Rules","requiredPlan":"free","freeForm":true,"parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 7","intro":"Choose your local Ontario Family Court. All documents you generate will be addressed to that courthouse.","fields":[{"fieldId":"courthouse","label":"Which courthouse will you be filing at?","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"helpText":"Choose the Ontario courthouse closest to where you or your children live.","pdfFieldName":"Courthouse","id":"courthouse","autoFill":"courthouse"},{"fieldId":"hasFile","label":"Is there already a court file open for this matter?","type":"yesno","source":"profile.case.hasFile","required":true,"pdfFieldName":"Has court file"},{"fieldId":"fileNumber","label":"Court file number","type":"text","source":"profile.case.fileNumber","required":false,"conditional":{"dependsOn":"hasFile","showWhen":"yes"},"placeholder":"e.g. FC-2024-12345","helpText":"Found on any previous court documents or orders.","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"hasPriorOrders","label":"Have there been any previous court orders about this family?","type":"yesno","source":"profile.case.hasPriorOrders","required":true,"pdfFieldName":"Has prior orders"},{"fieldId":"priorOrdersDetails","label":"Briefly describe the previous orders","type":"textarea","source":"profile.case.priorOrdersDetails","required":false,"conditional":{"dependsOn":"hasPriorOrders","showWhen":"yes"},"placeholder":"e.g. Temporary custody order dated January 2023 \u2014 child lives with mother","pdfFieldName":"Prior orders details"}]},{"partId":"applicant","title":"About you","subtitle":"Step 2 of 7","intro":"This is information about you \u2014 the person filling this out.","fields":[{"fieldId":"applicantFullName","label":"Your full legal name","type":"text","source":"profile.applicant.fullName","required":true,"placeholder":"First Middle Last","pdfFieldName":"Applicant full name","id":"applicant_full_name","autoFill":"applicant_full_name"},{"fieldId":"applicantDob","label":"Your date of birth","type":"date","source":"profile.applicant.dob","required":true,"pdfFieldName":"Applicant DOB","id":"applicant_dob","autoFill":"user_dob"},{"fieldId":"applicantAddress","label":"Your street address","type":"text","source":"profile.applicant.address","required":true,"pdfFieldName":"Applicant address","id":"applicant_street","autoFill":"user_address"},{"fieldId":"applicantUnit","label":"Apartment / Unit number","type":"text","source":"profile.applicant.unit","required":false,"pdfFieldName":"Applicant unit"},{"fieldId":"applicantCity","label":"City or town","type":"text","source":"profile.applicant.city","required":true,"pdfFieldName":"Applicant city"},{"fieldId":"applicantPostalCode","label":"Postal code","type":"text","source":"profile.applicant.postalCode","required":true,"placeholder":"A1A 1A1","pdfFieldName":"Applicant postal code"},{"fieldId":"applicantPhone","label":"Phone number","type":"tel","source":"profile.applicant.phone","required":true,"pdfFieldName":"Applicant phone","id":"applicant_phone","autoFill":"user_phone"},{"fieldId":"applicantEmail","label":"Email address","type":"email","source":"profile.applicant.email","required":false,"pdfFieldName":"Applicant email","id":"applicant_email","autoFill":"user_email"}]},{"partId":"respondent","title":"About the other person","subtitle":"Step 3 of 7","intro":"This is information about the other party \u2014 your spouse, partner, or co-parent.","fields":[{"fieldId":"respondentFullName","label":"Their full legal name","type":"text","source":"profile.respondent.fullName","required":true,"pdfFieldName":"Respondent full name","id":"respondent_full_name","autoFill":"respondent_full_name"},{"fieldId":"respondentDob","label":"Their date of birth (if you know it)","type":"date","source":"profile.respondent.dob","required":false,"pdfFieldName":"Respondent DOB"},{"fieldId":"respondentAddress","label":"Their address (if you know it)","type":"text","source":"profile.respondent.address","required":false,"pdfFieldName":"Respondent address"},{"fieldId":"respondentPhone","label":"Their phone number (if you know it)","type":"tel","source":"profile.respondent.phone","required":false,"pdfFieldName":"Respondent phone"},{"fieldId":"respondentHasLawyer","label":"Do they have a lawyer?","type":"yesno","source":"profile.respondent.hasLawyer","required":true,"pdfFieldName":"Respondent has lawyer"},{"fieldId":"respondentLawyerName","label":"Lawyer's name","type":"text","source":"profile.respondent.lawyerName","required":false,"conditional":{"dependsOn":"respondentHasLawyer","showWhen":"yes"},"pdfFieldName":"Respondent lawyer name"},{"fieldId":"respondentLawyerFirm","label":"Law firm","type":"text","source":"profile.respondent.lawyerFirm","required":false,"conditional":{"dependsOn":"respondentHasLawyer","showWhen":"yes"},"pdfFieldName":"Respondent lawyer firm"},{"fieldId":"respondentLawyerPhone","label":"Lawyer's phone number","type":"tel","source":"profile.respondent.lawyerPhone","required":false,"conditional":{"dependsOn":"respondentHasLawyer","showWhen":"yes"},"pdfFieldName":"Respondent lawyer phone"}]},{"partId":"children","title":"Your children","subtitle":"Step 4 of 7","intro":"Tell us about the children involved in this case.","fields":[{"fieldId":"childrenCount","label":"How many children are involved?","type":"select","required":true,"options":["1","2","3","4","5","6+"],"pdfFieldName":"Number of children"},{"fieldId":"child1Name","label":"Child 1 \u2014 Full name","type":"text","required":true,"pdfFieldName":"Child 1 name"},{"fieldId":"child1Dob","label":"Child 1 \u2014 Date of birth","type":"date","required":true,"pdfFieldName":"Child 1 DOB"},{"fieldId":"child1Residence","label":"Child 1 \u2014 Currently lives with","type":"select","required":true,"options":["Me (the applicant)","The other party","Both of us (shared)","Other"],"pdfFieldName":"Child 1 residence"},{"fieldId":"child2Name","label":"Child 2 \u2014 Full name","type":"text","required":false,"conditional":{"dependsOn":"childrenCount","showWhen":["2","3","4","5","6+"]},"pdfFieldName":"Child 2 name"},{"fieldId":"child2Dob","label":"Child 2 \u2014 Date of birth","type":"date","required":false,"conditional":{"dependsOn":"childrenCount","showWhen":["2","3","4","5","6+"]},"pdfFieldName":"Child 2 DOB"},{"fieldId":"child2Residence","label":"Child 2 \u2014 Currently lives with","type":"select","required":false,"conditional":{"dependsOn":"childrenCount","showWhen":["2","3","4","5","6+"]},"options":["Me (the applicant)","The other party","Both of us (shared)","Other"],"pdfFieldName":"Child 2 residence"}]},{"partId":"claims","title":"What you're asking for","subtitle":"Step 5 of 7","intro":"Select everything you want the court to decide. You can ask for more than one thing.","fields":[{"fieldId":"claimCustody","label":"Decision-making responsibility (custody) for the children","type":"checkbox","pdfFieldName":"Claim custody"},{"fieldId":"claimAccess","label":"Parenting time (access) with the children","type":"checkbox","pdfFieldName":"Claim access"},{"fieldId":"claimChildSupport","label":"Child support","type":"checkbox","pdfFieldName":"Claim child support"},{"fieldId":"claimSpousalSupport","label":"Spousal support","type":"checkbox","pdfFieldName":"Claim spousal support"},{"fieldId":"claimPropertyDivision","label":"Division of property","type":"checkbox","pdfFieldName":"Claim property division"},{"fieldId":"claimRestrainingOrder","label":"Restraining or non-harassment order","type":"checkbox","pdfFieldName":"Claim restraining order"},{"fieldId":"claimOther","label":"Other (describe below)","type":"checkbox","pdfFieldName":"Claim other"},{"fieldId":"claimOtherDetails","label":"Describe what else you are asking for","type":"textarea","required":false,"conditional":{"dependsOn":"claimOther","showWhen":true},"pdfFieldName":"Claim other details"}]},{"partId":"situation","title":"Your situation","subtitle":"Step 6 of 7","intro":"Tell the court the key facts about your situation. Be factual and brief \u2014 you'll have affidavits to go into more detail.","fields":[{"fieldId":"relationshipType","label":"What was your relationship with the other party?","type":"select","required":true,"options":["Married","Common-law / Cohabiting","Never lived together"],"pdfFieldName":"Relationship type"},{"fieldId":"marriageDate","label":"Date of marriage","type":"date","source":"profile.case.marriageDate","required":false,"conditional":{"dependsOn":"relationshipType","showWhen":"Married"},"pdfFieldName":"Marriage date","id":"date_of_marriage","autoFill":"marriage_date"},{"fieldId":"separationDate","label":"Date of separation","type":"date","source":"profile.case.separationDate","required":true,"helpText":"The date you and the other party stopped living together as a couple.","pdfFieldName":"Separation date","id":"date_of_separation","autoFill":"separation_date"},{"fieldId":"situationSummary","label":"Briefly describe your situation and why you are coming to court","type":"textarea","required":true,"placeholder":"e.g. We separated in March 2024. We have two children. We cannot agree on parenting arrangements. I am seeking a court order for...","helpText":"2\u20135 sentences is enough here. Focus on facts, not feelings.","pdfFieldName":"Situation summary"}]},{"partId":"review","title":"Review and confirm","subtitle":"Step 7 of 7","intro":"Review your answers before generating your documents. You can go back to any step to make changes.","fields":[{"fieldId":"declarationConfirmed","label":"I confirm that the information I have provided is true and accurate to the best of my knowledge.","type":"checkbox","required":true,"helpText":"This form will be sworn or affirmed before a commissioner of oaths before it is filed with the court.","pdfFieldName":"Declaration confirmed"}]}]};
+  window.__hp_formDefs['ON-F14'] = {"formId":"ON-F14","jurisdiction":"ON","pdfFileName":"form14.pdf","title":"Form 14 \u2014 Notice of Motion","subtitle":"Ontario Family Court \u2014 Family Law Rules (FLR 14)","requiredPlan":"standard","freeForm":false,"helpIntro":"A Notice of Motion tells the court and the other party that you want to ask for a temporary order \u2014 for example, temporary custody, support, or a restraining order \u2014 before your main case is decided. You must serve this form on the other party at least 6 business days before the motion date.","parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 6","intro":"We'll use your court information from your existing case file. Confirm or update the details below.","fields":[{"fieldId":"courthouse","label":"Which courthouse will hear this motion?","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"helpText":"This should be the same courthouse as your main case.","pdfFieldName":"Courthouse","id":"courthouse","autoFill":"courthouse"},{"fieldId":"fileNumber","label":"Court file number","type":"text","source":"profile.case.fileNumber","required":false,"placeholder":"e.g. FC-2024-12345","helpText":"Found on any documents already filed in your case. Leave blank if you don't have one yet.","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"motionDate","label":"Date of the motion hearing","type":"date","required":true,"helpText":"Contact the court clerk to schedule a date before filling this in. You must serve this form at least 6 business days before this date.","pdfFieldName":"Motion date"},{"fieldId":"motionTime","label":"Time of the motion hearing","type":"text","required":true,"placeholder":"e.g. 9:30 a.m.","pdfFieldName":"Motion time"},{"fieldId":"hearingLocation","label":"Place of the hearing (courthouse address)","type":"text","required":true,"placeholder":"e.g. 393 University Ave, Toronto ON M5G 1E6","helpText":"Usually the same as the courthouse above. Your clerk can confirm the exact courtroom.","pdfFieldName":"Hearing location"}]},{"partId":"parties","title":"The parties","subtitle":"Step 2 of 6","intro":"Confirm your information and the other party's information. This auto-fills from your case profile.","fields":[{"fieldId":"applicantFullName","label":"Your full legal name (person making this motion)","type":"text","source":"profile.applicant.fullName","required":true,"pdfFieldName":"Applicant full name","id":"moving_party_name","autoFill":"applicant_full_name"},{"fieldId":"applicantAddress","label":"Your address for service","type":"text","source":"profile.applicant.address","required":true,"helpText":"This is the address where court documents can be delivered to you.","pdfFieldName":"Applicant address","id":"moving_party_address","autoFill":"user_address"},{"fieldId":"applicantCity","label":"City","type":"text","source":"profile.applicant.city","required":true,"pdfFieldName":"Applicant city"},{"fieldId":"applicantPostalCode","label":"Postal code","type":"text","source":"profile.applicant.postalCode","required":true,"placeholder":"A1A 1A1","pdfFieldName":"Applicant postal code"},{"fieldId":"applicantPhone","label":"Your phone number","type":"tel","source":"profile.applicant.phone","required":true,"pdfFieldName":"Applicant phone","id":"moving_party_phone","autoFill":"user_phone"},{"fieldId":"applicantEmail","label":"Your email address","type":"email","source":"profile.applicant.email","required":false,"pdfFieldName":"Applicant email","id":"moving_party_email","autoFill":"user_email"},{"fieldId":"respondentFullName","label":"Other party's full legal name","type":"text","source":"profile.respondent.fullName","required":true,"pdfFieldName":"Respondent full name","id":"other_party_name","autoFill":"respondent_full_name"},{"fieldId":"respondentAddress","label":"Other party's address for service","type":"text","source":"profile.respondent.address","required":false,"pdfFieldName":"Respondent address"},{"fieldId":"respondentPhone","label":"Other party's phone number","type":"tel","source":"profile.respondent.phone","required":false,"pdfFieldName":"Respondent phone"},{"fieldId":"respondentHasLawyer","label":"Does the other party have a lawyer?","type":"yesno","source":"profile.respondent.hasLawyer","required":true,"pdfFieldName":"Respondent has lawyer"},{"fieldId":"respondentLawyerName","label":"Other party's lawyer name","type":"text","source":"profile.respondent.lawyerName","required":false,"conditional":{"dependsOn":"respondentHasLawyer","showWhen":"yes"},"pdfFieldName":"Respondent lawyer name"},{"fieldId":"respondentLawyerAddress","label":"Lawyer's address","type":"text","required":false,"conditional":{"dependsOn":"respondentHasLawyer","showWhen":"yes"},"pdfFieldName":"Respondent lawyer address"},{"fieldId":"respondentLawyerPhone","label":"Lawyer's phone number","type":"tel","source":"profile.respondent.lawyerPhone","required":false,"conditional":{"dependsOn":"respondentHasLawyer","showWhen":"yes"},"pdfFieldName":"Respondent lawyer phone"}]},{"partId":"orders","title":"Orders you are asking for","subtitle":"Step 3 of 6","intro":"Select all the temporary orders you want the court to make at this motion. These are temporary \u2014 they last until your case is resolved or the court changes them.","fields":[{"fieldId":"orderTempCustody","label":"Temporary decision-making responsibility (custody)","type":"checkbox","pdfFieldName":"Order temp custody"},{"fieldId":"orderTempParentingTime","label":"Temporary parenting time (access) schedule","type":"checkbox","pdfFieldName":"Order temp parenting time"},{"fieldId":"orderTempChildSupport","label":"Temporary child support","type":"checkbox","pdfFieldName":"Order temp child support"},{"fieldId":"orderTempSpousalSupport","label":"Temporary spousal support","type":"checkbox","pdfFieldName":"Order temp spousal support"},{"fieldId":"orderRestrainingOrder","label":"Restraining or non-harassment order","type":"checkbox","pdfFieldName":"Order restraining order"},{"fieldId":"orderExclusivePossession","label":"Exclusive possession of the family home","type":"checkbox","pdfFieldName":"Order exclusive possession"},{"fieldId":"orderChangeExisting","label":"Change or set aside an existing order","type":"checkbox","pdfFieldName":"Order change existing"},{"fieldId":"orderOther","label":"Other order (describe below)","type":"checkbox","pdfFieldName":"Order other"},{"fieldId":"orderOtherDetails","label":"Describe the other order you are asking for","type":"textarea","required":false,"conditional":{"dependsOn":"orderOther","showWhen":true},"placeholder":"Describe clearly what you want the court to order.","pdfFieldName":"Order other details"},{"fieldId":"ordersDetailedDescription","label":"In your own words, describe the specific orders you are asking for (Page 2 of Form 14)","type":"textarea","required":true,"placeholder":"e.g. 1. That the Applicant have temporary decision-making responsibility for the child Alex Lance, born April 12, 2015.\n2. That the Respondent pay child support of $X per month commencing [date].\n3. That the Respondent be restrained from attending at [address].","helpText":"Write each order you want as a numbered sentence. Be specific \u2014 include names, amounts, and dates where possible. A judge will read exactly what you write here.","pdfFieldName":"Orders detailed description"}]},{"partId":"evidence","title":"Supporting evidence","subtitle":"Step 4 of 6","intro":"Tell the court what documents you are attaching to support this motion.","fields":[{"fieldId":"hasAffidavit","label":"Are you filing a Form 14A Affidavit with this motion?","type":"yesno","required":true,"helpText":"Almost always yes. The affidavit is where you explain the facts behind your motion in detail.","pdfFieldName":"Has affidavit"},{"fieldId":"hasCaseConferenceNotice","label":"Are you also serving a Notice of Case Conference with this motion?","type":"yesno","required":true,"helpText":"Required if you are asking to change an existing order.","pdfFieldName":"Has case conference notice"},{"fieldId":"continuingRecordDocuments","label":"List any other documents in the Continuing Record you are relying on","type":"textarea","required":false,"placeholder":"e.g. Volume 1, Tab 3 \u2014 Financial Statement dated January 2024\nVolume 1, Tab 5 \u2014 Prior Order dated March 2023","helpText":"Leave blank if this is your first court document. The Continuing Record is the binder of all documents filed in your case.","pdfFieldName":"Continuing record documents"},{"fieldId":"urgencyReason","label":"Is this an urgent motion? If yes, briefly explain why.","type":"textarea","required":false,"placeholder":"e.g. The child is at risk of harm. I am asking for an emergency order without notice because...","helpText":"Only fill this in if you are asking the court to hear this motion on an urgent basis or without notifying the other party first (ex parte).","pdfFieldName":"Urgency reason"}]},{"partId":"service","title":"Serving the other party","subtitle":"Step 5 of 6","intro":"You must give the other party a copy of this Notice of Motion and all supporting documents at least 6 business days before the motion date. After you serve them you must fill out Form 6B (Affidavit of Service).","fields":[{"fieldId":"serviceMethod","label":"How will you serve the other party?","type":"select","required":true,"options":["By hand (personal service)","By mail","By email (if they have agreed or if the court has ordered it)","Through their lawyer","By courier"],"helpText":"If the other party has a lawyer, serve the lawyer \u2014 not the person directly.","pdfFieldName":"Service method"},{"fieldId":"servicePlannedDate","label":"When do you plan to serve the other party?","type":"date","required":false,"helpText":"Must be at least 6 business days before your motion date.","pdfFieldName":"Service planned date"},{"fieldId":"form14cReminder","label":"I understand I must file Form 14C (Confirmation of Motion) no later than 2:00 p.m., 3 business days before the motion date.","type":"checkbox","required":true,"helpText":"If you do not file Form 14C on time, your motion may be removed from the list and you will have to reschedule.","pdfFieldName":"Form 14C reminder acknowledged"}]},{"partId":"review","title":"Review and sign","subtitle":"Step 6 of 6","intro":"Review your Notice of Motion below. When you are ready, confirm and generate your form.","fields":[{"fieldId":"signatureDate","label":"Date you are signing this form","type":"date","required":true,"pdfFieldName":"Signature date"},{"fieldId":"declarationConfirmed","label":"I confirm the information in this Notice of Motion is accurate. I understand this document will be filed with the Ontario court.","type":"checkbox","required":true,"pdfFieldName":"Declaration confirmed"}]}]};
+  window.__hp_formDefs['ON-F14A'] = {"formId":"ON-F14A","jurisdiction":"ON","pdfFileName":"form14a.pdf","title":"Form 14A \u2014 Affidavit (General)","subtitle":"Ontario Family Court \u2014 Family Law Rules (FLR 14A)","requiredPlan":"standard","freeForm":false,"helpIntro":"An Affidavit is a sworn statement of facts that supports your motion. You write out the facts \u2014 the who, what, when, and where \u2014 and then sign it in front of a commissioner of oaths (available at the courthouse or at most lawyers' offices, often for free). This is the document where you tell your story to the judge.","parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 7","intro":"This pulls from your existing case file. Confirm the court details.","fields":[{"fieldId":"courthouse","label":"Courthouse name","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"pdfFieldName":"Courthouse","id":"courthouse_name","autoFill":"courthouse"},{"fieldId":"fileNumber","label":"Court file number","type":"text","source":"profile.case.fileNumber","required":false,"placeholder":"e.g. FC-2024-12345","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"affidavitDate","label":"Date of this affidavit","type":"date","required":true,"helpText":"The date you will sign this in front of the commissioner of oaths.","pdfFieldName":"Affidavit date"}]},{"partId":"parties","title":"The parties","subtitle":"Step 2 of 7","intro":"Confirm both parties' information. This auto-fills from your profile.","fields":[{"fieldId":"applicantFullName","label":"Applicant's full legal name","type":"text","source":"profile.applicant.fullName","required":true,"pdfFieldName":"Applicant full name","id":"applicant_full_name","autoFill":"applicant_full_name"},{"fieldId":"applicantAddress","label":"Applicant's address for service","type":"text","source":"profile.applicant.address","required":true,"pdfFieldName":"Applicant address"},{"fieldId":"applicantCity","label":"City","type":"text","source":"profile.applicant.city","required":true,"pdfFieldName":"Applicant city"},{"fieldId":"applicantPostalCode","label":"Postal code","type":"text","source":"profile.applicant.postalCode","required":true,"pdfFieldName":"Applicant postal code"},{"fieldId":"applicantPhone","label":"Phone number","type":"tel","source":"profile.applicant.phone","required":true,"pdfFieldName":"Applicant phone"},{"fieldId":"respondentFullName","label":"Respondent's full legal name","type":"text","source":"profile.respondent.fullName","required":true,"pdfFieldName":"Respondent full name","id":"respondent_full_name","autoFill":"respondent_full_name"},{"fieldId":"respondentAddress","label":"Respondent's address (if known)","type":"text","source":"profile.respondent.address","required":false,"pdfFieldName":"Respondent address"}]},{"partId":"deponent","title":"About you (the deponent)","subtitle":"Step 3 of 7","intro":"The 'deponent' is the person swearing or affirming this affidavit \u2014 that's you. These details go at the top of the affidavit.","fields":[{"fieldId":"deponentFullName","label":"Your full legal name","type":"text","source":"profile.applicant.fullName","required":true,"helpText":"As it will appear on the sworn affidavit.","pdfFieldName":"Deponent full name","id":"deponent_name","autoFill":"applicant_full_name"},{"fieldId":"deponentMunicipality","label":"Municipality and province where you live","type":"text","required":true,"placeholder":"e.g. Toronto, Ontario","helpText":"The form reads: 'I live in [municipality & province]'.","pdfFieldName":"Deponent municipality"},{"fieldId":"swearOrAffirm","label":"Will you swear (religious oath) or affirm (non-religious)?","type":"select","required":true,"options":["Swear","Affirm"],"helpText":"Both are legally equal. Choose whichever you are comfortable with.","pdfFieldName":"Swear or affirm"}]},{"partId":"background","title":"Background facts","subtitle":"Step 4 of 7","intro":"Provide the factual background of your situation. Write clearly and stick to facts \u2014 not opinions or emotions. Each paragraph should cover one fact.","fields":[{"fieldId":"relationshipBackground","label":"Describe your relationship with the other party","type":"textarea","required":true,"placeholder":"e.g. I was married to the Respondent Jane Doe on June 15, 2012. We lived together at 123 Main Street, Toronto, Ontario. We separated on March 1, 2024.","helpText":"Include: how you are related, when the relationship started, when and how it ended.","pdfFieldName":"Relationship background"},{"fieldId":"childrenBackground","label":"Describe the children involved (if any)","type":"textarea","required":false,"placeholder":"e.g. We have one child together: Alex Lance, born April 12, 2015. Alex currently lives with me at 123 Main Street, Toronto.","helpText":"Include: each child's name, date of birth, and where they are currently living. Leave blank if there are no children.","pdfFieldName":"Children background"},{"fieldId":"currentArrangements","label":"What is happening right now? (current living/parenting arrangements)","type":"textarea","required":true,"placeholder":"e.g. Since our separation, Alex has been living with me. The Respondent sees Alex every other weekend. There is no formal court order in place.","helpText":"Describe the current situation \u2014 where everyone is living, what parenting time looks like, what support if any is being paid.","pdfFieldName":"Current arrangements"}]},{"partId":"motionFacts","title":"Facts supporting your motion","subtitle":"Step 5 of 7","intro":"This is the most important part. Explain the facts that make your motion necessary. Be specific \u2014 include dates, names, and what happened. Write in numbered paragraphs.","fields":[{"fieldId":"whyMotionNeeded","label":"Why are you bringing this motion? What has happened that makes a court order necessary?","type":"textarea","required":true,"placeholder":"e.g. 1. On May 1, 2026, the Respondent informed me that she intended to move with Alex to Calgary, Alberta without my consent.\n2. I attempted to discuss this with the Respondent on May 5, 2026, but she refused to communicate.\n3. I am concerned that if the Respondent moves, I will be denied parenting time with Alex.","helpText":"Number each paragraph. Each paragraph = one fact. Include who did what, when, and where. Do not include opinions \u2014 only facts you personally know or witnessed.","pdfFieldName":"Why motion needed"},{"fieldId":"ordersRequested","label":"What specific orders are you asking the court to make?","type":"textarea","required":true,"placeholder":"e.g. 1. An order that the Applicant have temporary decision-making responsibility for Alex Lance.\n2. An order that the Respondent not relocate with Alex outside of Toronto without court permission.\n3. An order for child support of $X per month.","helpText":"These should match the orders listed on your Form 14. Be specific about what you want.","pdfFieldName":"Orders requested in affidavit"},{"fieldId":"bestInterestsExplanation","label":"Why are these orders in the best interests of the children? (if children are involved)","type":"textarea","required":false,"placeholder":"e.g. Alex is enrolled in school in Toronto and has a strong support network of family and friends here. Relocating to Calgary would disrupt Alex's education and my ongoing relationship with Alex.","helpText":"The court's primary concern is always what is best for the children. Explain why your requested orders serve the children's needs.","pdfFieldName":"Best interests explanation"},{"fieldId":"urgencyExplanation","label":"Is this urgent? If yes, explain why it cannot wait.","type":"textarea","required":false,"placeholder":"e.g. The Respondent has stated she plans to move on July 1, 2026. Without an emergency order, the move will happen before this matter can be heard in the normal course.","helpText":"Only fill this in if you need the court to hear this motion on an urgent basis.","pdfFieldName":"Urgency explanation"}]},{"partId":"exhibits","title":"Exhibits (attachments)","subtitle":"Step 6 of 7","intro":"List any documents you are attaching to this affidavit as exhibits. Label them Exhibit A, B, C, etc. in the order you mention them.","fields":[{"fieldId":"hasExhibits","label":"Are you attaching any documents to this affidavit?","type":"yesno","required":true,"helpText":"Examples: text messages, emails, photos, prior court orders, letters.","pdfFieldName":"Has exhibits"},{"fieldId":"exhibitsList","label":"List your exhibits","type":"textarea","required":false,"conditional":{"dependsOn":"hasExhibits","showWhen":"yes"},"placeholder":"Exhibit A \u2014 Text messages between myself and the Respondent dated May 1\u201310, 2026\nExhibit B \u2014 Prior court order dated March 15, 2023\nExhibit C \u2014 Alex's school enrollment records","helpText":"For each exhibit: write the letter, then what it is and the date. Attach the actual document behind the affidavit when you file.","pdfFieldName":"Exhibits list"},{"fieldId":"exhibitsReferenced","label":"Have you referenced each exhibit by letter in the facts section above?","type":"yesno","required":false,"conditional":{"dependsOn":"hasExhibits","showWhen":"yes"},"helpText":"e.g. 'Attached as Exhibit A is a copy of the text messages.' The form requires you to identify each exhibit where it is first mentioned.","pdfFieldName":"Exhibits referenced in body"}]},{"partId":"swearing","title":"Swearing / commissioning","subtitle":"Step 7 of 7","intro":"This section will be completed in front of a commissioner of oaths. You cannot sign this affidavit without a commissioner present \u2014 doing so makes it invalid.","fields":[{"fieldId":"commissionerLocation","label":"Where will you swear/affirm this affidavit?","type":"select","required":false,"options":["At the courthouse","At a lawyer's office","At a notary public's office","At a Service Ontario location","Other"],"helpText":"Commissioners of oaths are available free of charge at most Ontario courthouses.","pdfFieldName":"Commissioner location"},{"fieldId":"commissionerMunicipality","label":"Municipality where it will be sworn","type":"text","required":false,"placeholder":"e.g. Toronto","pdfFieldName":"Commissioner municipality"},{"fieldId":"commissionerProvince","label":"Province","type":"text","required":false,"placeholder":"Ontario","pdfFieldName":"Commissioner province"},{"fieldId":"commissioningDate","label":"Date to be commissioned (leave blank to fill at the courthouse)","type":"date","required":false,"pdfFieldName":"Commissioning date"},{"fieldId":"declarationConfirmed","label":"I understand I must sign this affidavit in front of a commissioner of oaths for it to be valid. I confirm the facts I have written are true.","type":"checkbox","required":true,"helpText":"Swearing a false affidavit is perjury \u2014 a criminal offence. Only include facts you know to be true.","pdfFieldName":"Declaration confirmed"}]}]};
+  window.__hp_formDefs['ON-F6B'] = {"formId":"ON-F6B","jurisdiction":"ON","pdfFileName":"form6b.pdf","title":"Form 6B \u2014 Affidavit of Service","subtitle":"Ontario Family Court \u2014 Family Law Rules (FLR 6)","requiredPlan":"standard","freeForm":false,"helpIntro":"After you serve any court document on the other party, you must file an Affidavit of Service (Form 6B) with the court to prove the documents were delivered. You swear or affirm this form in front of a commissioner of oaths. You need one Form 6B for each time you serve documents.","parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 5","intro":"Confirm the court file this service relates to.","fields":[{"fieldId":"courthouse","label":"Courthouse","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"pdfFieldName":"Courthouse","id":"courthouse","autoFill":"courthouse"},{"fieldId":"fileNumber","label":"Court file number","type":"text","source":"profile.case.fileNumber","required":false,"placeholder":"e.g. FC-2024-12345","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"applicantFullName","label":"Applicant's full legal name","type":"text","source":"profile.applicant.fullName","required":true,"pdfFieldName":"Applicant full name","id":"applicant_full_name","autoFill":"applicant_full_name"},{"fieldId":"respondentFullName","label":"Respondent's full legal name","type":"text","source":"profile.respondent.fullName","required":true,"pdfFieldName":"Respondent full name","id":"respondent_full_name","autoFill":"respondent_full_name"}]},{"partId":"server","title":"Who served the documents?","subtitle":"Step 2 of 5","intro":"The person who physically delivered or sent the documents fills out this section. That can be you, or someone you asked to serve on your behalf (a friend, process server, etc.).","fields":[{"fieldId":"serverFullName","label":"Full name of the person who served the documents","type":"text","source":"profile.applicant.fullName","required":true,"helpText":"If you served the documents yourself, enter your own name. If someone else served them, enter their name \u2014 they will need to sign this affidavit.","pdfFieldName":"Server full name"},{"fieldId":"serverAge","label":"Age of the person who served the documents","type":"text","required":true,"placeholder":"e.g. 34","helpText":"Must be 18 years of age or older to serve court documents in Ontario.","pdfFieldName":"Server age"},{"fieldId":"serverAddress","label":"Server's address","type":"text","required":true,"helpText":"The home or business address of the person who did the serving.","pdfFieldName":"Server address"},{"fieldId":"serverCity","label":"City","type":"text","required":true,"pdfFieldName":"Server city"},{"fieldId":"serverProvince","label":"Province","type":"text","required":true,"placeholder":"Ontario","pdfFieldName":"Server province"},{"fieldId":"serverPostalCode","label":"Postal code","type":"text","required":true,"pdfFieldName":"Server postal code"}]},{"partId":"documents","title":"Documents that were served","subtitle":"Step 3 of 5","intro":"List every document you delivered to the other party in this batch of service.","fields":[{"fieldId":"documentsList","label":"List the documents that were served","type":"textarea","required":true,"placeholder":"Form 8 \u2014 Application (dated June 1, 2026)\nForm 14 \u2014 Notice of Motion (dated June 15, 2026)\nForm 14A \u2014 Affidavit (dated June 15, 2026)","helpText":"List each document on a separate line. Include the form number, the document name, and the date on it.","pdfFieldName":"Documents list"}]},{"partId":"serviceDetails","title":"How and where the documents were served","subtitle":"Step 4 of 5","intro":"Describe exactly how you delivered the documents. The method of service affects when the other party is considered to have received them.","fields":[{"fieldId":"personServed","label":"Full name of the person who was served","type":"text","source":"profile.respondent.fullName","required":true,"helpText":"Usually the other party. If they have a lawyer, you may serve the lawyer instead.","pdfFieldName":"Person served"},{"fieldId":"serviceMethod","label":"How were the documents served?","type":"select","required":true,"options":["Personal service \u2014 handed directly to the person","Leaving with adult at residence \u2014 left with another adult at their home","Leaving with adult at business \u2014 left with person in charge or adult employee","Regular mail \u2014 sent by Canada Post","Courier \u2014 sent by courier service","Email \u2014 sent by email (with prior agreement or court order)","Fax \u2014 sent by fax","Acceptance by lawyer \u2014 lawyer accepted on their client's behalf","Other (describe below)"],"pdfFieldName":"Service method"},{"fieldId":"serviceMethodOther","label":"Describe the other method of service","type":"textarea","required":false,"conditional":{"dependsOn":"serviceMethod","showWhen":"Other (describe below)"},"placeholder":"Describe how the documents were served.","pdfFieldName":"Service method other"},{"fieldId":"serviceDate","label":"Date the documents were served","type":"date","required":true,"helpText":"The actual date you handed over, mailed, emailed, or couriered the documents.","pdfFieldName":"Service date"},{"fieldId":"serviceTime","label":"Time the documents were served (if personal service)","type":"text","required":false,"placeholder":"e.g. 2:30 p.m.","helpText":"Only required for personal service (hand delivery).","pdfFieldName":"Service time"},{"fieldId":"serviceAddress","label":"Address where service took place","type":"text","required":true,"placeholder":"e.g. 456 Oak Street, Toronto, ON M4B 1B2","helpText":"For mail/email, use the address it was sent to. For personal service, the place where documents were handed over.","pdfFieldName":"Service address"},{"fieldId":"personReceivedDescription","label":"If you served a person other than the named party, describe who received the documents","type":"textarea","required":false,"placeholder":"e.g. A woman who identified herself as the Respondent's spouse, approximately 40 years old.","helpText":"For example, if you left documents with an adult at the respondent's home, describe that person.","pdfFieldName":"Person received description"},{"fieldId":"emailAddress","label":"Email address documents were sent to (if served by email)","type":"email","required":false,"conditional":{"dependsOn":"serviceMethod","showWhen":"Email \u2014 sent by email (with prior agreement or court order)"},"pdfFieldName":"Email address served to"},{"fieldId":"emailConfirmationReceived","label":"Did you receive confirmation the email was delivered or opened?","type":"yesno","required":false,"conditional":{"dependsOn":"serviceMethod","showWhen":"Email \u2014 sent by email (with prior agreement or court order)"},"pdfFieldName":"Email confirmation received"}]},{"partId":"swearing","title":"Swearing / commissioning","subtitle":"Step 5 of 5","intro":"This affidavit must be signed in front of a commissioner of oaths. The commissioner will complete the bottom section. Commissioners are available free at most Ontario courthouses.","fields":[{"fieldId":"swearOrAffirm","label":"Will you swear or affirm?","type":"select","required":true,"options":["Swear","Affirm"],"helpText":"Both are legally equal. Swearing is a religious oath; affirming is a non-religious promise.","pdfFieldName":"Swear or affirm"},{"fieldId":"commissioningMunicipality","label":"Municipality where it will be commissioned","type":"text","required":false,"placeholder":"e.g. Toronto","pdfFieldName":"Commissioning municipality"},{"fieldId":"commissioningDate","label":"Date it will be commissioned (leave blank to fill at courthouse)","type":"date","required":false,"pdfFieldName":"Commissioning date"},{"fieldId":"declarationConfirmed","label":"I confirm the service described above took place as stated, and I understand this must be signed in front of a commissioner of oaths.","type":"checkbox","required":true,"pdfFieldName":"Declaration confirmed"}]}]};
+  window.__hp_formDefs['ON-F10'] = {"formId":"ON-F10","jurisdiction":"ON","pdfFileName":"form10.pdf","title":"Form 10 \u2014 Answer","subtitle":"Ontario Family Court \u2014 Family Law Rules (FLR 10)","requiredPlan":"standard","freeForm":false,"helpIntro":"Form 10 is the Answer \u2014 it is how you formally respond when someone has filed a court application against you (Form 8). You use it to agree with or disagree with what the applicant is asking for, and to ask for your own orders from the court. You must serve your Answer on the applicant and file it with the court within 30 days of being served with the Application.","parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 7","intro":"Enter the court file information from the Application (Form 8) you received.","fields":[{"fieldId":"courthouse","label":"Courthouse","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"pdfFieldName":"Courthouse","id":"courthouse","autoFill":"courthouse"},{"fieldId":"fileNumber","label":"Court file number (from the Application you received)","type":"text","source":"profile.case.fileNumber","required":false,"placeholder":"e.g. FC-2024-12345","helpText":"This is printed on the Form 8 Application that was served on you.","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"applicationDate","label":"Date printed on the Application you received","type":"date","required":false,"helpText":"Found at the top of the Form 8 Application.","pdfFieldName":"Application date"}]},{"partId":"respondentInfo","title":"Your information (the respondent)","subtitle":"Step 2 of 7","intro":"You are the respondent \u2014 the person responding to the application. Fill in your details.","fields":[{"fieldId":"respondentFullName","label":"Your full legal name","type":"text","source":"profile.applicant.fullName","required":true,"helpText":"In the Answer form, you are called the 'Respondent'. Your name auto-fills from your profile.","pdfFieldName":"Respondent full name","id":"respondent_full_name","autoFill":"respondent_full_name"},{"fieldId":"respondentDateOfBirth","label":"Your date of birth","type":"date","source":"profile.applicant.dateOfBirth","required":false,"pdfFieldName":"Respondent date of birth","id":"respondent_dob","autoFill":"user_dob"},{"fieldId":"respondentAddress","label":"Your address for service","type":"text","source":"profile.applicant.address","required":true,"helpText":"This is where court documents can be delivered to you.","pdfFieldName":"Respondent address","id":"respondent_address","autoFill":"user_address"},{"fieldId":"respondentCity","label":"City","type":"text","source":"profile.applicant.city","required":true,"pdfFieldName":"Respondent city"},{"fieldId":"respondentProvince","label":"Province","type":"text","required":true,"placeholder":"Ontario","pdfFieldName":"Respondent province"},{"fieldId":"respondentPostalCode","label":"Postal code","type":"text","source":"profile.applicant.postalCode","required":true,"pdfFieldName":"Respondent postal code"},{"fieldId":"respondentPhone","label":"Phone number","type":"tel","source":"profile.applicant.phone","required":true,"pdfFieldName":"Respondent phone","id":"respondent_phone","autoFill":"user_phone"},{"fieldId":"respondentEmail","label":"Email address","type":"email","source":"profile.applicant.email","required":false,"pdfFieldName":"Respondent email","id":"respondent_email","autoFill":"user_email"},{"fieldId":"respondentHasLawyer","label":"Do you have a lawyer representing you?","type":"yesno","required":true,"pdfFieldName":"Respondent has lawyer"},{"fieldId":"respondentLawyerName","label":"Your lawyer's full name","type":"text","required":false,"conditional":{"dependsOn":"respondentHasLawyer","showWhen":"yes"},"pdfFieldName":"Respondent lawyer name"},{"fieldId":"respondentLawyerAddress","label":"Your lawyer's address","type":"text","required":false,"conditional":{"dependsOn":"respondentHasLawyer","showWhen":"yes"},"pdfFieldName":"Respondent lawyer address"},{"fieldId":"respondentLawyerPhone","label":"Your lawyer's phone number","type":"tel","required":false,"conditional":{"dependsOn":"respondentHasLawyer","showWhen":"yes"},"pdfFieldName":"Respondent lawyer phone"}]},{"partId":"applicantInfo","title":"The other party (the applicant)","subtitle":"Step 3 of 7","intro":"Confirm the details of the person who filed the Application against you.","fields":[{"fieldId":"applicantFullName","label":"The applicant's full legal name","type":"text","source":"profile.respondent.fullName","required":true,"pdfFieldName":"Applicant full name","id":"applicant_full_name","autoFill":"applicant_full_name"},{"fieldId":"applicantAddress","label":"The applicant's address for service","type":"text","source":"profile.respondent.address","required":false,"pdfFieldName":"Applicant address"},{"fieldId":"applicantHasLawyer","label":"Does the applicant have a lawyer?","type":"yesno","required":false,"pdfFieldName":"Applicant has lawyer"},{"fieldId":"applicantLawyerName","label":"Applicant's lawyer's name","type":"text","required":false,"conditional":{"dependsOn":"applicantHasLawyer","showWhen":"yes"},"pdfFieldName":"Applicant lawyer name"},{"fieldId":"applicantLawyerAddress","label":"Applicant's lawyer's address","type":"text","required":false,"conditional":{"dependsOn":"applicantHasLawyer","showWhen":"yes"},"pdfFieldName":"Applicant lawyer address"}]},{"partId":"responseToApplication","title":"Your response to the Application","subtitle":"Step 4 of 7","intro":"Go through each thing the applicant is asking for and say whether you agree or disagree. You can also ask for your own orders in the next step.","fields":[{"fieldId":"overallPosition","label":"Overall, what is your position on the Application?","type":"select","required":true,"options":["I disagree with everything the applicant is asking for","I agree with some things and disagree with others","I agree with everything the applicant is asking for","I agree with most things but want to add my own requests"],"pdfFieldName":"Overall position"},{"fieldId":"agreeCustody","label":"Do you agree with the applicant's request about custody / decision-making?","type":"select","required":false,"options":["Yes \u2014 I agree","No \u2014 I disagree","Partly agree","This was not requested","I have my own proposal (describe below)"],"pdfFieldName":"Agree custody"},{"fieldId":"custodyPosition","label":"Describe your position on custody / decision-making","type":"textarea","required":false,"conditional":{"dependsOn":"agreeCustody","showWhen":"No \u2014 I disagree"},"placeholder":"e.g. I disagree. I am the primary caregiver and the children should reside primarily with me. I propose that both parents share decision-making but that the children live with me.","helpText":"Be specific. What arrangement do you propose instead?","pdfFieldName":"Custody position"},{"fieldId":"agreeParentingTime","label":"Do you agree with the applicant's request about parenting time / access?","type":"select","required":false,"options":["Yes \u2014 I agree","No \u2014 I disagree","Partly agree","This was not requested","I have my own proposal (describe below)"],"pdfFieldName":"Agree parenting time"},{"fieldId":"parentingTimePosition","label":"Describe your proposed parenting time schedule","type":"textarea","required":false,"conditional":{"dependsOn":"agreeParentingTime","showWhen":"No \u2014 I disagree"},"placeholder":"e.g. I propose that the children live with me week-on, week-off. The Applicant would have parenting time every other weekend.","pdfFieldName":"Parenting time position"},{"fieldId":"agreeChildSupport","label":"Do you agree with the applicant's request about child support?","type":"select","required":false,"options":["Yes \u2014 I agree","No \u2014 I disagree","Partly agree","This was not requested","I have my own proposal (describe below)"],"pdfFieldName":"Agree child support"},{"fieldId":"childSupportPosition","label":"Describe your position on child support","type":"textarea","required":false,"conditional":{"dependsOn":"agreeChildSupport","showWhen":"No \u2014 I disagree"},"placeholder":"e.g. I disagree with the amount requested. Based on my income of $X per year, the correct amount under the Child Support Guidelines is $Y per month.","pdfFieldName":"Child support position"},{"fieldId":"agreeSpousalSupport","label":"Do you agree with the applicant's request about spousal support?","type":"select","required":false,"options":["Yes \u2014 I agree","No \u2014 I disagree","Partly agree","This was not requested","Not applicable"],"pdfFieldName":"Agree spousal support"},{"fieldId":"spousalSupportPosition","label":"Describe your position on spousal support","type":"textarea","required":false,"conditional":{"dependsOn":"agreeSpousalSupport","showWhen":"No \u2014 I disagree"},"placeholder":"e.g. I disagree. We were together for only 2 years and I should not be required to pay spousal support.","pdfFieldName":"Spousal support position"},{"fieldId":"agreeProperty","label":"Do you agree with the applicant's request about property / equalization?","type":"select","required":false,"options":["Yes \u2014 I agree","No \u2014 I disagree","Partly agree","This was not requested","Not applicable"],"pdfFieldName":"Agree property"},{"fieldId":"propertyPosition","label":"Describe your position on property or equalization","type":"textarea","required":false,"conditional":{"dependsOn":"agreeProperty","showWhen":"No \u2014 I disagree"},"placeholder":"e.g. I disagree with the applicant's valuation of the matrimonial home. The correct value is $X not $Y.","pdfFieldName":"Property position"},{"fieldId":"disagreeOtherDetails","label":"Is there anything else in the Application you disagree with? Explain.","type":"textarea","required":false,"placeholder":"e.g. I dispute the applicant's claim that I was the primary breadwinner. I was laid off in January 2024.","pdfFieldName":"Disagree other details"}]},{"partId":"ownOrders","title":"Orders you are asking for","subtitle":"Step 5 of 7","intro":"If you want orders of your own \u2014 not just to respond to the applicant's requests \u2014 list them here. This is your chance to ask the court for what YOU want.","fields":[{"fieldId":"requestingOwnOrders","label":"Are you asking the court for any orders of your own?","type":"yesno","required":true,"helpText":"Even if the applicant is the one who started the case, you can use your Answer to ask for orders that benefit you.","pdfFieldName":"Requesting own orders"},{"fieldId":"ownOrdersCustody","label":"Are you asking for custody / decision-making responsibility?","type":"checkbox","conditional":{"dependsOn":"requestingOwnOrders","showWhen":"yes"},"pdfFieldName":"Own order custody"},{"fieldId":"ownOrdersParentingTime","label":"Are you asking for a specific parenting time schedule?","type":"checkbox","conditional":{"dependsOn":"requestingOwnOrders","showWhen":"yes"},"pdfFieldName":"Own order parenting time"},{"fieldId":"ownOrdersChildSupport","label":"Are you asking the other party to pay child support to you?","type":"checkbox","conditional":{"dependsOn":"requestingOwnOrders","showWhen":"yes"},"pdfFieldName":"Own order child support"},{"fieldId":"ownOrdersSpousalSupport","label":"Are you asking the other party to pay spousal support to you?","type":"checkbox","conditional":{"dependsOn":"requestingOwnOrders","showWhen":"yes"},"pdfFieldName":"Own order spousal support"},{"fieldId":"ownOrdersProperty","label":"Are you asking for a property / equalization payment?","type":"checkbox","conditional":{"dependsOn":"requestingOwnOrders","showWhen":"yes"},"pdfFieldName":"Own order property"},{"fieldId":"ownOrdersRestrainingOrder","label":"Are you asking for a restraining or non-harassment order?","type":"checkbox","conditional":{"dependsOn":"requestingOwnOrders","showWhen":"yes"},"pdfFieldName":"Own order restraining order"},{"fieldId":"ownOrdersOther","label":"Any other orders (describe below)?","type":"checkbox","conditional":{"dependsOn":"requestingOwnOrders","showWhen":"yes"},"pdfFieldName":"Own order other"},{"fieldId":"ownOrdersFullDescription","label":"Describe all the orders you are asking for in detail","type":"textarea","required":false,"conditional":{"dependsOn":"requestingOwnOrders","showWhen":"yes"},"placeholder":"e.g. 1. An order that I have primary decision-making responsibility for our child Alex Lance, born April 12, 2015.\n2. An order that the Applicant pay child support of $X per month pursuant to the Child Support Guidelines.\n3. An order that the Applicant pay costs of this proceeding.","helpText":"Number each order. Be specific \u2014 include names, amounts, and dates where possible.","pdfFieldName":"Own orders full description"}]},{"partId":"children","title":"Children (if applicable)","subtitle":"Step 6 of 7","intro":"If children are involved in this case, provide their details. The court needs this information to assess their best interests.","fields":[{"fieldId":"hasChildren","label":"Are there children involved in this case?","type":"yesno","required":true,"pdfFieldName":"Has children"},{"fieldId":"childrenDetails","label":"List the children (name, date of birth, where they currently live)","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildren","showWhen":"yes"},"source":"profile.children.list","placeholder":"Alex Lance \u2014 born April 12, 2015 \u2014 living with me at 123 Main Street, Toronto\nSam Lance \u2014 born September 3, 2018 \u2014 living with me at 123 Main Street, Toronto","helpText":"One child per line: full name, date of birth, and where they currently live.","pdfFieldName":"Children details"},{"fieldId":"childrenLivingArrangement","label":"Describe where the children have been living since the parents separated","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildren","showWhen":"yes"},"placeholder":"e.g. Since our separation in March 2024, both children have lived primarily with me. The Applicant sees them every other weekend.","pdfFieldName":"Children living arrangement"},{"fieldId":"childrenBestInterests","label":"Why is your proposal in the best interests of the children?","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildren","showWhen":"yes"},"placeholder":"e.g. I am the primary caregiver. I take the children to school, medical appointments, and activities. They have a stable home with me and are enrolled in school nearby.","helpText":"The court always focuses on what is best for the children \u2014 not what is best for either parent.","pdfFieldName":"Children best interests"}]},{"partId":"review","title":"Review and sign","subtitle":"Step 7 of 7","intro":"Review your Answer. Once filed, serve a copy on the applicant (or their lawyer) within 30 days of being served with the Application. Then file proof of service (Form 6B).","fields":[{"fieldId":"importantFactsOmitted","label":"Is there anything else important the court should know that you haven't mentioned?","type":"textarea","required":false,"placeholder":"e.g. There is a prior agreement between the parties dated January 2023 that the Applicant has not disclosed.","pdfFieldName":"Important facts omitted"},{"fieldId":"signatureDate","label":"Date you are signing this Answer","type":"date","required":true,"pdfFieldName":"Signature date"},{"fieldId":"declarationConfirmed","label":"I confirm the information in this Answer is accurate and complete to the best of my knowledge.","type":"checkbox","required":true,"pdfFieldName":"Declaration confirmed"}]}]};
+  window.__hp_formDefs['ON-F13_1'] = {"formId":"ON-F13_1","jurisdiction":"ON","pdfFileName":"form13_1.pdf","title":"Form 13.1 \u2014 Financial Statement (Property and Support Claims)","subtitle":"Ontario Family Court \u2014 Family Law Rules (FLR 13.1)","requiredPlan":"standard","freeForm":false,"helpIntro":"Form 13.1 is a detailed financial statement required when your case involves property claims (like dividing the family home or other assets), equalization of net family property, or both support AND property. It is more detailed than Form 13 because it includes a full list of your assets, debts, and a calculation of your net family property. Both parties must file this form.","parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 9","intro":"Confirm the court file details.","fields":[{"fieldId":"courthouse","label":"Courthouse","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"pdfFieldName":"Courthouse","id":"courthouse","autoFill":"courthouse"},{"fieldId":"fileNumber","label":"Court file number","type":"text","source":"profile.case.fileNumber","required":false,"placeholder":"e.g. FC-2024-12345","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"applicantFullName","label":"Applicant's full legal name","type":"text","source":"profile.applicant.fullName","required":true,"pdfFieldName":"Applicant full name","id":"applicant_full_name","autoFill":"applicant_full_name"},{"fieldId":"respondentFullName","label":"Respondent's full legal name","type":"text","source":"profile.respondent.fullName","required":true,"pdfFieldName":"Respondent full name","id":"respondent_full_name","autoFill":"respondent_full_name"},{"fieldId":"statementDate","label":"Date of this financial statement","type":"date","required":true,"helpText":"Use today's date or the date your situation is accurate as of.","pdfFieldName":"Statement date"},{"fieldId":"marriageDate","label":"Date of marriage","type":"date","required":false,"helpText":"Required for equalization calculations.","pdfFieldName":"Marriage date","id":"date_of_marriage","autoFill":"marriage_date"},{"fieldId":"separationDate","label":"Date of separation","type":"date","required":true,"helpText":"The valuation date for net family property is usually the date of separation.","pdfFieldName":"Separation date","id":"date_of_separation","autoFill":"separation_date"}]},{"partId":"employment","title":"Your employment and income","subtitle":"Step 2 of 9","intro":"Describe your current employment situation and sources of income.","fields":[{"fieldId":"employmentStatus","label":"What is your current employment status?","type":"select","required":true,"options":["Employed full-time","Employed part-time","Self-employed","Unemployed","On disability","Retired","Student","Other"],"pdfFieldName":"Employment status"},{"fieldId":"employerName","label":"Employer's name (if employed)","type":"text","required":false,"pdfFieldName":"Employer name"},{"fieldId":"employerAddress","label":"Employer's address","type":"text","required":false,"pdfFieldName":"Employer address"},{"fieldId":"occupation","label":"Your occupation or job title","type":"text","required":false,"placeholder":"e.g. Registered Nurse, Truck Driver, Project Manager","pdfFieldName":"Occupation"},{"fieldId":"annualEmploymentIncome","label":"Annual employment income (gross, before taxes)","type":"currency","required":true,"placeholder":"0.00","helpText":"Enter your yearly gross income from employment. Found on your T4 or pay stub.","pdfFieldName":"Annual employment income"},{"fieldId":"selfEmploymentIncome","label":"Annual self-employment income (net after business expenses)","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Self employment income"},{"fieldId":"rentalIncome","label":"Annual rental income","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Rental income"},{"fieldId":"investmentIncome","label":"Annual investment / dividend income","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Investment income"},{"fieldId":"governmentBenefits","label":"Annual government benefits (EI, CPP, OAS, ODSP, Ontario Works, etc.)","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Government benefits"},{"fieldId":"otherIncomeSources","label":"Other income sources (describe and amount)","type":"textarea","required":false,"placeholder":"e.g. Child tax benefit: $3,600/yr\nSpouse's support payments received: $12,000/yr","pdfFieldName":"Other income sources"},{"fieldId":"totalAnnualIncome","label":"Total annual income from ALL sources","type":"currency","required":true,"placeholder":"0.00","helpText":"Add up all the income amounts above.","pdfFieldName":"Total annual income"}]},{"partId":"monthlyExpenses","title":"Monthly expenses","subtitle":"Step 3 of 9","intro":"List your monthly living expenses. Include only what you actually pay \u2014 not expenses shared with the other party.","fields":[{"fieldId":"expenseRent","label":"Rent or mortgage payment","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense rent mortgage"},{"fieldId":"expensePropertyTax","label":"Property taxes (monthly)","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense property tax"},{"fieldId":"expenseUtilities","label":"Utilities (hydro, gas, water, internet, phone)","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense utilities"},{"fieldId":"expenseFood","label":"Food and groceries","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense food"},{"fieldId":"expenseTransportation","label":"Transportation (car payment, gas, insurance, transit)","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense transportation"},{"fieldId":"expenseChildcare","label":"Childcare / daycare","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense childcare"},{"fieldId":"expenseHealthInsurance","label":"Health and dental insurance premiums","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense health insurance"},{"fieldId":"expenseMedical","label":"Medical and dental expenses not covered by insurance","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense medical"},{"fieldId":"expenseChildren","label":"Children's expenses (school, activities, clothing)","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense children"},{"fieldId":"expenseDebtPayments","label":"Debt payments (credit cards, loans \u2014 minimum payments)","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Expense debt payments"},{"fieldId":"expenseOther","label":"Other monthly expenses (describe)","type":"textarea","required":false,"placeholder":"e.g. Life insurance: $80/mo\nGym membership: $45/mo","pdfFieldName":"Expense other"},{"fieldId":"totalMonthlyExpenses","label":"Total monthly expenses","type":"currency","required":true,"placeholder":"0.00","helpText":"Add up all monthly expenses above.","pdfFieldName":"Total monthly expenses"}]},{"partId":"assetsAtSeparation","title":"Assets on the date of separation (valuation date)","subtitle":"Step 4 of 9","intro":"List every asset you owned on the date of separation. These values are used to calculate your net family property (NFP). Be as accurate as possible \u2014 you may need appraisals for real estate and businesses.","fields":[{"fieldId":"realEstateAtSeparation","label":"Real estate owned on separation date (address and estimated value)","type":"textarea","required":false,"placeholder":"123 Main Street, Toronto ON \u2014 Family home \u2014 Value: $850,000\n456 Oak Avenue, Barrie ON \u2014 Rental property \u2014 Value: $420,000","helpText":"Include the matrimonial home and any other real estate. Use the fair market value on the date of separation.","pdfFieldName":"Real estate at separation"},{"fieldId":"bankAccountsAtSeparation","label":"Bank accounts on separation date (bank, account type, balance)","type":"textarea","required":false,"placeholder":"TD Bank \u2014 Chequing \u2014 $4,200\nRBC \u2014 Savings \u2014 $12,500\nTD Bank \u2014 Joint savings \u2014 $8,000 (my 50% share: $4,000)","pdfFieldName":"Bank accounts at separation"},{"fieldId":"investmentsAtSeparation","label":"Investments on separation date (RRSPs, TFSAs, stocks, GICs, etc.)","type":"textarea","required":false,"placeholder":"RBC RRSP \u2014 $45,000\nTD TFSA \u2014 $22,000\nFidelity stock portfolio \u2014 $15,000","pdfFieldName":"Investments at separation"},{"fieldId":"pensionAtSeparation","label":"Pension value on separation date","type":"currency","required":false,"placeholder":"0.00","helpText":"Get the commuted value from your pension administrator as of the separation date.","pdfFieldName":"Pension at separation"},{"fieldId":"vehiclesAtSeparation","label":"Vehicles on separation date (make, year, estimated value)","type":"textarea","required":false,"placeholder":"2019 Toyota Camry \u2014 $18,000\n2021 Honda Civic \u2014 $22,500","pdfFieldName":"Vehicles at separation"},{"fieldId":"businessInterestAtSeparation","label":"Business interests on separation date (name, your share, estimated value)","type":"textarea","required":false,"placeholder":"Lance Contracting Ltd. \u2014 100% owner \u2014 Value: $75,000","helpText":"Businesses should be professionally valuated. Use a reasonable estimate if a valuation has not been done.","pdfFieldName":"Business interest at separation"},{"fieldId":"otherAssetsAtSeparation","label":"Other assets on separation date (jewellery, art, furniture, life insurance cash value, etc.)","type":"textarea","required":false,"placeholder":"Life insurance (cash surrender value): $8,500\nBoat and trailer: $12,000\nFurniture and household goods: $5,000","pdfFieldName":"Other assets at separation"},{"fieldId":"totalAssetsAtSeparation","label":"TOTAL value of all assets on date of separation","type":"currency","required":true,"placeholder":"0.00","helpText":"Add up all the asset values listed above.","pdfFieldName":"Total assets at separation"}]},{"partId":"debtsAtSeparation","title":"Debts on the date of separation","subtitle":"Step 5 of 9","intro":"List every debt you owed on the date of separation. Debts are subtracted from your assets to calculate your net family property.","fields":[{"fieldId":"mortgagesAtSeparation","label":"Mortgages on separation date (property, lender, balance owing)","type":"textarea","required":false,"placeholder":"123 Main Street \u2014 TD Bank mortgage \u2014 Balance: $420,000\n456 Oak Avenue \u2014 RBC mortgage \u2014 Balance: $210,000","pdfFieldName":"Mortgages at separation"},{"fieldId":"carLoansAtSeparation","label":"Car loans on separation date","type":"textarea","required":false,"placeholder":"2021 Honda Civic \u2014 TD Auto Finance \u2014 Balance: $14,500","pdfFieldName":"Car loans at separation"},{"fieldId":"creditCardsAtSeparation","label":"Credit card balances on separation date","type":"textarea","required":false,"placeholder":"TD Visa \u2014 $3,200\nRBC Mastercard \u2014 $1,800","pdfFieldName":"Credit cards at separation"},{"fieldId":"studentLoansAtSeparation","label":"Student loans on separation date","type":"currency","required":false,"placeholder":"0.00","pdfFieldName":"Student loans at separation"},{"fieldId":"otherDebtsAtSeparation","label":"Other debts on separation date (lines of credit, personal loans, taxes owing, etc.)","type":"textarea","required":false,"placeholder":"HELOC \u2014 RBC \u2014 Balance: $25,000\nPersonal loan \u2014 BMO \u2014 Balance: $8,000","pdfFieldName":"Other debts at separation"},{"fieldId":"totalDebtsAtSeparation","label":"TOTAL debts on date of separation","type":"currency","required":true,"placeholder":"0.00","helpText":"Add up all debt balances listed above.","pdfFieldName":"Total debts at separation"}]},{"partId":"propertyAtMarriage","title":"Property owned on date of marriage","subtitle":"Step 6 of 9","intro":"List assets and debts you had on the date of marriage. This amount is excluded from your net family property calculation (it was yours before the marriage).","fields":[{"fieldId":"assetsAtMarriage","label":"Assets you owned on the date of marriage (describe and value)","type":"textarea","required":false,"placeholder":"RBC savings account \u2014 $8,000\n2015 Dodge Ram \u2014 $25,000\nRRSP balance \u2014 $12,000","helpText":"These amounts will be deducted from your NFP calculation. Include only assets you personally owned on the wedding day.","pdfFieldName":"Assets at marriage"},{"fieldId":"debtsAtMarriage","label":"Debts you owed on the date of marriage","type":"textarea","required":false,"placeholder":"Student loan \u2014 $22,000\nVisa credit card \u2014 $1,500","helpText":"Debts at marriage are also excluded \u2014 they reduce your deduction from assets at marriage.","pdfFieldName":"Debts at marriage"},{"fieldId":"netPropertyAtMarriage","label":"Net value of property owned on date of marriage (assets minus debts)","type":"currency","required":false,"placeholder":"0.00","helpText":"Assets at marriage minus debts at marriage = this number. If negative, enter 0.","pdfFieldName":"Net property at marriage"}]},{"partId":"excludedProperty","title":"Excluded property","subtitle":"Step 7 of 9","intro":"Certain property received during the marriage is excluded from net family property under the Family Law Act. List any excluded property you have.","fields":[{"fieldId":"hasExcludedProperty","label":"Do you have any excluded property?","type":"yesno","required":true,"helpText":"Excluded property includes: gifts or inheritances received during marriage, damages from a personal injury lawsuit, life insurance proceeds, and property traced to any of the above.","pdfFieldName":"Has excluded property"},{"fieldId":"inheritances","label":"Inheritances received during marriage (amount and description)","type":"textarea","required":false,"conditional":{"dependsOn":"hasExcludedProperty","showWhen":"yes"},"placeholder":"Received from estate of John Smith (father) in 2019 \u2014 $45,000 cash\nInherited cottage in Muskoka \u2014 Value on date received: $180,000","pdfFieldName":"Inheritances"},{"fieldId":"giftsReceived","label":"Gifts received from third parties during marriage (not from spouse)","type":"textarea","required":false,"conditional":{"dependsOn":"hasExcludedProperty","showWhen":"yes"},"placeholder":"Gift from parents \u2014 $25,000 used as down payment \u2014 2018","pdfFieldName":"Gifts received"},{"fieldId":"personalInjuryDamages","label":"Damages for personal injuries received during marriage","type":"currency","required":false,"conditional":{"dependsOn":"hasExcludedProperty","showWhen":"yes"},"placeholder":"0.00","helpText":"General damages for pain and suffering only \u2014 not for lost income.","pdfFieldName":"Personal injury damages"},{"fieldId":"totalExcludedProperty","label":"Total value of excluded property","type":"currency","required":false,"conditional":{"dependsOn":"hasExcludedProperty","showWhen":"yes"},"placeholder":"0.00","pdfFieldName":"Total excluded property"}]},{"partId":"netFamilyProperty","title":"Net Family Property calculation","subtitle":"Step 8 of 9","intro":"Net Family Property (NFP) is what the court uses to determine equalization. It is calculated as: Assets at separation \u2212 Debts at separation \u2212 Property owned at marriage \u2212 Excluded property = NFP. The spouse with the higher NFP pays the other half the difference.","fields":[{"fieldId":"nfpAssetsAtSeparation","label":"Total assets on date of separation (from Step 4)","type":"currency","source":"form.assetsAtSeparation.totalAssetsAtSeparation","required":true,"placeholder":"0.00","pdfFieldName":"NFP assets at separation"},{"fieldId":"nfpDebtsAtSeparation","label":"Total debts on date of separation (from Step 5)","type":"currency","source":"form.debtsAtSeparation.totalDebtsAtSeparation","required":true,"placeholder":"0.00","pdfFieldName":"NFP debts at separation"},{"fieldId":"nfpPropertyAtMarriage","label":"Net property owned on date of marriage (from Step 6)","type":"currency","source":"form.propertyAtMarriage.netPropertyAtMarriage","required":false,"placeholder":"0.00","pdfFieldName":"NFP property at marriage"},{"fieldId":"nfpExcludedProperty","label":"Total excluded property (from Step 7)","type":"currency","source":"form.excludedProperty.totalExcludedProperty","required":false,"placeholder":"0.00","pdfFieldName":"NFP excluded property"},{"fieldId":"nfpMatrimonialHomeDeduction","label":"Matrimonial home exclusion deduction (enter 0 if home is being claimed as part of equalization)","type":"currency","required":false,"placeholder":"0.00","helpText":"The matrimonial home cannot be excluded from NFP even if owned before marriage \u2014 enter 0 unless a special exception applies.","pdfFieldName":"NFP matrimonial home deduction"},{"fieldId":"netFamilyPropertyTotal","label":"YOUR Net Family Property total","type":"currency","required":true,"placeholder":"0.00","helpText":"Formula: Assets at Separation \u2212 Debts at Separation \u2212 Property at Marriage \u2212 Excluded Property = NFP. If the result is negative, enter 0.","pdfFieldName":"Net family property total"},{"fieldId":"equalizationPaymentClaimed","label":"Equalization payment you are claiming (if any)","type":"currency","required":false,"placeholder":"0.00","helpText":"If your NFP is lower than the other party's, you may claim half the difference. Leave blank if you are the party with the higher NFP.","pdfFieldName":"Equalization payment claimed"}]},{"partId":"currentAssets","title":"Current assets and debts (today)","subtitle":"Step 9 of 9","intro":"In addition to the valuation-date figures, the court also needs your current financial picture. This section covers where things stand today.","fields":[{"fieldId":"currentRealEstate","label":"Real estate you own today (address and current estimated value)","type":"textarea","required":false,"placeholder":"123 Main Street, Toronto ON \u2014 Current value: $920,000","pdfFieldName":"Current real estate"},{"fieldId":"currentBankAccounts","label":"Bank accounts today (bank, type, balance)","type":"textarea","required":false,"placeholder":"TD Bank \u2014 Chequing \u2014 $2,100\nRBC \u2014 Savings \u2014 $9,800","pdfFieldName":"Current bank accounts"},{"fieldId":"currentInvestments","label":"Investments today (RRSPs, TFSAs, stocks, etc.)","type":"textarea","required":false,"placeholder":"RBC RRSP \u2014 $52,000\nTD TFSA \u2014 $24,500","pdfFieldName":"Current investments"},{"fieldId":"currentDebts","label":"Debts you owe today (type, lender, balance)","type":"textarea","required":false,"placeholder":"TD Bank mortgage \u2014 $398,000\nRBC Mastercard \u2014 $2,100","pdfFieldName":"Current debts"},{"fieldId":"declarationConfirmed","label":"I swear or affirm that the information in this financial statement is accurate and complete to the best of my knowledge.","type":"checkbox","required":true,"helpText":"This form must be sworn or affirmed before a commissioner of oaths. Providing false information is contempt of court.","pdfFieldName":"Declaration confirmed"},{"fieldId":"signatureDate","label":"Date of signature","type":"date","required":true,"pdfFieldName":"Signature date"}]}]};
+  window.__hp_formDefs['ON-F15C'] = {"formId":"ON-F23","jurisdiction":"ON","pdfFileName":"form23.pdf","title":"Consent Motion to Change","subtitle":"Ontario Family Court \u2014 Family Law Rules (FLR 15)","requiredPlan":"standard","freeForm":false,"helpIntro":"Form 23 is used when both parties agree to change an existing court order \u2014 for example, changing a support amount, a parenting schedule, or another term \u2014 without having to go to a full court hearing. Both parties must sign this form. If one party does not agree, you must use Form 14 (Notice of Motion) instead.","parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 6","intro":"Enter the court file information from the existing order you want to change.","fields":[{"fieldId":"courthouse","label":"Courthouse","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"pdfFieldName":"Courthouse","id":"courthouse","autoFill":"courthouse"},{"fieldId":"fileNumber","label":"Court file number (from the existing order)","type":"text","source":"profile.case.fileNumber","required":true,"placeholder":"e.g. FC-2024-12345","helpText":"This is printed on the court order you want to change.","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"existingOrderDate","label":"Date of the existing order you want to change","type":"date","required":true,"helpText":"The date printed at the top or bottom of the order.","pdfFieldName":"Existing order date"},{"fieldId":"existingOrderJudge","label":"Name of the judge or officer who made the existing order (if known)","type":"text","required":false,"placeholder":"e.g. Justice Smith","pdfFieldName":"Existing order judge"}]},{"partId":"parties","title":"The parties","subtitle":"Step 2 of 6","intro":"Confirm both parties' names and contact information.","fields":[{"fieldId":"applicantFullName","label":"Applicant's full legal name","type":"text","source":"profile.applicant.fullName","required":true,"pdfFieldName":"Applicant full name","id":"applicant_full_name","autoFill":"applicant_full_name"},{"fieldId":"applicantAddress","label":"Applicant's address for service","type":"text","source":"profile.applicant.address","required":true,"pdfFieldName":"Applicant address","id":"applicant_address","autoFill":"user_address"},{"fieldId":"applicantCity","label":"City","type":"text","source":"profile.applicant.city","required":true,"pdfFieldName":"Applicant city"},{"fieldId":"applicantPostalCode","label":"Postal code","type":"text","source":"profile.applicant.postalCode","required":true,"pdfFieldName":"Applicant postal code"},{"fieldId":"applicantPhone","label":"Phone number","type":"tel","source":"profile.applicant.phone","required":true,"pdfFieldName":"Applicant phone","id":"applicant_phone","autoFill":"user_phone"},{"fieldId":"respondentFullName","label":"Respondent's full legal name","type":"text","source":"profile.respondent.fullName","required":true,"pdfFieldName":"Respondent full name","id":"respondent_full_name","autoFill":"respondent_full_name"},{"fieldId":"respondentAddress","label":"Respondent's address for service","type":"text","source":"profile.respondent.address","required":false,"pdfFieldName":"Respondent address"},{"fieldId":"respondentPhone","label":"Respondent's phone number","type":"tel","source":"profile.respondent.phone","required":false,"pdfFieldName":"Respondent phone"}]},{"partId":"whatToChange","title":"What you want to change","subtitle":"Step 3 of 6","intro":"Describe exactly what terms of the existing order you both agree to change. Be specific \u2014 the judge will make the new order based on exactly what you write here.","fields":[{"fieldId":"changeChildSupport","label":"Are you changing child support?","type":"yesno","required":true,"pdfFieldName":"Change child support"},{"fieldId":"childSupportCurrentAmount","label":"Current child support amount in the existing order","type":"currency","required":false,"conditional":{"dependsOn":"changeChildSupport","showWhen":"yes"},"placeholder":"0.00","pdfFieldName":"Child support current amount"},{"fieldId":"childSupportNewAmount","label":"New child support amount you both agree to","type":"currency","required":false,"conditional":{"dependsOn":"changeChildSupport","showWhen":"yes"},"placeholder":"0.00","pdfFieldName":"Child support new amount"},{"fieldId":"childSupportChangeDate","label":"Start date for the new child support amount","type":"date","required":false,"conditional":{"dependsOn":"changeChildSupport","showWhen":"yes"},"helpText":"Usually the first of the month following the agreed change.","pdfFieldName":"Child support change date"},{"fieldId":"childSupportChangeReason","label":"Why are you changing child support?","type":"textarea","required":false,"conditional":{"dependsOn":"changeChildSupport","showWhen":"yes"},"placeholder":"e.g. The payor's income has changed. The payor now earns $X per year. The new amount reflects the applicable Child Support Guidelines table amount.","helpText":"The court needs to know there has been a material change in circumstances.","pdfFieldName":"Child support change reason"},{"fieldId":"changeSpousalSupport","label":"Are you changing spousal support?","type":"yesno","required":true,"pdfFieldName":"Change spousal support"},{"fieldId":"spousalSupportCurrentAmount","label":"Current spousal support amount in the existing order","type":"currency","required":false,"conditional":{"dependsOn":"changeSpousalSupport","showWhen":"yes"},"placeholder":"0.00","pdfFieldName":"Spousal support current amount"},{"fieldId":"spousalSupportNewAmount","label":"New spousal support amount you both agree to","type":"currency","required":false,"conditional":{"dependsOn":"changeSpousalSupport","showWhen":"yes"},"placeholder":"0.00","helpText":"Enter 0 if you are agreeing to terminate spousal support.","pdfFieldName":"Spousal support new amount"},{"fieldId":"spousalSupportChangeDate","label":"Start date for the new spousal support amount","type":"date","required":false,"conditional":{"dependsOn":"changeSpousalSupport","showWhen":"yes"},"pdfFieldName":"Spousal support change date"},{"fieldId":"spousalSupportChangeReason","label":"Why are you changing spousal support?","type":"textarea","required":false,"conditional":{"dependsOn":"changeSpousalSupport","showWhen":"yes"},"placeholder":"e.g. The recipient has become self-sufficient and both parties agree support should end.","pdfFieldName":"Spousal support change reason"},{"fieldId":"changeParenting","label":"Are you changing parenting time or decision-making?","type":"yesno","required":true,"pdfFieldName":"Change parenting"},{"fieldId":"parentingCurrentArrangement","label":"Current parenting arrangement in the existing order","type":"textarea","required":false,"conditional":{"dependsOn":"changeParenting","showWhen":"yes"},"placeholder":"e.g. Currently: children live primarily with Applicant, Respondent has parenting time every other weekend.","pdfFieldName":"Parenting current arrangement"},{"fieldId":"parentingNewArrangement","label":"New parenting arrangement you both agree to","type":"textarea","required":false,"conditional":{"dependsOn":"changeParenting","showWhen":"yes"},"placeholder":"e.g. New arrangement: children alternate weekly between both homes (week-on, week-off). Each parent to have the children on their respective weeks from Sunday at 6:00 p.m. to the following Sunday at 6:00 p.m.","helpText":"Be as specific as possible \u2014 include days, times, holiday schedules, and any special provisions.","pdfFieldName":"Parenting new arrangement"},{"fieldId":"changeParentingReason","label":"Why are you changing the parenting arrangement?","type":"textarea","required":false,"conditional":{"dependsOn":"changeParenting","showWhen":"yes"},"placeholder":"e.g. The children are older and both parties agree a week-on, week-off schedule better meets the children's current needs and schedules.","pdfFieldName":"Change parenting reason"},{"fieldId":"changeOther","label":"Are you changing any other terms of the existing order?","type":"yesno","required":true,"pdfFieldName":"Change other"},{"fieldId":"otherChangeDescription","label":"Describe the other changes you both agree to","type":"textarea","required":false,"conditional":{"dependsOn":"changeOther","showWhen":"yes"},"placeholder":"e.g. Paragraph 4 of the existing order regarding the family pet is deleted. The parties agree that the dog 'Max' shall reside primarily with the Applicant.","pdfFieldName":"Other change description"}]},{"partId":"children","title":"Children (if applicable)","subtitle":"Step 4 of 6","intro":"If the changes affect children, provide their details.","fields":[{"fieldId":"hasChildren","label":"Do the changes involve children?","type":"yesno","required":true,"pdfFieldName":"Has children"},{"fieldId":"childrenDetails","label":"List the children (name and date of birth)","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildren","showWhen":"yes"},"source":"profile.children.list","placeholder":"Alex Lance \u2014 born April 12, 2015\nSam Lance \u2014 born September 3, 2018","pdfFieldName":"Children details"},{"fieldId":"childrenBestInterests","label":"Why are the proposed changes in the best interests of the children?","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildren","showWhen":"yes"},"placeholder":"e.g. Both parties agree that the children are old enough to benefit from equal time with each parent. Both parents live within the same school district so the children's routines will not be disrupted.","pdfFieldName":"Children best interests"}]},{"partId":"consent","title":"Consent of both parties","subtitle":"Step 5 of 6","intro":"Both parties must consent to the changes. This section confirms that both of you agree freely and without pressure.","fields":[{"fieldId":"applicantConsents","label":"I (the applicant) freely consent to the changes described in this form.","type":"checkbox","required":true,"pdfFieldName":"Applicant consents"},{"fieldId":"applicantConsentDate","label":"Date of applicant's consent","type":"date","required":true,"pdfFieldName":"Applicant consent date"},{"fieldId":"respondentConsentConfirmed","label":"I confirm the respondent has also agreed to these changes and will sign this form.","type":"checkbox","required":true,"helpText":"The respondent must physically sign the printed form before it is filed. Both signatures are required.","pdfFieldName":"Respondent consent confirmed"},{"fieldId":"neitherPartyHasCounsel","label":"Have both parties had an opportunity to get legal advice before signing?","type":"yesno","required":false,"helpText":"You are not required to have a lawyer, but the court will want to know you both understood what you were agreeing to.","pdfFieldName":"Legal advice opportunity"}]},{"partId":"review","title":"Review and finalize","subtitle":"Step 6 of 6","intro":"Review the consent motion. Once both parties sign the printed version, file it with the court clerk. You do not need a hearing \u2014 the clerk will submit it to a judge for approval.","fields":[{"fieldId":"effectiveDate","label":"When should the new order take effect?","type":"date","required":false,"helpText":"Leave blank if you want it to take effect immediately upon the court's approval.","pdfFieldName":"Effective date"},{"fieldId":"costsAgreement","label":"Agreement on costs","type":"select","required":false,"options":["No order as to costs \u2014 each party pays their own","Costs to be determined by the court","Other arrangement (describe below)"],"pdfFieldName":"Costs agreement"},{"fieldId":"additionalTerms","label":"Any additional terms both parties agree to include","type":"textarea","required":false,"placeholder":"e.g. The parties shall communicate regarding the children via the OurFamilyWizard app only.","pdfFieldName":"Additional terms"},{"fieldId":"declarationConfirmed","label":"I confirm this Consent Motion accurately reflects the agreement of both parties and I am signing freely and voluntarily.","type":"checkbox","required":true,"pdfFieldName":"Declaration confirmed"}]}],"formCode":"form15c-consent-change","formNumber":"Form 15C","version":"December 2020","description":"Used when both parties agree to change an existing court order and want to do so by consent, without a hearing. Must be signed by both parties or their lawyers. Used for changes to child support, spousal support, or parenting arrangements."};
+  window.__hp_formDefs['ON-F36'] = {"formId":"ON-F36","jurisdiction":"ON","pdfFileName":"form36.pdf","title":"Form 36 \u2014 Affidavit for Divorce","subtitle":"Ontario Family Court \u2014 Family Law Rules (FLR 36)","requiredPlan":"standard","freeForm":false,"helpIntro":"Form 36 is the sworn affidavit you file to support your divorce application. It proves to the court that the legal requirements for a divorce are met \u2014 mainly that you have been separated for at least one year and that there is no reasonable chance of reconciliation. This form is sworn before a commissioner of oaths.","parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 7","intro":"Enter the court file details from your divorce application.","fields":[{"fieldId":"courthouse","label":"Courthouse","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"pdfFieldName":"Courthouse","id":"courthouse","autoFill":"courthouse"},{"fieldId":"fileNumber","label":"Court file number","type":"text","source":"profile.case.fileNumber","required":false,"placeholder":"e.g. FC-2024-12345","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"applicantFullName","label":"Applicant's full legal name","type":"text","source":"profile.applicant.fullName","required":true,"pdfFieldName":"Applicant full name","id":"applicant_full_name","autoFill":"applicant_full_name"},{"fieldId":"respondentFullName","label":"Respondent's full legal name","type":"text","source":"profile.respondent.fullName","required":true,"pdfFieldName":"Respondent full name","id":"respondent_full_name","autoFill":"respondent_full_name"}]},{"partId":"marriage","title":"The marriage","subtitle":"Step 2 of 7","intro":"Provide details about your marriage. This information is needed to verify that a valid marriage took place.","fields":[{"fieldId":"marriageDate","label":"Date of marriage","type":"date","source":"profile.case.marriageDate","required":true,"pdfFieldName":"Marriage date","id":"date_of_marriage","autoFill":"marriage_date"},{"fieldId":"marriageCity","label":"City or town where you were married","type":"text","required":true,"placeholder":"e.g. Toronto","pdfFieldName":"Marriage city"},{"fieldId":"marriageProvince","label":"Province or country where you were married","type":"text","required":true,"placeholder":"e.g. Ontario, Canada","pdfFieldName":"Marriage province"},{"fieldId":"marriageCertificateAvailable","label":"Do you have a marriage certificate?","type":"yesno","required":true,"helpText":"You must file a certified copy of your marriage certificate with the court. If you don't have one, contact ServiceOntario or the vital statistics office where you were married.","pdfFieldName":"Marriage certificate available"},{"fieldId":"marriageCertificateNotes","label":"If you do not have a marriage certificate, explain why","type":"textarea","required":false,"conditional":{"dependsOn":"marriageCertificateAvailable","showWhen":"no"},"placeholder":"e.g. We were married in another country and have been unable to obtain a certified copy. We are in the process of requesting one from the registry office.","pdfFieldName":"Marriage certificate notes"},{"fieldId":"applicantNameAtMarriage","label":"Your full name at the time of marriage (if different from current name)","type":"text","required":false,"placeholder":"Leave blank if your name has not changed","pdfFieldName":"Applicant name at marriage"},{"fieldId":"respondentNameAtMarriage","label":"Other party's full name at the time of marriage (if different from current name)","type":"text","required":false,"placeholder":"Leave blank if their name has not changed","pdfFieldName":"Respondent name at marriage"}]},{"partId":"separation","title":"The separation","subtitle":"Step 3 of 7","intro":"The Divorce Act requires that spouses have lived separate and apart for at least one year before a divorce can be granted. Answer the questions below to confirm this requirement is met.","fields":[{"fieldId":"separationDate","label":"Date you and your spouse separated","type":"date","source":"profile.case.separationDate","required":true,"helpText":"This is the date one or both of you decided the marriage was over and began living separate lives \u2014 even if you remained in the same house.","pdfFieldName":"Separation date","id":"date_of_separation","autoFill":"separation_date"},{"fieldId":"separatedOneYear","label":"Have you lived separate and apart for at least one year as of today?","type":"yesno","required":true,"helpText":"If you separated less than one year ago, you cannot apply for a divorce yet. You must wait until the full year has passed.","pdfFieldName":"Separated one year"},{"fieldId":"reconciliationAttempts","label":"Did you and your spouse attempt to reconcile after separating?","type":"yesno","required":true,"helpText":"Short periods of attempted reconciliation (totalling 90 days or less) do not reset the one-year clock.","pdfFieldName":"Reconciliation attempts"},{"fieldId":"reconciliationDetails","label":"Describe the reconciliation attempt(s)","type":"textarea","required":false,"conditional":{"dependsOn":"reconciliationAttempts","showWhen":"yes"},"placeholder":"e.g. We reconciled from April 1 to April 30, 2024 (30 days). We then separated again permanently on May 1, 2024.","helpText":"Include dates. If total reconciliation attempts were 90 days or less combined, your one-year clock continues from the original separation date.","pdfFieldName":"Reconciliation details"},{"fieldId":"noReasonableChanceReconciliation","label":"Is there any reasonable chance you and your spouse will reconcile?","type":"yesno","required":true,"helpText":"Almost always 'No' \u2014 the court needs this confirmed to grant the divorce.","pdfFieldName":"Reasonable chance reconciliation"},{"fieldId":"separatedInSameHome","label":"Did you and your spouse live in the same home after separating?","type":"yesno","required":true,"helpText":"It is possible to be 'separated' while living under the same roof if you were living separate lives (separate bedrooms, separate finances, no intimate relationship).","pdfFieldName":"Separated in same home"},{"fieldId":"separatedInSameHomeDetails","label":"Describe how you lived separately while in the same home","type":"textarea","required":false,"conditional":{"dependsOn":"separatedInSameHome","showWhen":"yes"},"placeholder":"e.g. From March 1, 2024 we slept in separate bedrooms, had no intimate relationship, ate separately, managed our own finances, and informed family and friends that we were separated.","helpText":"The court needs specific details to accept an in-home separation.","pdfFieldName":"Same home separation details"}]},{"partId":"children","title":"Children of the marriage","subtitle":"Step 4 of 7","intro":"Under the Divorce Act, the court must be satisfied that reasonable arrangements have been made for the support of any children of the marriage before granting a divorce.","fields":[{"fieldId":"hasChildrenOfMarriage","label":"Do you have any children of the marriage under 18, or over 18 but still dependent?","type":"yesno","required":true,"helpText":"Children of the marriage include biological children, adopted children, and stepchildren who were treated as a child of the family.","pdfFieldName":"Has children of marriage"},{"fieldId":"childrenDetails","label":"List the children (full name, date of birth, where they live now)","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildrenOfMarriage","showWhen":"yes"},"source":"profile.children.list","placeholder":"Alex Lance \u2014 born April 12, 2015 \u2014 lives with Applicant at 123 Main St, Toronto\nSam Lance \u2014 born September 3, 2018 \u2014 lives with Applicant at 123 Main St, Toronto","pdfFieldName":"Children details"},{"fieldId":"childSupportArranged","label":"Have reasonable arrangements been made for child support?","type":"yesno","required":false,"conditional":{"dependsOn":"hasChildrenOfMarriage","showWhen":"yes"},"helpText":"The court will not grant the divorce if it is not satisfied that proper support arrangements exist for the children.","pdfFieldName":"Child support arranged"},{"fieldId":"childSupportArrangementDetails","label":"Describe the child support arrangements","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildrenOfMarriage","showWhen":"yes"},"placeholder":"e.g. The Respondent pays child support of $1,200 per month pursuant to the Child Support Guidelines based on an annual income of $72,000. This is set out in a separation agreement dated March 15, 2025.","helpText":"Reference any existing court orders, separation agreements, or FRO arrangements.","pdfFieldName":"Child support arrangement details"},{"fieldId":"custodyArrangementDetails","label":"Describe the current parenting / custody arrangement","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildrenOfMarriage","showWhen":"yes"},"placeholder":"e.g. The children live primarily with the Applicant. The Respondent has parenting time every other weekend pursuant to a separation agreement dated March 15, 2025.","pdfFieldName":"Custody arrangement details"}]},{"partId":"collusion","title":"Collusion and condonation","subtitle":"Step 5 of 7","intro":"The court must be satisfied that the divorce is not the result of any agreement to deceive the court, and that no matrimonial offence has been condoned. These are standard legal declarations.","fields":[{"fieldId":"noCollusion","label":"I confirm that there has been no collusion in relation to this divorce application","type":"checkbox","required":true,"helpText":"Collusion means a secret agreement to deceive the court \u2014 for example, fabricating grounds for divorce or agreeing to hide the truth. This is extremely rare in modern no-fault divorces based on separation.","pdfFieldName":"No collusion"},{"fieldId":"noCondonation","label":"I confirm that I have not condoned any conduct that might be raised as a ground for divorce","type":"checkbox","required":true,"helpText":"Condonation means forgiving a matrimonial offence (like adultery or cruelty) and resuming the marriage with full knowledge of it. For separation-based divorces, this is generally not applicable but must be declared.","pdfFieldName":"No condonation"},{"fieldId":"divorceGrounds","label":"Grounds for divorce","type":"select","required":true,"options":["Separation \u2014 we have lived separate and apart for at least one year (most common)","Adultery \u2014 my spouse committed adultery","Physical or mental cruelty \u2014 my spouse treated me with physical or mental cruelty"],"helpText":"Almost all divorces in Canada are granted on the grounds of separation. Adultery and cruelty are rarely used because they are harder to prove and require additional evidence.","pdfFieldName":"Divorce grounds"},{"fieldId":"adulteryDetails","label":"If claiming adultery \u2014 describe the circumstances","type":"textarea","required":false,"conditional":{"dependsOn":"divorceGrounds","showWhen":"Adultery \u2014 my spouse committed adultery"},"placeholder":"e.g. My spouse committed adultery with a person known to me from approximately January 2024 onwards.","helpText":"You do not need to name the third party, but you must have sufficient evidence. Consider whether to proceed on this ground vs. separation.","pdfFieldName":"Adultery details"},{"fieldId":"crueltyDetails","label":"If claiming cruelty \u2014 describe the conduct","type":"textarea","required":false,"conditional":{"dependsOn":"divorceGrounds","showWhen":"Physical or mental cruelty \u2014 my spouse treated me with physical or mental cruelty"},"placeholder":"e.g. From 2022 to 2024, my spouse subjected me to physical violence on multiple occasions, including...","helpText":"Must be conduct that made continued cohabitation intolerable. Provide specific incidents with dates.","pdfFieldName":"Cruelty details"}]},{"partId":"previousProceedings","title":"Previous court proceedings","subtitle":"Step 6 of 7","intro":"The court needs to know if there are any other divorce or family law proceedings anywhere in Canada or internationally.","fields":[{"fieldId":"hasPreviousProceedings","label":"Have there been any previous divorce or family law court proceedings between you and your spouse in any court?","type":"yesno","required":true,"pdfFieldName":"Has previous proceedings"},{"fieldId":"previousProceedingsDetails","label":"Describe the previous proceedings","type":"textarea","required":false,"conditional":{"dependsOn":"hasPreviousProceedings","showWhen":"yes"},"placeholder":"e.g. There is an existing Ontario Superior Court proceeding (File No. FC-2024-12345) which includes this divorce application. There are no other proceedings.","helpText":"Include the court, file number, and type of proceeding. Include proceedings in other provinces or countries.","pdfFieldName":"Previous proceedings details"},{"fieldId":"hasExistingSeparationAgreement","label":"Do you have a signed separation agreement?","type":"yesno","required":true,"helpText":"If yes, attach a copy to your affidavit. The court will want to see how issues like support and property have been resolved.","pdfFieldName":"Has separation agreement"},{"fieldId":"separationAgreementDate","label":"Date of the separation agreement","type":"date","required":false,"conditional":{"dependsOn":"hasExistingSeparationAgreement","showWhen":"yes"},"pdfFieldName":"Separation agreement date"},{"fieldId":"separationAgreementCoversChildren","label":"Does the separation agreement address the children?","type":"yesno","required":false,"conditional":{"dependsOn":"hasExistingSeparationAgreement","showWhen":"yes"},"pdfFieldName":"Agreement covers children"}]},{"partId":"swearing","title":"Declaration and signing","subtitle":"Step 7 of 7","intro":"This affidavit must be sworn or affirmed before a commissioner of oaths. Do not sign it until you are in front of the commissioner.","fields":[{"fieldId":"swearOrAffirm","label":"Will you swear or affirm?","type":"select","required":true,"options":["Swear","Affirm"],"pdfFieldName":"Swear or affirm"},{"fieldId":"deponentMunicipality","label":"Municipality where you will sign this affidavit","type":"text","required":true,"placeholder":"e.g. Toronto","pdfFieldName":"Deponent municipality"},{"fieldId":"commissioningDate","label":"Date of commissioning (leave blank to complete at courthouse)","type":"date","required":false,"pdfFieldName":"Commissioning date"},{"fieldId":"declarationAccurate","label":"I confirm that everything stated in this affidavit is true, and I understand that swearing a false affidavit is perjury.","type":"checkbox","required":true,"pdfFieldName":"Declaration accurate"}]}]};
+  window.__hp_formDefs['ON-F25A'] = {"formId":"ON-F25A","jurisdiction":"ON","pdfFileName":"form25a.pdf","title":"Form 25A \u2014 Order for Divorce","subtitle":"Ontario Family Court \u2014 Family Law Rules (FLR 25A)","requiredPlan":"standard","freeForm":false,"helpIntro":"Form 25A is the actual divorce order that the judge signs. You prepare it in advance and submit it with your divorce application \u2014 if the judge approves your divorce, they sign this form and it becomes the legal divorce order. It is one of the most important documents in the process. Prepare it carefully.","parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 5","intro":"Enter the court file details. This must exactly match your application.","fields":[{"fieldId":"courthouse","label":"Courthouse","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"pdfFieldName":"Courthouse","id":"courthouse","autoFill":"courthouse"},{"fieldId":"fileNumber","label":"Court file number","type":"text","source":"profile.case.fileNumber","required":true,"placeholder":"e.g. FC-2024-12345","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"hearingDate","label":"Date of hearing (if known, otherwise leave blank)","type":"date","required":false,"helpText":"The clerk will fill this in if left blank.","pdfFieldName":"Hearing date"}]},{"partId":"parties","title":"The parties","subtitle":"Step 2 of 5","intro":"Enter both parties' full legal names exactly as they appear on the marriage certificate.","fields":[{"fieldId":"applicantFullName","label":"Applicant's full legal name","type":"text","source":"profile.applicant.fullName","required":true,"helpText":"Must match the marriage certificate exactly.","pdfFieldName":"Applicant full name","id":"applicant_full_name","autoFill":"applicant_full_name"},{"fieldId":"respondentFullName","label":"Respondent's full legal name","type":"text","source":"profile.respondent.fullName","required":true,"helpText":"Must match the marriage certificate exactly.","pdfFieldName":"Respondent full name","id":"respondent_full_name","autoFill":"respondent_full_name"},{"fieldId":"applicantBirthDate","label":"Applicant's date of birth","type":"date","source":"profile.applicant.dateOfBirth","required":false,"pdfFieldName":"Applicant birth date"},{"fieldId":"respondentBirthDate","label":"Respondent's date of birth","type":"date","source":"profile.respondent.dateOfBirth","required":false,"pdfFieldName":"Respondent birth date"}]},{"partId":"divorceOrder","title":"The divorce order","subtitle":"Step 3 of 5","intro":"This section sets out the terms of the divorce order itself \u2014 what the judge will be signing.","fields":[{"fieldId":"marriageDate","label":"Date of marriage","type":"date","source":"profile.case.marriageDate","required":true,"helpText":"Must match the marriage certificate.","pdfFieldName":"Marriage date","id":"date_of_marriage","autoFill":"marriage_date"},{"fieldId":"marriagePlace","label":"Place of marriage (city and province/country)","type":"text","required":true,"placeholder":"e.g. Toronto, Ontario, Canada","pdfFieldName":"Marriage place"},{"fieldId":"separationDate","label":"Date of separation","type":"date","source":"profile.case.separationDate","required":true,"pdfFieldName":"Separation date","id":"date_of_separation","autoFill":"separation_date"},{"fieldId":"divorceEffectiveDate","label":"When should the divorce take effect?","type":"select","required":true,"options":["31 days after the divorce order is made (standard \u2014 allows appeal period)","Immediately \u2014 I am asking the court to waive the 31-day waiting period"],"helpText":"The standard is 31 days. The divorce becomes final 31 days after the judge signs the order, unless an appeal is filed. The 31-day period can only be waived in very limited circumstances (e.g. one party is remarrying imminently).","pdfFieldName":"Divorce effective date"},{"fieldId":"waiveWaitingPeriodReason","label":"Reason for waiving the 31-day waiting period","type":"textarea","required":false,"conditional":{"dependsOn":"divorceEffectiveDate","showWhen":"Immediately \u2014 I am asking the court to waive the 31-day waiting period"},"placeholder":"e.g. Both parties consent to the divorce being effective immediately as one party plans to remarry on [date].","pdfFieldName":"Waive waiting period reason"}]},{"partId":"corollaryRelief","title":"Additional orders (corollary relief)","subtitle":"Step 4 of 5","intro":"A divorce order can also include other orders \u2014 such as support or custody \u2014 if they are not already set out in a separate agreement or order. Only include items here that you need the divorce order itself to address.","fields":[{"fieldId":"includeChildSupport","label":"Should the divorce order include a child support term?","type":"yesno","required":true,"helpText":"Select 'No' if child support is already covered by a separation agreement or a separate court order.","pdfFieldName":"Include child support"},{"fieldId":"childSupportTerm","label":"Child support term to include in the order","type":"textarea","required":false,"conditional":{"dependsOn":"includeChildSupport","showWhen":"yes"},"placeholder":"e.g. The Respondent shall pay to the Applicant child support for the children Alex Lance and Sam Lance in the amount of $1,200 per month commencing July 1, 2025, pursuant to the Child Support Guidelines.","helpText":"Write the exact wording you want the judge to sign. Be specific \u2014 include names, amounts, and start dates.","pdfFieldName":"Child support term"},{"fieldId":"includeSpousalSupport","label":"Should the divorce order include a spousal support term?","type":"yesno","required":true,"helpText":"Select 'No' if spousal support is already covered by a separation agreement or separate order.","pdfFieldName":"Include spousal support"},{"fieldId":"spousalSupportTerm","label":"Spousal support term to include in the order","type":"textarea","required":false,"conditional":{"dependsOn":"includeSpousalSupport","showWhen":"yes"},"placeholder":"e.g. The Respondent shall pay to the Applicant spousal support in the amount of $800 per month commencing July 1, 2025, for a period of 5 years.","pdfFieldName":"Spousal support term"},{"fieldId":"includeCustodyParenting","label":"Should the divorce order include parenting / custody terms?","type":"yesno","required":true,"helpText":"Select 'No' if parenting is already addressed in a separation agreement or a prior court order.","pdfFieldName":"Include custody parenting"},{"fieldId":"custodyParentingTerm","label":"Parenting / custody term to include in the order","type":"textarea","required":false,"conditional":{"dependsOn":"includeCustodyParenting","showWhen":"yes"},"placeholder":"e.g. The children Alex Lance and Sam Lance shall reside primarily with the Applicant. The Respondent shall have parenting time as set out in the Separation Agreement dated March 15, 2025.","pdfFieldName":"Custody parenting term"},{"fieldId":"noOrderCosts","label":"No order as to costs (each party pays their own legal costs)","type":"checkbox","required":false,"helpText":"In uncontested divorces, courts typically make no order as to costs. Check this box if that is your intention.","pdfFieldName":"No order costs"},{"fieldId":"costsTerm","label":"If a costs order is requested, describe it","type":"textarea","required":false,"placeholder":"e.g. The Respondent shall pay costs of this proceeding to the Applicant fixed at $X.","pdfFieldName":"Costs term"}]},{"partId":"review","title":"Review and confirmation","subtitle":"Step 5 of 5","intro":"Review the draft Order for Divorce carefully. The judge will sign exactly what you have prepared here. Once signed, it is a binding court order.","fields":[{"fieldId":"namChangeApplicant","label":"Is the applicant resuming a former surname after the divorce?","type":"yesno","required":false,"helpText":"You can resume a name you used before the marriage. This can be included in the divorce order itself.","pdfFieldName":"Name change applicant"},{"fieldId":"applicantFormerName","label":"Applicant's former surname to be resumed","type":"text","required":false,"conditional":{"dependsOn":"namChangeApplicant","showWhen":"yes"},"placeholder":"e.g. Smith","helpText":"You will use the divorce order as proof of name change \u2014 no other process required.","pdfFieldName":"Applicant former name"},{"fieldId":"bothPartiesConsent","label":"Is this an uncontested (joint or sole) divorce where both parties agree?","type":"yesno","required":true,"helpText":"If the other party is contesting the divorce, the order terms will be determined by the court at a hearing.","pdfFieldName":"Both parties consent"},{"fieldId":"declarationConfirmed","label":"I confirm this Order for Divorce accurately reflects what I am asking the court to order.","type":"checkbox","required":true,"pdfFieldName":"Declaration confirmed"}]}]};
+  window.__hp_formDefs['ON-F15'] = {"formId":"ON-F15","jurisdiction":"ON","pdfFileName":"form15.pdf","title":"Form 15 \u2014 Motion to Change","subtitle":"Ontario Family Court \u2014 Family Law Rules (FLR 15)","requiredPlan":"standard","freeForm":false,"helpIntro":"Form 15 is used when you want to change an existing court order or agreement and the other party does NOT agree to the change. If both parties agree, use Form 23 (Consent Motion to Change) instead. To bring a Motion to Change, you must show the court there has been a 'material change in circumstances' since the original order was made \u2014 something significant has changed that was not anticipated at the time.","parts":[{"partId":"court","title":"Court information","subtitle":"Step 1 of 7","intro":"Enter the court file details from the original order you want to change.","fields":[{"fieldId":"courthouse","label":"Courthouse","type":"select","source":"profile.case.courthouse","required":true,"options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"pdfFieldName":"Courthouse","id":"courthouse","autoFill":"courthouse"},{"fieldId":"fileNumber","label":"Court file number","type":"text","source":"profile.case.fileNumber","required":true,"placeholder":"e.g. FC-2024-12345","helpText":"The file number from the original order. If you are registering an agreement to change, this may be a new file.","pdfFieldName":"Court file number","id":"court_file_number","autoFill":"court_file_number"},{"fieldId":"applicantFullName","label":"Your full legal name (the person asking for the change)","type":"text","source":"profile.applicant.fullName","required":true,"pdfFieldName":"Applicant full name","id":"moving_party_name","autoFill":"applicant_full_name"},{"fieldId":"respondentFullName","label":"Other party's full legal name","type":"text","source":"profile.respondent.fullName","required":true,"pdfFieldName":"Respondent full name","id":"other_party_name","autoFill":"respondent_full_name"}]},{"partId":"existingOrder","title":"The existing order or agreement","subtitle":"Step 2 of 7","intro":"Describe the existing order or agreement you want to change. Attach a copy when you file.","fields":[{"fieldId":"orderType","label":"What are you asking to change?","type":"select","required":true,"options":["A court order","A separation agreement","A domestic contract","A paternity agreement","A combined court order and agreement"],"pdfFieldName":"Order type"},{"fieldId":"orderDate","label":"Date of the existing order or agreement","type":"date","required":true,"helpText":"Found at the top or signature block of the original document.","pdfFieldName":"Order date"},{"fieldId":"orderMadeBy","label":"Name of the judge or officer who made the order (if a court order)","type":"text","required":false,"placeholder":"e.g. Justice Patel","pdfFieldName":"Order made by"},{"fieldId":"orderCurrentTerms","label":"What does the existing order or agreement currently say?","type":"textarea","required":true,"placeholder":"e.g. The Respondent pays child support of $950 per month for the child Alex Lance, born April 12, 2015.\n\nThe parties share decision-making responsibility for Alex. Alex lives primarily with the Applicant with the Respondent having parenting time every other weekend.","helpText":"Copy the relevant paragraphs from the existing order. Attach the full order when you file.","pdfFieldName":"Order current terms"}]},{"partId":"materialChange","title":"Material change in circumstances","subtitle":"Step 3 of 7","intro":"This is the most critical part. You must convince the court that something significant has changed since the original order was made. Without a material change, the court will not reopen the matter.","fields":[{"fieldId":"materialChangeType","label":"What type of change has occurred?","type":"select","required":true,"options":["Change in income \u2014 mine has decreased significantly","Change in income \u2014 the other party's has increased significantly","Change in income \u2014 mine has increased significantly","Job loss or layoff","Child's needs have changed (age, health, education, special needs)","Parenting arrangement is no longer working","One party plans to relocate","New partner / remarriage affecting support","Child has reached age of majority or become independent","Health issue \u2014 mine","Health issue \u2014 the other party's","Other significant change"],"pdfFieldName":"Material change type"},{"fieldId":"materialChangeDescription","label":"Describe the material change in detail","type":"textarea","required":true,"placeholder":"e.g. Since the order was made in March 2023, my employment circumstances have changed significantly. I was laid off from my position as a project manager in January 2026. My annual income has dropped from $95,000 to approximately $32,000 in employment insurance benefits. This change was not anticipated at the time of the original order.","helpText":"Be specific: what changed, when it changed, why it was not anticipated in the original order, and how it affects the existing terms. The court needs to see that this is a real, lasting change \u2014 not a temporary setback.","pdfFieldName":"Material change description"},{"fieldId":"whenChangeOccurred","label":"When did this change occur?","type":"date","required":true,"helpText":"The approximate date the change began.","pdfFieldName":"When change occurred"},{"fieldId":"changeNotAnticipated","label":"Explain why this change was not anticipated when the original order was made","type":"textarea","required":true,"placeholder":"e.g. At the time of the order in March 2023, I was employed full-time and my income was stable. The layoff in January 2026 was unexpected and due to company-wide restructuring beyond my control.","pdfFieldName":"Change not anticipated"}]},{"partId":"changesRequested","title":"Changes you are asking for","subtitle":"Step 4 of 7","intro":"Describe exactly what you want the court to change. Be as specific as possible about the new terms you are proposing.","fields":[{"fieldId":"changeChildSupport","label":"Are you asking to change child support?","type":"yesno","required":true,"pdfFieldName":"Change child support"},{"fieldId":"childSupportCurrentAmount","label":"Current child support amount","type":"currency","required":false,"conditional":{"dependsOn":"changeChildSupport","showWhen":"yes"},"placeholder":"0.00","pdfFieldName":"Child support current amount"},{"fieldId":"childSupportProposedAmount","label":"New child support amount you are proposing","type":"currency","required":false,"conditional":{"dependsOn":"changeChildSupport","showWhen":"yes"},"placeholder":"0.00","helpText":"Child support is set by the Child Support Guidelines based on the payor's income. Use the federal child support tables at canada.ca to find the guideline amount for your income and number of children.","pdfFieldName":"Child support proposed amount"},{"fieldId":"childSupportEffectiveDate","label":"Date you want the new amount to start","type":"date","required":false,"conditional":{"dependsOn":"changeChildSupport","showWhen":"yes"},"helpText":"Courts often make changes retroactive to the date of the motion or the date circumstances changed.","pdfFieldName":"Child support effective date"},{"fieldId":"childSupportChangeDetails","label":"Describe the full child support change you are requesting","type":"textarea","required":false,"conditional":{"dependsOn":"changeChildSupport","showWhen":"yes"},"placeholder":"e.g. I am requesting that child support be reduced from $950 per month to $385 per month, which is the Child Support Guidelines amount for one child based on my current annual income of $32,000. I am requesting this change be effective January 1, 2026.","pdfFieldName":"Child support change details"},{"fieldId":"changeSpousalSupport","label":"Are you asking to change spousal support?","type":"yesno","required":true,"pdfFieldName":"Change spousal support"},{"fieldId":"spousalSupportCurrentAmount","label":"Current spousal support amount","type":"currency","required":false,"conditional":{"dependsOn":"changeSpousalSupport","showWhen":"yes"},"placeholder":"0.00","pdfFieldName":"Spousal support current amount"},{"fieldId":"spousalSupportProposedAmount","label":"New spousal support amount you are proposing (enter 0 to terminate)","type":"currency","required":false,"conditional":{"dependsOn":"changeSpousalSupport","showWhen":"yes"},"placeholder":"0.00","pdfFieldName":"Spousal support proposed amount"},{"fieldId":"spousalSupportChangeDetails","label":"Describe the spousal support change you are requesting","type":"textarea","required":false,"conditional":{"dependsOn":"changeSpousalSupport","showWhen":"yes"},"placeholder":"e.g. I am requesting that spousal support be terminated effective June 1, 2026, as the recipient has become self-sufficient, earning $68,000 per year, and the original basis for support no longer exists.","pdfFieldName":"Spousal support change details"},{"fieldId":"changeParenting","label":"Are you asking to change parenting time or decision-making?","type":"yesno","required":true,"pdfFieldName":"Change parenting"},{"fieldId":"parentingCurrentArrangement","label":"Current parenting arrangement","type":"textarea","required":false,"conditional":{"dependsOn":"changeParenting","showWhen":"yes"},"placeholder":"e.g. Alex lives primarily with the Applicant. The Respondent has parenting time every other weekend from Friday at 6 p.m. to Sunday at 6 p.m.","pdfFieldName":"Parenting current arrangement"},{"fieldId":"parentingProposedArrangement","label":"Proposed new parenting arrangement","type":"textarea","required":false,"conditional":{"dependsOn":"changeParenting","showWhen":"yes"},"placeholder":"e.g. I am requesting equal parenting time on a week-on, week-off schedule. Alex is now 11 years old and has expressed a strong preference to spend more time with both parents.","helpText":"Be specific about days, times, and holiday schedules. Always frame changes in terms of the child's best interests.","pdfFieldName":"Parenting proposed arrangement"},{"fieldId":"changeOther","label":"Are you asking to change any other term of the order?","type":"yesno","required":true,"pdfFieldName":"Change other"},{"fieldId":"otherChangeDetails","label":"Describe the other change you are requesting","type":"textarea","required":false,"conditional":{"dependsOn":"changeOther","showWhen":"yes"},"placeholder":"e.g. I am requesting that the requirement to maintain life insurance be removed, as the child support obligation is being reduced.","pdfFieldName":"Other change details"}]},{"partId":"children","title":"Children","subtitle":"Step 5 of 7","intro":"If the changes involve children, provide their current details.","fields":[{"fieldId":"hasChildren","label":"Do the requested changes involve children?","type":"yesno","required":true,"pdfFieldName":"Has children"},{"fieldId":"childrenDetails","label":"List the children (name, date of birth, where they live now)","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildren","showWhen":"yes"},"source":"profile.children.list","placeholder":"Alex Lance \u2014 born April 12, 2015 \u2014 living with Applicant\nSam Lance \u2014 born September 3, 2018 \u2014 living with Applicant","pdfFieldName":"Children details"},{"fieldId":"childrenCurrentSituation","label":"Describe how the children's situation has changed since the original order","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildren","showWhen":"yes"},"placeholder":"e.g. Alex is now 11 years old and in Grade 6. Since the order was made, Alex has started a competitive hockey program that runs on weekends, which conflicts with the current parenting schedule.","pdfFieldName":"Children current situation"},{"fieldId":"bestInterestsBasis","label":"Why are the proposed changes in the best interests of the children?","type":"textarea","required":false,"conditional":{"dependsOn":"hasChildren","showWhen":"yes"},"placeholder":"e.g. Alex has expressed a clear preference (at age 11) to spend more time with the Respondent. Equal parenting time will strengthen Alex's relationship with both parents and is consistent with Alex's wishes.","pdfFieldName":"Best interests basis"}]},{"partId":"temporaryOrder","title":"Temporary order (if needed urgently)","subtitle":"Step 6 of 7","intro":"If you need the court to make a temporary change right away \u2014 while your full Motion to Change is being scheduled \u2014 you can ask for a temporary order.","fields":[{"fieldId":"seekingTemporaryOrder","label":"Are you asking for a temporary order in addition to the final change?","type":"yesno","required":true,"helpText":"A temporary order provides immediate relief while you wait for the full hearing, which can be months away.","pdfFieldName":"Seeking temporary order"},{"fieldId":"temporaryOrderDetails","label":"Describe the temporary order you are asking for","type":"textarea","required":false,"conditional":{"dependsOn":"seekingTemporaryOrder","showWhen":"yes"},"placeholder":"e.g. I am asking for a temporary reduction in child support from $950 to $385 per month, effective immediately, until the full motion is heard. I cannot afford the current amount on my reduced income.","pdfFieldName":"Temporary order details"},{"fieldId":"urgencyReason","label":"Why is a temporary order needed urgently?","type":"textarea","required":false,"conditional":{"dependsOn":"seekingTemporaryOrder","showWhen":"yes"},"placeholder":"e.g. I have been unable to meet the current support obligation since my layoff in January 2026. I am accumulating arrears and face enforcement action by the Family Responsibility Office.","pdfFieldName":"Urgency reason"}]},{"partId":"review","title":"Review and sign","subtitle":"Step 7 of 7","intro":"Review your Motion to Change. After filing, you must serve the other party and file a Form 15A (Change Information) and a supporting affidavit.","fields":[{"fieldId":"form15aReminder","label":"I understand I must also file Form 15A (Change Information) with this motion.","type":"checkbox","required":true,"helpText":"Form 15A provides the court with detailed financial information to support the change. It must be filed at the same time as Form 15.","pdfFieldName":"Form 15A reminder"},{"fieldId":"serviceReminder","label":"I understand I must serve the other party with this motion and file proof of service (Form 6B).","type":"checkbox","required":true,"pdfFieldName":"Service reminder"},{"fieldId":"signatureDate","label":"Date of signature","type":"date","required":true,"pdfFieldName":"Signature date"},{"fieldId":"declarationConfirmed","label":"I confirm the information in this Motion to Change is accurate and complete.","type":"checkbox","required":true,"pdfFieldName":"Declaration confirmed"}]}]};
+  window.__hp_formDefs['ON-F15A'] = {"formId":"ON-F15A","formCode":"form15a-change-info","title":"Form 15A \u2014 Change Information","jurisdiction":"Ontario","version":"2024","description":"Financial and personal disclosure companion to Form 15 (Motion to Change). Provides current income, expenses, reason for change, comparison of old vs proposed order terms, and children's current circumstances.","autoPopulateFrom":["form8-general","form13-financial","form15-motion-to-change"],"steps":[{"stepId":"ci-step1","title":"Party Information","description":"Confirm the names of the parties involved in the original order.","fields":[{"id":"applicant_full_name","label":"Your full legal name (Applicant/Moving Party)","type":"text","required":true,"placeholder":"e.g. Jane Marie Smith","autoPopulate":"applicant_full_name","helpText":"Enter your name exactly as it appears on the existing court order."},{"id":"respondent_full_name","label":"Other party's full legal name (Respondent)","type":"text","required":true,"placeholder":"e.g. John Robert Smith","autoPopulate":"respondent_full_name"},{"id":"court_file_number","label":"Court file number","type":"text","required":true,"placeholder":"e.g. FC-2022-12345","autoPopulate":"court_file_number","helpText":"Found on your existing order or any court documents for this case."},{"id":"courthouse_name","label":"Name of courthouse","type":"text","required":true,"placeholder":"e.g. Ontario Court of Justice \u2013 Toronto","autoPopulate":"courthouse_name"},{"id":"original_order_date","label":"Date of the order you want to change","type":"date","required":true,"helpText":"The date shown on the existing order or agreement being varied."},{"id":"original_order_type","label":"Type of original order","type":"select","required":true,"options":[{"value":"court_order","label":"Court order"},{"value":"consent_order","label":"Consent order"},{"value":"separation_agreement","label":"Separation agreement"},{"value":"minutes_of_settlement","label":"Minutes of settlement"},{"value":"other","label":"Other"}]},{"id":"original_order_type_other","label":"Describe the type of original order","type":"text","required":false,"conditionalOn":{"field":"original_order_type","value":"other"},"placeholder":"Describe the type of order or agreement"}]},{"stepId":"ci-step2","title":"Your Current Income","description":"Provide your current income details. This information is used to assess whether a change to support is warranted.","fields":[{"id":"applicant_employment_status","label":"Your current employment status","type":"select","required":true,"options":[{"value":"employed_full_time","label":"Employed full-time"},{"value":"employed_part_time","label":"Employed part-time"},{"value":"self_employed","label":"Self-employed"},{"value":"unemployed","label":"Unemployed"},{"value":"on_disability","label":"On disability benefits"},{"value":"on_employment_insurance","label":"On employment insurance (EI)"},{"value":"retired","label":"Retired"},{"value":"student","label":"Full-time student"}]},{"id":"applicant_employer_name","label":"Name of your employer","type":"text","required":false,"placeholder":"e.g. ABC Company Inc.","conditionalOn":{"field":"applicant_employment_status","value":"employed_full_time","orValues":["employed_full_time","employed_part_time"]}},{"id":"applicant_annual_income","label":"Your current annual income (before taxes, in CAD)","type":"number","required":true,"placeholder":"e.g. 55000","prefix":"$","helpText":"Include all sources: employment, self-employment, government benefits, investment income, etc."},{"id":"applicant_income_sources","label":"Sources of your income","type":"checkbox-group","required":true,"options":[{"value":"employment","label":"Employment wages or salary"},{"value":"self_employment","label":"Self-employment income"},{"value":"ei","label":"Employment insurance (EI)"},{"value":"ontario_disability","label":"Ontario Disability Support Program (ODSP)"},{"value":"ontario_works","label":"Ontario Works (OW)"},{"value":"cpp","label":"Canada Pension Plan (CPP)"},{"value":"oas","label":"Old Age Security (OAS)"},{"value":"rental","label":"Rental income"},{"value":"investment","label":"Investment or dividend income"},{"value":"other","label":"Other income"}]},{"id":"applicant_income_change_since_order","label":"Has your income changed significantly since the original order?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"applicant_income_at_order","label":"What was your annual income at the time of the original order?","type":"number","required":false,"prefix":"$","conditionalOn":{"field":"applicant_income_change_since_order","value":"yes"},"placeholder":"e.g. 70000"},{"id":"applicant_income_change_explanation","label":"Briefly explain the change in your income","type":"textarea","required":false,"conditionalOn":{"field":"applicant_income_change_since_order","value":"yes"},"placeholder":"e.g. I was laid off in March 2024 and have been unable to find equivalent employment. My current income is from part-time work and EI benefits."}]},{"stepId":"ci-step3","title":"Other Party's Current Income","description":"Provide what you know about the other party's current income. If you don't have exact figures, provide your best estimate and explain.","fields":[{"id":"respondent_employment_status_known","label":"Do you know the other party's current employment status?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No \u2014 I don't have this information"}]},{"id":"respondent_employment_status","label":"Other party's current employment status","type":"select","required":false,"conditionalOn":{"field":"respondent_employment_status_known","value":"yes"},"options":[{"value":"employed_full_time","label":"Employed full-time"},{"value":"employed_part_time","label":"Employed part-time"},{"value":"self_employed","label":"Self-employed"},{"value":"unemployed","label":"Unemployed"},{"value":"on_disability","label":"On disability benefits"},{"value":"on_employment_insurance","label":"On employment insurance (EI)"},{"value":"retired","label":"Retired"},{"value":"student","label":"Full-time student"},{"value":"unknown","label":"Unknown / Not certain"}]},{"id":"respondent_annual_income_estimate","label":"Other party's estimated current annual income (before taxes, in CAD)","type":"number","required":false,"prefix":"$","placeholder":"e.g. 80000","helpText":"Provide your best estimate. You may request financial disclosure through the court if needed."},{"id":"respondent_income_basis","label":"How do you know or estimate the other party's income?","type":"textarea","required":false,"placeholder":"e.g. Based on their LinkedIn profile, they are still working as an engineer at the same company. I estimate their salary is approximately $80,000\u2013$90,000 per year."},{"id":"respondent_income_changed","label":"Do you believe the other party's income has changed significantly since the original order?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 their income has increased or decreased significantly"},{"value":"no","label":"No \u2014 their income appears similar to what it was"},{"value":"unknown","label":"I don't know"}]},{"id":"respondent_income_change_explanation","label":"Explain what you believe changed about the other party's income","type":"textarea","required":false,"conditionalOn":{"field":"respondent_income_changed","value":"yes"},"placeholder":"e.g. I understand they received a significant promotion and are now earning considerably more than at the time of our original order."}]},{"stepId":"ci-step4","title":"Your Current Monthly Expenses","description":"List your current monthly expenses. This helps the court understand your financial need and ability to pay.","fields":[{"id":"expense_rent_mortgage","label":"Rent or mortgage","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"Monthly amount. Enter 0 if not applicable."},{"id":"expense_utilities","label":"Utilities (hydro, gas, water, internet, phone)","type":"number","required":true,"prefix":"$","placeholder":"0.00"},{"id":"expense_food_groceries","label":"Food and groceries","type":"number","required":true,"prefix":"$","placeholder":"0.00"},{"id":"expense_transportation","label":"Transportation (car payment, insurance, gas, transit)","type":"number","required":true,"prefix":"$","placeholder":"0.00"},{"id":"expense_childcare","label":"Childcare or daycare","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"expense_medical","label":"Medical, dental, prescriptions (not covered by insurance)","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"expense_children_activities","label":"Children's activities, school supplies, clothing","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"expense_insurance","label":"Life or health insurance premiums","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"expense_debt_payments","label":"Debt payments (credit card minimums, loans, lines of credit)","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"expense_other","label":"Other significant monthly expenses","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"expense_other_description","label":"Describe the other expenses","type":"text","required":false,"placeholder":"e.g. tutoring, therapy, union dues"},{"id":"expense_total_monthly","label":"Total monthly expenses","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"Add up all the monthly expenses listed above.","autoCalculate":{"operation":"sum","fields":["expense_rent_mortgage","expense_utilities","expense_food_groceries","expense_transportation","expense_childcare","expense_medical","expense_children_activities","expense_insurance","expense_debt_payments","expense_other"]}}]},{"stepId":"ci-step5","title":"Reason for Requested Change","description":"Explain why you are asking the court to change the existing order. There must be a material change in circumstances since the original order was made.","fields":[{"id":"material_change_categories","label":"What material changes have occurred? (select all that apply)","type":"checkbox-group","required":true,"helpText":"A 'material change' means a significant change that was not anticipated when the original order was made.","options":[{"value":"income_loss","label":"My income has significantly decreased (e.g. job loss, reduced hours, illness)"},{"value":"income_increase_other","label":"The other party's income has significantly increased"},{"value":"child_needs_changed","label":"The children's needs have changed significantly"},{"value":"parenting_arrangement_changed","label":"Parenting time or custody arrangements have changed in practice"},{"value":"child_relocation","label":"A child has changed residence"},{"value":"child_disability","label":"A child has developed special needs or a disability"},{"value":"child_adult","label":"A child is approaching or has reached the age of majority"},{"value":"remarriage_cohabitation","label":"I or the other party has remarried or begun cohabiting"},{"value":"health_change","label":"A significant health change affecting ability to work or care for children"},{"value":"new_child","label":"A new child has been born"},{"value":"other","label":"Other material change"}]},{"id":"material_change_details","label":"Describe the material change(s) in detail","type":"textarea","required":true,"placeholder":"e.g. In January 2025 I was laid off from my position as a logistics coordinator due to company downsizing. Despite actively seeking new employment, I have been unable to secure comparable work. My income has dropped from $72,000 per year to approximately $24,000 in EI benefits. This is a significant and unanticipated change that has made it impossible to continue paying the original support amount.","helpText":"Be specific. Include dates, amounts, and any supporting facts. This narrative is central to your motion."},{"id":"change_in_custody_parenting","label":"Has the actual parenting or custody arrangement changed since the original order?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 the arrangement has changed from what the order says"},{"value":"no","label":"No \u2014 the arrangement follows the order"}]},{"id":"change_in_custody_parenting_details","label":"Describe how the parenting arrangement differs from the order","type":"textarea","required":false,"conditionalOn":{"field":"change_in_custody_parenting","value":"yes"},"placeholder":"e.g. The children have been living primarily with me for the past 8 months rather than following the 50/50 schedule in the order. The other party agreed to this informally but has not consented to changing the order."},{"id":"arrears_owing","label":"Are there any outstanding arrears (unpaid support) under the current order?","type":"radio","required":true,"options":[{"value":"yes_i_owe","label":"Yes \u2014 I owe arrears"},{"value":"yes_they_owe","label":"Yes \u2014 the other party owes me arrears"},{"value":"no","label":"No \u2014 payments are current"}]},{"id":"arrears_amount","label":"Total amount of arrears","type":"number","required":false,"prefix":"$","conditionalOn":{"field":"arrears_owing","value":"yes_i_owe","orValues":["yes_i_owe","yes_they_owe"]},"placeholder":"e.g. 4500"},{"id":"arrears_explanation","label":"Explain the arrears","type":"textarea","required":false,"conditionalOn":{"field":"arrears_owing","value":"yes_i_owe","orValues":["yes_i_owe","yes_they_owe"]},"placeholder":"e.g. I fell behind on payments starting in February 2025 when I was laid off. I owe approximately $4,500 in arrears. I am requesting that the court consider suspending or reducing arrears enforcement while my income situation is resolved."}]},{"stepId":"ci-step6","title":"Comparison: Current Order vs. Proposed Change","description":"Provide the specific terms of the current order and what you are asking the court to change them to.","fields":[{"id":"current_child_support_amount","label":"Child support \u2014 current monthly amount under the order","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Enter 0 if the current order does not include child support."},{"id":"proposed_child_support_amount","label":"Child support \u2014 proposed new monthly amount","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Enter the amount you are asking the court to set. Enter 0 if you are asking for child support to be terminated."},{"id":"child_support_change_reason","label":"Briefly explain why you are asking for this child support change","type":"textarea","required":false,"placeholder":"e.g. Based on my current income of $24,000 per year, the Federal Child Support Guidelines table amount for one child is $198/month, compared to the current order of $650/month which was based on my prior income of $72,000."},{"id":"current_spousal_support_amount","label":"Spousal support \u2014 current monthly amount under the order","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Enter 0 if the current order does not include spousal support."},{"id":"proposed_spousal_support_amount","label":"Spousal support \u2014 proposed new monthly amount","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"spousal_support_change_reason","label":"Briefly explain why you are asking for this spousal support change","type":"textarea","required":false,"placeholder":"e.g. My income has decreased significantly and I can no longer afford the existing spousal support payments. Alternatively, the other party's income has increased substantially since the order was made."},{"id":"current_parenting_schedule","label":"Parenting time \u2014 current schedule as stated in the order","type":"textarea","required":false,"placeholder":"e.g. Equal shared parenting \u2014 children reside with each parent on alternating weeks."},{"id":"proposed_parenting_schedule","label":"Parenting time \u2014 proposed new schedule","type":"textarea","required":false,"placeholder":"e.g. Children to reside primarily with me, with parenting time for the other parent every other weekend and Wednesday evenings."},{"id":"other_order_terms_to_change","label":"Are there any other terms in the order you want changed?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"other_order_terms_details","label":"Describe the other terms you want changed and your proposed changes","type":"textarea","required":false,"conditionalOn":{"field":"other_order_terms_to_change","value":"yes"},"placeholder":"e.g. I am asking the court to change the section requiring both parents to attend family therapy together, as the relationship between the parties makes this unworkable."},{"id":"proposed_effective_date","label":"From what date should the new order take effect?","type":"date","required":false,"helpText":"Courts may backdate changes to the date you filed or the date the change in circumstances began. Leave blank if you want the court to decide."}]},{"stepId":"ci-step7","title":"Children's Current Circumstances","description":"Describe the current situation of the children affected by this motion.","fields":[{"id":"has_children","label":"Are there children affected by this motion?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No \u2014 this motion only affects spousal support or other terms"}]},{"id":"number_of_children","label":"How many children are affected?","type":"number","required":false,"conditionalOn":{"field":"has_children","value":"yes"},"placeholder":"e.g. 2"},{"id":"children_details","label":"Children's names and ages","type":"repeatable-group","required":false,"conditionalOn":{"field":"has_children","value":"yes"},"maxItems":8,"addLabel":"Add another child","fields":[{"id":"child_name","label":"Child's full name","type":"text","required":true,"placeholder":"e.g. Emily Rose Smith"},{"id":"child_dob","label":"Date of birth","type":"date","required":true},{"id":"child_current_residence","label":"Currently living primarily with","type":"select","required":true,"options":[{"value":"applicant","label":"Me (the applicant)"},{"value":"respondent","label":"The other party"},{"value":"equal_shared","label":"Equal shared \u2014 both parents equally"},{"value":"other","label":"Other arrangement"}]},{"id":"child_special_needs","label":"Does this child have any special needs or circumstances to bring to the court's attention?","type":"text","required":false,"placeholder":"e.g. diagnosed ADHD, requires weekly therapy; or 'None'"}]},{"id":"children_circumstances_narrative","label":"Describe the children's current circumstances and needs","type":"textarea","required":false,"conditionalOn":{"field":"has_children","value":"yes"},"placeholder":"e.g. Our two children, ages 7 and 10, are currently thriving in school. The older child has begun playing competitive hockey which involves significant equipment and travel costs. The younger child was recently assessed and requires speech-language therapy three times per week, which is not covered by our benefits plans.","helpText":"Include anything relevant to why the existing order no longer meets the children's needs or how your proposed change better serves them."},{"id":"children_views","label":"Have the children expressed views or preferences about the proposed change? (if age-appropriate)","type":"radio","required":false,"conditionalOn":{"field":"has_children","value":"yes"},"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No \u2014 not applicable or they have not expressed views"}]},{"id":"children_views_details","label":"Describe the children's views or preferences","type":"textarea","required":false,"conditionalOn":{"field":"children_views","value":"yes"},"placeholder":"e.g. My 13-year-old has expressed a clear preference to live primarily with me, which aligns with the arrangement that has existed in practice for the past year."}]},{"stepId":"ci-step8","title":"Review & Declaration","description":"Review your information and confirm its accuracy before generating your form.","fields":[{"id":"supporting_documents","label":"What supporting documents do you have? (select all that apply)","type":"checkbox-group","required":false,"helpText":"You will need to attach relevant documents to your motion. Check what you have available.","options":[{"value":"recent_tax_return","label":"Recent income tax return (Notice of Assessment)"},{"value":"pay_stubs","label":"Recent pay stubs (last 3 months)"},{"value":"ei_statement","label":"EI or ODSP/OW benefit statement"},{"value":"layoff_letter","label":"Letter of termination / layoff"},{"value":"medical_letter","label":"Doctor's letter or medical documentation"},{"value":"bank_statements","label":"Bank statements showing income/expenses"},{"value":"child_records","label":"School records, medical records for children"},{"value":"original_order_copy","label":"Copy of the existing court order"},{"value":"correspondence","label":"Relevant emails or correspondence with other party"}]},{"id":"previous_court_attempts","label":"Have you tried to resolve this matter with the other party before bringing this motion?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"previous_attempts_details","label":"Describe your attempts to resolve this without court","type":"textarea","required":false,"conditionalOn":{"field":"previous_court_attempts","value":"yes"},"placeholder":"e.g. I contacted the other party in March 2025 by email and again by phone to propose a temporary reduction in child support. They did not respond to my emails and refused to discuss the matter by phone. I also contacted a mediator but the other party declined to participate."},{"id":"sworn_declaration","label":"Declaration","type":"declaration","required":true,"text":"I declare that the information provided in this form is true and complete to the best of my knowledge and belief. I understand that providing false information to the court is a serious matter.","checkboxLabel":"I confirm this declaration is true and accurate."}]}],"pdfMapping":{"notes":"Form 15A Change Information \u2014 fields map to Ontario Court Services form fields. Courts may use various versions; consult the current form at ontario.ca/page/family-law-forms before filing.","party_court_header":["applicant_full_name","respondent_full_name","court_file_number","courthouse_name"],"original_order_section":["original_order_date","original_order_type"],"applicant_income_section":["applicant_employment_status","applicant_annual_income","applicant_income_sources"],"respondent_income_section":["respondent_employment_status","respondent_annual_income_estimate"],"expenses_section":["expense_rent_mortgage","expense_utilities","expense_food_groceries","expense_transportation","expense_childcare","expense_medical","expense_total_monthly"],"material_change_section":["material_change_categories","material_change_details"],"order_comparison_section":["current_child_support_amount","proposed_child_support_amount","current_spousal_support_amount","proposed_spousal_support_amount"],"children_section":["number_of_children","children_details","children_circumstances_narrative"],"declaration_section":["sworn_declaration"]}};
+  window.__hp_formDefs['ON-F17'] = {"formId":"ON-F17","formCode":"form17-conference-notice","title":"Form 17 \u2014 Notice of Case Conference, Settlement Conference, or Trial Management Conference","jurisdiction":"Ontario","version":"2024","description":"Used to schedule and give notice of a case conference, settlement conference, or trial management conference in an Ontario family law proceeding. Required under Family Law Rules Rule 17.","autoPopulateFrom":["form8-general"],"steps":[{"stepId":"cn-step1","title":"Court & Case Information","description":"Enter the court file details. This form tells the court and the other party when and where the conference is scheduled.","fields":[{"id":"courthouse","label":"Courthouse","type":"select","required":true,"autoPopulate":"courthouse","options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"],"helpText":"Select the courthouse where your family law case is being heard."},{"id":"court_file_number","label":"Court file number","type":"text","required":false,"autoPopulate":"court_file_number","placeholder":"e.g. FC-2024-12345","helpText":"Leave blank if you do not yet have one. It will be assigned when you file your application."},{"id":"applicant_full_name","label":"Applicant's full legal name","type":"text","required":true,"autoPopulate":"applicant_full_name","placeholder":"e.g. Jane Marie Smith"},{"id":"respondent_full_name","label":"Respondent's full legal name","type":"text","required":true,"autoPopulate":"respondent_full_name","placeholder":"e.g. John Robert Smith"}]},{"stepId":"cn-step2","title":"Type of Conference","description":"Select which type of conference you are scheduling. Each serves a different purpose in the family law process.","fields":[{"id":"conference_type","label":"What type of conference are you scheduling?","type":"select","required":true,"options":[{"value":"case_conference","label":"Case Conference"},{"value":"settlement_conference","label":"Settlement Conference"},{"value":"trial_management_conference","label":"Trial Management Conference"}],"helpText":"Not sure which type? See the descriptions below."},{"id":"conference_type_explainer","label":"What does each type mean?","type":"info-box","content":"**Case Conference** \u2014 Usually the first meeting with a judge. The judge helps identify the issues, encourages settlement, and gives directions on next steps. Required before most motions can be brought.\n\n**Settlement Conference** \u2014 A more focused meeting where a judge actively helps both parties try to resolve the case. Usually held after a case conference. Both parties must come prepared with their best settlement offer.\n\n**Trial Management Conference** \u2014 Held just before trial to make sure both parties are ready. The judge reviews the issues going to trial, identifies witnesses, and makes procedural orders. Required before any trial."},{"id":"first_conference","label":"Is this your first conference in this case?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 this is the first conference"},{"value":"no","label":"No \u2014 there have been previous conferences"}]},{"id":"previous_conference_summary","label":"Briefly describe what happened at the last conference","type":"textarea","required":false,"conditionalOn":{"field":"first_conference","value":"no"},"placeholder":"e.g. At the case conference on March 15, 2025, Justice Smith made a temporary order for child support of $800/month. The parties were directed to exchange financial disclosure and attend a settlement conference."}]},{"stepId":"cn-step3","title":"Conference Date & Details","description":"Enter the date, time, and location for the conference. Contact the court clerk to schedule the date before completing this form.","fields":[{"id":"conference_date","label":"Date of the conference","type":"date","required":true,"helpText":"Contact the court clerk first to book a date. You must serve this notice on the other party at least 6 days before the conference."},{"id":"conference_time","label":"Time of the conference","type":"text","required":true,"placeholder":"e.g. 9:30 a.m.","helpText":"As confirmed by the court clerk."},{"id":"conference_location","label":"Location (courtroom or room number, if known)","type":"text","required":false,"placeholder":"e.g. Room 4B, 393 University Ave, Toronto ON M5G 1E6","helpText":"Leave blank if the court clerk has not yet assigned a room. The courthouse address is enough."},{"id":"conference_format","label":"Format of the conference","type":"select","required":true,"options":[{"value":"in_person","label":"In person \u2014 at the courthouse"},{"value":"video","label":"By video (e.g. Zoom)"},{"value":"telephone","label":"By telephone"},{"value":"hybrid","label":"Hybrid \u2014 some in person, some remote"}],"helpText":"Confirm the format with the court clerk. Many Ontario courts now offer video conferences."},{"id":"video_link","label":"Video conference link or dial-in information","type":"text","required":false,"conditionalOn":{"field":"conference_format","value":"video","orValues":["video","telephone","hybrid"]},"placeholder":"e.g. Zoom link: https://ontario.zoom.us/j/123456789 or call-in: 1-647-374-4685"}]},{"stepId":"cn-step4","title":"Issues for the Conference","description":"List the issues you want the conference to address. The judge will focus on what you identify here.","fields":[{"id":"issues_to_resolve","label":"What issues do you want to address at this conference? (select all that apply)","type":"checkbox-group","required":true,"helpText":"Check everything that applies. You don't need to resolve all issues \u2014 just identify what is in dispute.","options":[{"value":"decision_making","label":"Decision-making responsibility (custody)"},{"value":"parenting_time","label":"Parenting time (access schedule)"},{"value":"child_support","label":"Child support"},{"value":"spousal_support","label":"Spousal support"},{"value":"property_division","label":"Property division / equalization"},{"value":"family_home","label":"Who stays in the family home"},{"value":"restraining_order","label":"Restraining order or non-harassment order"},{"value":"relocation","label":"Relocation of a child"},{"value":"disclosure","label":"Financial disclosure obligations"},{"value":"procedural_matters","label":"Procedural matters (timetable, next steps)"},{"value":"enforcement","label":"Enforcement of an existing order"},{"value":"arrears","label":"Child or spousal support arrears"},{"value":"other","label":"Other issue"}]},{"id":"other_issue_description","label":"Describe the other issue","type":"text","required":false,"conditionalOn":{"field":"issues_to_resolve","value":"other"},"placeholder":"e.g. Division of a specific pension, passport for child travel"},{"id":"issues_agreed","label":"Are there any issues that are already agreed between the parties?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 some issues are settled"},{"value":"no","label":"No \u2014 all listed issues are still in dispute"}]},{"id":"agreed_issues_description","label":"Describe what has already been agreed","type":"textarea","required":false,"conditionalOn":{"field":"issues_agreed","value":"yes"},"placeholder":"e.g. The parties have agreed that the children will continue to attend the same school. Parenting time and child support amounts are still in dispute."}]},{"stepId":"cn-step5","title":"Orders You Are Seeking","description":"Tell the court what you want the judge to order or direct at this conference.","fields":[{"id":"seeking_temporary_order","label":"Are you asking the judge to make any temporary orders at this conference?","type":"radio","required":true,"helpText":"At a case conference or settlement conference, a judge can make temporary orders on consent or on a motion. Identify if you need something in the short term.","options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No \u2014 just asking for directions and next steps"}]},{"id":"temporary_orders_sought","label":"Describe the temporary order(s) you are asking for","type":"textarea","required":false,"conditionalOn":{"field":"seeking_temporary_order","value":"yes"},"placeholder":"e.g. A temporary order that the children reside primarily with me pending trial, and that the Respondent pay interim child support of $750/month."},{"id":"directions_sought","label":"What procedural directions are you asking the judge to give?","type":"checkbox-group","required":false,"helpText":"Directions are instructions from the judge about how the case should proceed.","options":[{"value":"timetable","label":"Set a timetable for exchanging documents and evidence"},{"value":"financial_disclosure","label":"Order the other party to provide financial disclosure"},{"value":"valuations","label":"Order property or business valuations"},{"value":"expert_report","label":"Order an expert report (e.g. parenting assessment)"},{"value":"mediation","label":"Refer to mediation"},{"value":"trial_date","label":"Set a trial date"},{"value":"other_direction","label":"Other procedural direction"}]},{"id":"other_direction_description","label":"Describe the other direction you are seeking","type":"text","required":false,"conditionalOn":{"field":"directions_sought","value":"other_direction"},"placeholder":"e.g. Order that both parties complete parenting education program before next conference"}]},{"stepId":"cn-step6","title":"Background Facts","description":"Provide a brief summary of the facts. The judge reads this before the conference to understand your situation.","fields":[{"id":"relationship_summary","label":"Brief history of the relationship and family","type":"textarea","required":true,"placeholder":"e.g. The parties were married on June 12, 2015 in Toronto and separated on February 1, 2024. There are two children: Alex (age 10) and Sam (age 7). The parties lived in the family home at 123 Main St, Toronto until separation. The Applicant remains in the family home with the children. The Respondent moved to an apartment nearby.","helpText":"Keep it factual and brief \u2014 3 to 5 sentences. The judge uses this to understand the basics of your case before the conference."},{"id":"current_arrangements","label":"What are the current arrangements for the children and finances?","type":"textarea","required":true,"placeholder":"e.g. The children currently live primarily with the Applicant on a temporary basis. The Respondent has parenting time every other weekend. No support is currently being paid. There is no existing court order \u2014 these are informal arrangements only.","helpText":"Describe what is actually happening right now, even if there is no formal order."},{"id":"main_concern","label":"What is your main concern going into this conference?","type":"textarea","required":true,"placeholder":"e.g. My main concern is stabilizing the children's living situation and getting a temporary support order in place. The other party has been refusing to provide any financial disclosure, which is preventing us from resolving support amounts.","helpText":"Be honest and specific. This helps the judge understand what matters most to you."}]},{"stepId":"cn-step7","title":"Service & Confirmation","description":"You must serve this notice on the other party before the conference.","fields":[{"id":"service_method","label":"How will you serve this notice on the other party?","type":"select","required":true,"options":[{"value":"by_hand","label":"By hand (personal service)"},{"value":"by_mail","label":"By mail"},{"value":"by_email","label":"By email (if agreed or court-ordered)"},{"value":"via_lawyer","label":"Through the other party's lawyer"},{"value":"by_courier","label":"By courier"}],"helpText":"You must serve at least 6 days before the conference."},{"id":"service_planned_date","label":"When do you plan to serve the other party?","type":"date","required":false,"helpText":"Must be at least 6 days before the conference date."},{"id":"conference_brief_reminder","label":"Conference brief reminder","type":"info-box","content":"**Important:** You must also prepare and serve a **conference brief** at least 7 days before the conference. The brief summarizes your position on each issue. Ask the court clerk which brief form is required for your type of conference (usually Form 17A for case conferences, Form 17C for settlement conferences, or Form 17E for trial management conferences)."},{"id":"brief_prepared","label":"Have you prepared your conference brief?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 my brief is ready"},{"value":"in_progress","label":"In progress \u2014 I am preparing it now"},{"value":"no","label":"Not yet \u2014 I will prepare it before the deadline"}]},{"id":"declaration_confirmed","label":"Declaration","type":"checkbox","required":true,"checkboxLabel":"I confirm the information in this Notice of Conference is accurate. I understand this form will be filed with the Ontario court and served on the other party."}]}],"pdfMapping":{"notes":"Form 17 \u2014 used for case conference, settlement conference, and trial management conference notices. Filed with the court and served on the other party. See ontario.ca/page/family-law-forms for current version.","court_header":["courthouse","court_file_number","applicant_full_name","respondent_full_name"],"conference_section":["conference_type","conference_date","conference_time","conference_location","conference_format"],"issues_section":["issues_to_resolve","issues_agreed","agreed_issues_description"],"orders_section":["seeking_temporary_order","temporary_orders_sought","directions_sought"],"facts_section":["relationship_summary","current_arrangements","main_concern"],"service_section":["service_method","service_planned_date"],"declaration_section":["declaration_confirmed"]}};
+  window.__hp_formDefs['ON-F17E'] = {"formId":"ON-F17E","formCode":"form17e-trial-brief","title":"Form 17E \u2014 Trial Management Conference Brief","jurisdiction":"Ontario","version":"2024","description":"Prepared by each party before a trial management conference. Summarizes the issues going to trial, witnesses, evidence, time estimate, and any remaining settlement possibilities. Required under Family Law Rules Rule 17(13).","autoPopulateFrom":["form8-general","form13-financial","form17-conference-notice"],"steps":[{"stepId":"tb-step1","title":"Case Identification","description":"Confirm the court and case details. This brief must be filed and served at least 7 days before the trial management conference.","fields":[{"id":"courthouse","label":"Courthouse","type":"select","required":true,"autoPopulate":"courthouse","options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"]},{"id":"court_file_number","label":"Court file number","type":"text","required":true,"autoPopulate":"court_file_number","placeholder":"e.g. FC-2024-12345"},{"id":"applicant_full_name","label":"Applicant's full legal name","type":"text","required":true,"autoPopulate":"applicant_full_name","placeholder":"e.g. Jane Marie Smith"},{"id":"respondent_full_name","label":"Respondent's full legal name","type":"text","required":true,"autoPopulate":"respondent_full_name","placeholder":"e.g. John Robert Smith"},{"id":"party_role","label":"You are completing this brief as","type":"select","required":true,"options":[{"value":"applicant","label":"The Applicant"},{"value":"respondent","label":"The Respondent"}]},{"id":"tmc_date","label":"Date of the trial management conference","type":"date","required":true,"helpText":"This brief must be served on the other party and filed with the court at least 7 days before this date."},{"id":"trial_date","label":"Scheduled trial date (if set)","type":"date","required":false,"helpText":"If a trial date has already been scheduled, enter it here. Leave blank if not yet set."}]},{"stepId":"tb-step2","title":"Issues Going to Trial","description":"List every issue that has NOT been resolved and must be decided by the judge at trial. Be thorough \u2014 issues not listed here may not be raised at trial.","fields":[{"id":"trial_issues","label":"Issues remaining for trial (select all that apply)","type":"checkbox-group","required":true,"helpText":"Only check issues that are still genuinely in dispute. Settled issues should not be listed.","options":[{"value":"decision_making","label":"Decision-making responsibility (custody)"},{"value":"parenting_time","label":"Parenting time schedule"},{"value":"relocation","label":"Relocation of a child"},{"value":"child_support_amount","label":"Amount of child support"},{"value":"child_support_arrears","label":"Child support arrears"},{"value":"special_extraordinary_expenses","label":"Special or extraordinary expenses (Section 7)"},{"value":"spousal_support_entitlement","label":"Whether spousal support should be paid (entitlement)"},{"value":"spousal_support_amount","label":"Amount of spousal support"},{"value":"spousal_support_duration","label":"Duration of spousal support"},{"value":"spousal_support_arrears","label":"Spousal support arrears"},{"value":"equalization","label":"Property equalization (net family property)"},{"value":"possession_family_home","label":"Possession of the family home"},{"value":"specific_property","label":"Division of a specific asset (pension, business, investment)"},{"value":"restraining_order","label":"Restraining or non-harassment order"},{"value":"costs","label":"Costs of the proceeding"},{"value":"other_trial_issue","label":"Other issue"}]},{"id":"other_trial_issue_description","label":"Describe the other trial issue","type":"text","required":false,"conditionalOn":{"field":"trial_issues","value":"other_trial_issue"},"placeholder":"e.g. Interpretation of a term in the separation agreement"},{"id":"issues_resolved_before_trial","label":"Have any issues been resolved since the last conference?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No \u2014 all listed issues remain in dispute"}]},{"id":"resolved_issues_description","label":"Describe what has been resolved","type":"textarea","required":false,"conditionalOn":{"field":"issues_resolved_before_trial","value":"yes"},"placeholder":"e.g. Child support has been agreed at $850/month effective September 1, 2025. Only the issue of parenting time and spousal support remain for trial."}]},{"stepId":"tb-step3","title":"Your Position on Each Issue","description":"For each issue going to trial, state your position clearly. The judge will read this to understand what you are asking for and why.","fields":[{"id":"position_decision_making","label":"Your position on decision-making responsibility (custody)","type":"textarea","required":false,"placeholder":"e.g. I am asking for sole decision-making responsibility. The other party and I are unable to communicate effectively about the children's medical and educational decisions. The children's school records show I have been their primary caregiver throughout the relationship and since separation.","helpText":"State clearly what you are asking for and the key facts that support your position. Keep it to the point."},{"id":"position_parenting_time","label":"Your position on parenting time","type":"textarea","required":false,"placeholder":"e.g. I am asking that the children reside primarily with me on a schedule of: school weeks with me, alternating weekends with the other party (Friday 6 p.m. to Sunday 6 p.m.), and equal sharing of statutory holidays. This mirrors the arrangement that has been in place since separation and is working well for the children."},{"id":"position_child_support","label":"Your position on child support","type":"textarea","required":false,"placeholder":"e.g. Based on the other party's annual income of $82,000 (as disclosed in their financial statement), the Child Support Guidelines amount for two children is $1,340/month. I am asking for this amount plus contribution to the children's extracurricular and medical expenses (Section 7)."},{"id":"position_spousal_support","label":"Your position on spousal support","type":"textarea","required":false,"placeholder":"e.g. I am asking for spousal support of $1,200/month for a period of 8 years. I left full-time employment in 2018 to care for the children at the other party's request, losing significant career advancement. The Spousal Support Advisory Guidelines range is $900\u2013$1,500/month for 6\u201312 years based on our incomes."},{"id":"position_property","label":"Your position on property division / equalization","type":"textarea","required":false,"placeholder":"e.g. I am asking for an equalization payment of $47,000 based on my net family property calculation. The main assets in dispute are the RRSP ($62,000), the car ($18,000), and a business interest the other party has not fully disclosed."},{"id":"position_other_issues","label":"Your position on any other trial issues","type":"textarea","required":false,"placeholder":"e.g. Regarding costs: the other party has consistently refused to disclose financial information and rejected reasonable settlement offers. I am asking for full recovery costs on a substantial indemnity basis."}]},{"stepId":"tb-step4","title":"Witnesses","description":"List every witness you plan to call at trial. Include yourself. Failing to list a witness here may prevent you from calling them at trial.","fields":[{"id":"witnesses","label":"Witnesses you plan to call at trial","type":"repeatable-group","required":true,"maxItems":15,"addLabel":"Add another witness","helpText":"List all witnesses including yourself. You do not need to list the other party \u2014 they are not your witness.","fields":[{"id":"witness_name","label":"Witness name","type":"text","required":true,"placeholder":"e.g. Jane Smith (myself) or Dr. Sarah Lee"},{"id":"witness_role","label":"Role or relationship to the case","type":"text","required":true,"placeholder":"e.g. Applicant / Mother, Treating physician, Teacher at child's school, Accountant"},{"id":"witness_testimony_summary","label":"What will this witness testify about?","type":"textarea","required":true,"placeholder":"e.g. Will testify about the children's daily routine, the parenting arrangements since separation, and the Respondent's involvement (or lack thereof) in school and medical appointments."},{"id":"witness_time_estimate","label":"Estimated time for this witness (examination + cross-examination)","type":"select","required":true,"options":[{"value":"30_min","label":"30 minutes"},{"value":"1_hour","label":"1 hour"},{"value":"1.5_hours","label":"1.5 hours"},{"value":"2_hours","label":"2 hours"},{"value":"half_day","label":"Half day (3 hours)"},{"value":"full_day","label":"Full day"}]},{"id":"witness_is_expert","label":"Is this an expert witness?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 qualified expert (e.g. psychologist, appraiser, accountant)"},{"value":"no","label":"No \u2014 fact witness or party"}]},{"id":"expert_report_served","label":"Has the expert's report been served on the other party?","type":"radio","required":false,"conditionalOn":{"field":"witness_is_expert","value":"yes"},"options":[{"value":"yes","label":"Yes \u2014 served"},{"value":"no","label":"No \u2014 not yet served"}]}]}]},{"stepId":"tb-step5","title":"Evidence & Documents","description":"Identify the key documents and evidence you plan to use at trial.","fields":[{"id":"key_documents","label":"Key documents you plan to use at trial (select all that apply)","type":"checkbox-group","required":true,"options":[{"value":"financial_statements","label":"Financial statements (Form 13 or 13.1)"},{"value":"tax_returns","label":"Income tax returns and Notices of Assessment"},{"value":"pay_stubs","label":"Pay stubs and employment records"},{"value":"bank_statements","label":"Bank statements"},{"value":"property_valuations","label":"Property appraisals or valuations"},{"value":"business_records","label":"Business financial records"},{"value":"pension_records","label":"Pension and retirement account records"},{"value":"medical_records","label":"Medical records"},{"value":"school_records","label":"School and daycare records"},{"value":"parenting_records","label":"Parenting logs, photographs, communications"},{"value":"police_records","label":"Police reports or CAS records"},{"value":"text_email_records","label":"Text messages or emails"},{"value":"existing_orders","label":"Prior court orders or agreements"},{"value":"expert_reports","label":"Expert reports (parenting assessment, valuation, etc.)"},{"value":"other_documents","label":"Other documents"}]},{"id":"other_documents_description","label":"Describe the other documents","type":"text","required":false,"conditionalOn":{"field":"key_documents","value":"other_documents"},"placeholder":"e.g. Social media posts, travel records, immigration documents"},{"id":"continuing_record_complete","label":"Is your portion of the Continuing Record up to date?","type":"radio","required":true,"helpText":"The Continuing Record is the official binder of all documents filed in your case. You are responsible for keeping your section organized and filed with the court.","options":[{"value":"yes","label":"Yes \u2014 my portion of the Continuing Record is up to date"},{"value":"no","label":"No \u2014 I need to add documents before trial"},{"value":"unsure","label":"I'm not sure \u2014 I will confirm with the court clerk"}]},{"id":"documents_still_needed","label":"Are there any documents you still need from the other party or a third party?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No \u2014 I have all the documents I need"}]},{"id":"documents_still_needed_details","label":"Describe what documents you still need and from whom","type":"textarea","required":false,"conditionalOn":{"field":"documents_still_needed","value":"yes"},"placeholder":"e.g. I am still waiting for the other party's business financial records for 2022\u20132024, which they have not produced despite being ordered to do so. I may need to bring a motion to compel production before trial."}]},{"stepId":"tb-step6","title":"Time Estimate for Trial","description":"The judge needs to know how long trial will take to allocate court time properly.","fields":[{"id":"your_time_estimate","label":"How many days do you estimate your case will take (your witnesses + your cross-examinations of the other party's witnesses)?","type":"select","required":true,"options":[{"value":"1_day","label":"1 day"},{"value":"2_days","label":"2 days"},{"value":"3_days","label":"3 days"},{"value":"4_days","label":"4 days"},{"value":"5_days","label":"5 days (1 week)"},{"value":"6_to_10_days","label":"6\u201310 days (2 weeks)"},{"value":"more_than_10_days","label":"More than 10 days"}]},{"id":"total_trial_estimate","label":"What is your estimate for the total length of trial (both parties combined)?","type":"select","required":true,"options":[{"value":"1_day","label":"1 day"},{"value":"2_days","label":"2 days"},{"value":"3_days","label":"3 days"},{"value":"4_days","label":"4 days"},{"value":"5_days","label":"5 days (1 week)"},{"value":"6_to_10_days","label":"6\u201310 days"},{"value":"more_than_10_days","label":"More than 10 days"}],"helpText":"This is your estimate for the whole trial \u2014 your side and the other party's side combined."},{"id":"scheduling_constraints","label":"Are there any scheduling constraints the court should know about?","type":"textarea","required":false,"placeholder":"e.g. The expert witness (Dr. Sarah Lee) is not available in August. One of the parties has pre-booked travel July 10\u201317. The school-year schedule affects the children and I would prefer a trial date after September.","helpText":"List any dates to avoid for any witness or party, or any other scheduling considerations."},{"id":"interpreter_needed","label":"Does any party or witness need a court interpreter?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"interpreter_language","label":"What language(s) does the interpreter need to speak?","type":"text","required":false,"conditionalOn":{"field":"interpreter_needed","value":"yes"},"placeholder":"e.g. French, Punjabi, Mandarin"},{"id":"accommodation_needs","label":"Are there any accessibility or accommodation needs for any party or witness?","type":"textarea","required":false,"placeholder":"e.g. The Applicant uses a wheelchair and requires an accessible courtroom. One witness has hearing loss and requires a hearing loop system.","helpText":"Contact the court's accessibility coordinator as early as possible if accommodations are needed."}]},{"stepId":"tb-step7","title":"Settlement Possibilities","description":"The trial management conference is a final opportunity to settle. The judge must be satisfied that settlement has been genuinely explored before proceeding to trial.","fields":[{"id":"settlement_attempts","label":"What settlement attempts have been made?","type":"checkbox-group","required":true,"options":[{"value":"direct_negotiation","label":"Direct negotiation between the parties"},{"value":"lawyer_negotiation","label":"Negotiation through lawyers"},{"value":"mediation","label":"Mediation"},{"value":"collaborative","label":"Collaborative family law process"},{"value":"offers_to_settle","label":"Formal offers to settle (Rule 18)"},{"value":"none","label":"No settlement attempts have been made"}]},{"id":"why_no_settlement","label":"Why has the case not settled?","type":"textarea","required":true,"placeholder":"e.g. The main obstacle is the other party's refusal to provide full financial disclosure, which makes it impossible to accurately value the property and calculate support. We have exchanged offers to settle on parenting but remain $400/month apart on child support.","helpText":"Be specific and factual. Identifying the real barrier to settlement often helps the judge assist at the conference."},{"id":"still_open_to_settlement","label":"Are you still open to settling some or all issues before trial?","type":"radio","required":true,"options":[{"value":"yes_all","label":"Yes \u2014 I am open to settling all remaining issues"},{"value":"yes_some","label":"Yes \u2014 I am open to settling some issues but not all"},{"value":"no","label":"No \u2014 I believe trial is necessary for all remaining issues"}]},{"id":"issues_still_negotiable","label":"Which issues are you still willing to negotiate on?","type":"textarea","required":false,"conditionalOn":{"field":"still_open_to_settlement","value":"yes_some"},"placeholder":"e.g. I am willing to negotiate the spousal support duration and amount. I am not willing to accept anything less than primary parenting time given the children's established routine with me."},{"id":"settlement_offer_outstanding","label":"Is there a formal settlement offer currently outstanding?","type":"radio","required":true,"helpText":"A formal offer to settle (Rule 18) can affect who pays costs at the end of trial if it is rejected and the other party does not do better at trial.","options":[{"value":"yes_i_made","label":"Yes \u2014 I made an offer that has not been accepted"},{"value":"yes_they_made","label":"Yes \u2014 the other party made an offer I have not accepted"},{"value":"both","label":"Both parties have outstanding offers"},{"value":"no","label":"No \u2014 there is no outstanding offer"}]}]},{"stepId":"tb-step8","title":"Orders Sought at the Conference","description":"At the trial management conference, the judge may make procedural orders. Identify what you are asking for.","fields":[{"id":"tmc_orders_sought","label":"At the trial management conference, I am asking the judge to","type":"checkbox-group","required":true,"options":[{"value":"confirm_trial_date","label":"Confirm or set the trial date"},{"value":"order_disclosure","label":"Order the other party to provide outstanding disclosure before trial"},{"value":"limit_witnesses","label":"Set limits on the number of witnesses each party may call"},{"value":"order_expert_reports","label":"Set deadlines for serving expert reports"},{"value":"exclude_witnesses","label":"Order witnesses to be excluded from the courtroom until called"},{"value":"bifurcate","label":"Bifurcate (split) the trial \u2014 hear some issues first"},{"value":"costs_order","label":"Make a costs order based on conduct in the proceedings"},{"value":"other_tmc_order","label":"Other order"}]},{"id":"other_tmc_order_description","label":"Describe the other order you are seeking at the TMC","type":"textarea","required":false,"conditionalOn":{"field":"tmc_orders_sought","value":"other_tmc_order"},"placeholder":"e.g. I am asking the judge to order that the parties attend a joint pre-trial meeting to attempt resolution on the financial issues with the assistance of a financial neutral."},{"id":"last_minute_issues","label":"Are there any urgent matters that have arisen recently that the court should know about?","type":"textarea","required":false,"placeholder":"e.g. The other party recently informed me they intend to relocate to another province with the children before the trial date. I may need to bring an emergency motion to prevent relocation pending trial.","helpText":"Include anything that has changed since the last court attendance that affects how the trial should proceed."}]},{"stepId":"tb-step9","title":"Declaration","description":"Confirm the accuracy of your trial management conference brief before filing.","fields":[{"id":"brief_complete_confirmation","label":"I confirm this Trial Management Conference Brief","type":"checkbox-group","required":true,"options":[{"value":"accurate","label":"Is accurate and complete to the best of my knowledge"},{"value":"served","label":"Has been or will be served on the other party at least 7 days before the conference"},{"value":"filed","label":"Has been or will be filed with the court at least 7 days before the conference"}]},{"id":"signature_date","label":"Date of completion","type":"date","required":true},{"id":"sworn_declaration","label":"Declaration","type":"declaration","required":true,"text":"I declare that the information in this Trial Management Conference Brief is true and complete to the best of my knowledge and belief.","checkboxLabel":"I confirm this declaration is true and accurate."}]}],"pdfMapping":{"notes":"Form 17E \u2014 Trial Management Conference Brief. Filed with court and served on all parties at least 7 days before the trial management conference. See ontario.ca/page/family-law-forms for the current version.","case_identification":["courthouse","court_file_number","applicant_full_name","respondent_full_name","party_role","tmc_date","trial_date"],"issues_section":["trial_issues","issues_resolved_before_trial","resolved_issues_description"],"positions_section":["position_decision_making","position_parenting_time","position_child_support","position_spousal_support","position_property","position_other_issues"],"witnesses_section":["witnesses"],"evidence_section":["key_documents","continuing_record_complete","documents_still_needed"],"time_estimate_section":["your_time_estimate","total_trial_estimate","scheduling_constraints","interpreter_needed","accommodation_needs"],"settlement_section":["settlement_attempts","why_no_settlement","still_open_to_settlement","settlement_offer_outstanding"],"tmc_orders_section":["tmc_orders_sought","last_minute_issues"],"declaration_section":["brief_complete_confirmation","signature_date","sworn_declaration"]}};
+  window.__hp_formDefs['ON-F35_1'] = {"formId":"ON-F35_1","formCode":"form35_1-custody-affidavit","title":"Form 35.1 \u2014 Affidavit in Support of Claim for Custody or Access","jurisdiction":"Ontario","version":"2024","description":"Required in every Ontario family law case where a party claims decision-making responsibility (custody) or parenting time (access). Must be sworn and filed with your application or motion. Requires full disclosure of past involvement with child protection services, criminal history, and domestic violence history.","autoPopulateFrom":["form8-general"],"sensitiveForm":true,"steps":[{"stepId":"f351-step1","title":"About This Affidavit","description":"This affidavit is required by law whenever you ask for decision-making responsibility (custody) or parenting time (access) in Ontario.","fields":[{"id":"important_notice","label":"Important notice before you begin","type":"info-box","content":"**This form requires you to disclose sensitive personal information.** Ontario law requires anyone asking for custody or access to disclose:\n\n- Any involvement with a Children's Aid Society (CAS) in Ontario or elsewhere\n- Any criminal charges or convictions\n- Any history of domestic violence or abuse\n\nThis information is kept in the court file and shared with the other party. **You must answer all questions honestly.** Providing false information in an affidavit is perjury, which is a criminal offence.\n\nThis affidavit must be sworn before a commissioner of oaths \u2014 do not sign it until you are in front of the commissioner."},{"id":"courthouse","label":"Courthouse","type":"select","required":true,"autoPopulate":"courthouse","options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"]},{"id":"court_file_number","label":"Court file number","type":"text","required":false,"autoPopulate":"court_file_number","placeholder":"e.g. FC-2024-12345"},{"id":"applicant_full_name","label":"Applicant's full legal name","type":"text","required":true,"autoPopulate":"applicant_full_name"},{"id":"respondent_full_name","label":"Respondent's full legal name","type":"text","required":true,"autoPopulate":"respondent_full_name"},{"id":"deponent_name","label":"Your full legal name (person swearing this affidavit)","type":"text","required":true,"autoPopulate":"applicant_full_name","helpText":"This is the person making the sworn statement \u2014 usually the applicant or respondent filing this form."},{"id":"deponent_role","label":"You are","type":"select","required":true,"options":[{"value":"applicant","label":"The Applicant"},{"value":"respondent","label":"The Respondent"},{"value":"other","label":"Other party"}]}]},{"stepId":"f351-step2","title":"The Children","description":"List each child for whom you are claiming decision-making responsibility or parenting time.","fields":[{"id":"children","label":"Children involved in this claim","type":"repeatable-group","required":true,"maxItems":10,"addLabel":"Add another child","helpText":"List every child for whom you are asking for custody or access.","fields":[{"id":"child_full_name","label":"Child's full legal name","type":"text","required":true,"placeholder":"e.g. Alex Jordan Smith"},{"id":"child_dob","label":"Date of birth","type":"date","required":true},{"id":"child_current_address","label":"Child's current address","type":"text","required":true,"placeholder":"e.g. 123 Main St, Toronto ON M5V 1A1","helpText":"Where the child lives right now."},{"id":"child_current_resident","label":"Child currently lives with","type":"select","required":true,"options":[{"value":"me","label":"Me"},{"value":"other_party","label":"The other party"},{"value":"both_equally","label":"Both parties equally (shared)"},{"value":"other_person","label":"Another person"}]},{"id":"child_other_resident_name","label":"Name of the other person the child lives with","type":"text","required":false,"conditionalOn":{"field":"child_current_resident","value":"other_person"},"placeholder":"e.g. Maternal grandmother \u2014 Mary Johnson"},{"id":"what_i_am_seeking","label":"What are you asking for regarding this child?","type":"checkbox-group","required":true,"options":[{"value":"sole_decision_making","label":"Sole decision-making responsibility (sole custody)"},{"value":"joint_decision_making","label":"Joint decision-making responsibility (joint custody)"},{"value":"primary_parenting_time","label":"Primary parenting time (child lives primarily with me)"},{"value":"specified_parenting_time","label":"Specified parenting time (schedule)"},{"value":"supervised_parenting_time","label":"Supervised parenting time only"}]}]}]},{"stepId":"f351-step3","title":"Your Living Situation","description":"Describe where you currently live and who lives with you.","fields":[{"id":"my_current_address","label":"Your current address","type":"text","required":true,"autoPopulate":"applicant_address","placeholder":"e.g. 456 Oak Ave, Toronto ON M6G 2B3"},{"id":"how_long_at_address","label":"How long have you lived at this address?","type":"text","required":true,"placeholder":"e.g. 8 months / since March 2025"},{"id":"household_members","label":"Who else lives in your home?","type":"repeatable-group","required":false,"maxItems":10,"addLabel":"Add another person","helpText":"List everyone who lives with you other than the children named above. Include new partners, other children, parents, roommates, etc.","fields":[{"id":"member_name","label":"Full name","type":"text","required":true,"placeholder":"e.g. Michael Brown"},{"id":"member_relationship","label":"Relationship to you","type":"text","required":true,"placeholder":"e.g. New partner, my mother, adult sibling, roommate"},{"id":"member_age","label":"Age","type":"number","required":false,"placeholder":"e.g. 34"}]},{"id":"plan_to_move","label":"Do you plan to move in the next 12 months?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"},{"value":"possibly","label":"Possibly \u2014 not sure yet"}]},{"id":"move_details","label":"Describe your planned move","type":"textarea","required":false,"conditionalOn":{"field":"plan_to_move","value":"yes"},"placeholder":"e.g. I plan to move to Ottawa in September 2025 for a new job. I intend to bring the children with me and enroll them in school there."}]},{"stepId":"f351-step4","title":"Previous Court Proceedings","description":"Disclose any previous or ongoing court cases involving these children or yourself.","fields":[{"id":"previous_custody_proceedings","label":"Have there been any previous court proceedings about the custody, access, or child protection of the children named in this form?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}],"helpText":"Include proceedings in Ontario or any other province, territory, or country."},{"id":"previous_proceedings_details","label":"Describe the previous court proceedings","type":"repeatable-group","required":false,"conditionalOnParent":{"field":"previous_custody_proceedings","value":"yes"},"maxItems":5,"addLabel":"Add another proceeding","fields":[{"id":"proc_court_location","label":"Court and location","type":"text","required":true,"placeholder":"e.g. Ontario Court of Justice, Toronto / Family Court, Brampton"},{"id":"proc_file_number","label":"File number (if known)","type":"text","required":false,"placeholder":"e.g. FC-2022-08734"},{"id":"proc_type","label":"Type of proceeding","type":"text","required":true,"placeholder":"e.g. Custody and access application / Child protection / Divorce"},{"id":"proc_outcome","label":"Outcome or current status","type":"textarea","required":true,"placeholder":"e.g. Order dated June 1, 2023 gave the Applicant primary custody with Respondent having access every other weekend. Case is now closed. / Still ongoing."}]},{"id":"existing_orders","label":"Are there any existing court orders or agreements about the children?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"existing_orders_details","label":"Describe the existing orders or agreements","type":"textarea","required":false,"conditionalOn":{"field":"existing_orders","value":"yes"},"placeholder":"e.g. There is a temporary consent order dated April 10, 2025 providing that the children live primarily with the Applicant. There is also a separation agreement dated January 2024 that addresses parenting but which I am now seeking to vary."}]},{"stepId":"f351-step5","title":"Child Protection Involvement","description":"You must disclose any involvement with Children's Aid Societies (CAS) or equivalent child protection agencies \u2014 in Ontario or anywhere else.","fields":[{"id":"cas_involvement_notice","label":"Important","type":"info-box","content":"You must disclose **all** past or current involvement with Children's Aid Societies (CAS), child protection agencies, or equivalent government bodies \u2014 in Ontario or any other province, territory, or country. This includes investigations that did not result in a finding or that were closed. Failure to disclose is taken very seriously by courts."},{"id":"has_cas_involvement","label":"Have you or anyone in your household ever been involved with a Children's Aid Society or child protection agency?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"cas_involvement_details","label":"Describe each involvement with a child protection agency","type":"repeatable-group","required":false,"conditionalOnParent":{"field":"has_cas_involvement","value":"yes"},"maxItems":10,"addLabel":"Add another involvement","helpText":"Include all investigations, protection orders, voluntary services agreements, or court proceedings.","fields":[{"id":"cas_agency_name","label":"Name of the CAS or child protection agency","type":"text","required":true,"placeholder":"e.g. Children's Aid Society of Toronto / Ministry for Children in British Columbia"},{"id":"cas_date_period","label":"Approximate date or period of involvement","type":"text","required":true,"placeholder":"e.g. March to August 2021 / 2019 (date unknown)"},{"id":"cas_reason","label":"Reason for the involvement","type":"textarea","required":true,"placeholder":"e.g. A neighbour made an anonymous report of neglect. A worker investigated and found no concerns. The file was closed after two home visits."},{"id":"cas_outcome","label":"Outcome","type":"textarea","required":true,"placeholder":"e.g. File closed with no findings / Voluntary service agreement signed and completed / Child apprehended and returned following court order / Protection order made \u2014 specify terms"},{"id":"cas_who_involved","label":"Who was involved (you, your partner, your child, another household member)?","type":"text","required":true,"placeholder":"e.g. Myself and the child Alex / My current partner (before we met)"}]},{"id":"cas_currently_open","label":"Is there currently an open child protection case involving you or any child in your home?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"cas_currently_open_details","label":"Describe the current open child protection case","type":"textarea","required":false,"conditionalOn":{"field":"cas_currently_open","value":"yes"},"placeholder":"e.g. There is a current open file with the CAS of Peel regarding an allegation made by the other party in January 2025. The worker has conducted two visits and the investigation is ongoing. No protection concerns have been identified to date."}]},{"stepId":"f351-step6","title":"Criminal History","description":"You must disclose any criminal charges or convictions. This includes offences related to violence, weapons, drugs, and any offences involving children.","fields":[{"id":"criminal_history_notice","label":"Important","type":"info-box","content":"You must disclose **all** criminal charges and convictions \u2014 including those for which you received a pardon (record suspension), charges that were withdrawn or stayed, and charges that are currently before the courts. Disclose charges in Canada and any other country."},{"id":"has_criminal_history","label":"Have you ever been charged with or convicted of a criminal offence in Canada or any other country?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"criminal_history_details","label":"List each criminal charge or conviction","type":"repeatable-group","required":false,"conditionalOnParent":{"field":"has_criminal_history","value":"yes"},"maxItems":15,"addLabel":"Add another charge or conviction","fields":[{"id":"offence_description","label":"Offence description","type":"text","required":true,"placeholder":"e.g. Assault / Impaired driving / Possession of a controlled substance"},{"id":"offence_date","label":"Approximate date of the offence or charge","type":"text","required":true,"placeholder":"e.g. June 2018 / Approximately 2015"},{"id":"offence_outcome","label":"Outcome","type":"select","required":true,"options":[{"value":"convicted","label":"Convicted"},{"value":"acquitted","label":"Acquitted (found not guilty)"},{"value":"withdrawn_stayed","label":"Charge withdrawn or stayed"},{"value":"absolute_discharge","label":"Absolute discharge"},{"value":"conditional_discharge","label":"Conditional discharge"},{"value":"pending","label":"Charge currently pending"},{"value":"pardon_received","label":"Convicted and received a pardon / record suspension"}]},{"id":"offence_sentence","label":"Sentence or conditions (if convicted)","type":"text","required":false,"placeholder":"e.g. Fine of $500 / 6-month conditional sentence / 18 months probation"},{"id":"offence_involved_children_or_violence","label":"Did this offence involve violence, weapons, or children?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]}]},{"id":"household_criminal_history","label":"Does anyone else in your household have a criminal record or pending charges?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"},{"value":"unknown","label":"I don't know"}]},{"id":"household_criminal_history_details","label":"Describe the household member's criminal history","type":"textarea","required":false,"conditionalOn":{"field":"household_criminal_history","value":"yes"},"placeholder":"e.g. My current partner was convicted of impaired driving in 2019 and received a fine. There have been no other charges."}]},{"stepId":"f351-step7","title":"Domestic Violence & Abuse History","description":"You must disclose any history of domestic violence, abuse, or a restraining order \u2014 whether you were the victim, the alleged perpetrator, or both.","fields":[{"id":"dv_notice","label":"About this section","type":"info-box","content":"Ontario courts take domestic violence very seriously in custody and access decisions. You must disclose:\n\n- Any history of physical, sexual, emotional, psychological, or financial abuse between you and the other party\n- Any police involvement or criminal charges related to domestic violence\n- Any restraining orders or peace bonds\n- Any history of stalking, harassment, or coercive control\n\nThis information helps the court assess the safety of the children and both parties. Disclosing abuse does not automatically change your right to parenting time \u2014 the court's focus is on the children's safety and best interests."},{"id":"has_dv_history","label":"Has there been any domestic violence or abuse in your relationship with the other party?","type":"radio","required":true,"options":[{"value":"yes_i_experienced","label":"Yes \u2014 I experienced abuse from the other party"},{"value":"yes_i_was_alleged","label":"Yes \u2014 the other party has alleged that I was abusive"},{"value":"yes_both","label":"Yes \u2014 both of the above apply"},{"value":"no","label":"No \u2014 there has been no domestic violence or abuse"}]},{"id":"dv_description_experienced","label":"Describe the abuse you experienced","type":"textarea","required":false,"conditionalOn":{"field":"has_dv_history","value":"yes_i_experienced","orValues":["yes_i_experienced","yes_both"]},"placeholder":"e.g. During our relationship, the other party pushed and grabbed me on multiple occasions. The most serious incident occurred in November 2023 when they shoved me against the wall in front of the children. I called police on that occasion. There were also incidents of controlling behavior \u2014 monitoring my phone, preventing me from seeing family, and controlling our finances.","helpText":"Describe specific incidents where possible, including approximate dates and whether the children were present or witnessed the abuse."},{"id":"dv_description_alleged","label":"Describe what the other party has alleged about you","type":"textarea","required":false,"conditionalOn":{"field":"has_dv_history","value":"yes_i_was_alleged","orValues":["yes_i_was_alleged","yes_both"]},"placeholder":"e.g. The other party has alleged that I was physically abusive during our relationship. I deny these allegations. They made a report to police in February 2024 which was investigated and no charges were laid."},{"id":"police_involvement_dv","label":"Was police ever called for a domestic violence incident involving you and the other party?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"police_involvement_dv_details","label":"Describe the police involvement","type":"textarea","required":false,"conditionalOn":{"field":"police_involvement_dv","value":"yes"},"placeholder":"e.g. Police were called on November 12, 2023 following an incident at our home. The other party was charged with assault. The charge was subsequently withdrawn. Police were also called in February 2024 on a report by the other party \u2014 I was not charged."},{"id":"has_restraining_order","label":"Is there a restraining order or peace bond between you and the other party?","type":"radio","required":true,"options":[{"value":"yes_against_them","label":"Yes \u2014 there is a restraining order against the other party"},{"value":"yes_against_me","label":"Yes \u2014 there is a restraining order against me"},{"value":"yes_peace_bond","label":"Yes \u2014 there is a peace bond"},{"value":"no","label":"No"}]},{"id":"restraining_order_details","label":"Describe the restraining order or peace bond","type":"textarea","required":false,"conditionalOn":{"field":"has_restraining_order","value":"no","inverse":true},"placeholder":"e.g. There is a restraining order made February 15, 2024 by Justice Chen prohibiting the other party from attending within 200 metres of my home and the children's school. It expires February 14, 2026."},{"id":"dv_impact_on_children","label":"Were the children present for or affected by any of the incidents described above?","type":"radio","required":false,"conditionalOn":{"field":"has_dv_history","value":"no","inverse":true},"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"dv_impact_details","label":"Describe how the children were affected","type":"textarea","required":false,"conditionalOn":{"field":"dv_impact_on_children","value":"yes"},"placeholder":"e.g. The children (ages 7 and 9) were present in the home during the November 2023 incident and witnessed the other party pushing me. Alex has since disclosed to a school counsellor that they are afraid of the other party. Both children are currently receiving counselling."}]},{"stepId":"f351-step8","title":"Proposed Parenting Plan","description":"Describe your proposed parenting plan and why it is in the best interests of the children.","fields":[{"id":"proposed_parenting_plan","label":"Describe your proposed parenting arrangement in detail","type":"textarea","required":true,"placeholder":"e.g. I am proposing that Alex and Sam live primarily with me at my home in Toronto. I propose that the other party have parenting time every other weekend from Friday at 6 p.m. to Sunday at 6 p.m., plus one evening per week (Wednesdays from 4 p.m. to 7 p.m.). Holidays to be shared equally as follows: [describe holiday schedule]. I am asking for sole decision-making responsibility because the parties are unable to communicate effectively and agreement on major decisions is not feasible.","helpText":"Be specific about where the children will live, how often each parent will see them, and who will make major decisions about education, health care, and religion."},{"id":"decision_making_proposal","label":"What are you proposing for decision-making responsibility?","type":"select","required":true,"options":[{"value":"sole_to_me","label":"Sole decision-making to me \u2014 I make all major decisions"},{"value":"joint","label":"Joint decision-making \u2014 both parties decide together"},{"value":"parallel","label":"Parallel decision-making \u2014 each parent decides independently in their area (e.g. I decide education, they decide health)"},{"value":"sole_to_other","label":"Sole decision-making to the other party (I am only seeking parenting time)"}]},{"id":"best_interests_narrative","label":"Why is your proposed arrangement in the best interests of the children?","type":"textarea","required":true,"placeholder":"e.g. I have been the children's primary caregiver throughout their lives. I manage their school attendance, medical appointments, and extracurricular activities. The children are settled in their current school and community. My proposed arrangement maintains stability and allows both children to maintain a meaningful relationship with both parents while ensuring their safety and well-being.","helpText":"Ontario law requires the court to focus on the best interests of the children. Address: stability, existing relationships, safety, each parent's ability to meet the children's needs, and the children's own views (if age-appropriate)."},{"id":"children_views","label":"Have the children expressed views or preferences about where they want to live or how much time they want to spend with each parent?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No / too young to express a view"}]},{"id":"children_views_details","label":"Describe the children's views","type":"textarea","required":false,"conditionalOn":{"field":"children_views","value":"yes"},"placeholder":"e.g. Alex (age 12) has expressed clearly to me, to their school counsellor, and to a family friend that they want to live primarily with me and see the other party on weekends. Sam (age 9) has said they miss the other party but is settled and happy living with me."},{"id":"relationship_with_other_parent","label":"Describe the children's current relationship with the other parent","type":"textarea","required":true,"placeholder":"e.g. The children love both parents and have a positive relationship with the other party despite the separation. They enjoy their time with the other party and I support that relationship. However, the other party has cancelled parenting time on four occasions in the past two months without adequate notice, which has been upsetting for the children."},{"id":"willing_to_facilitate_relationship","label":"Are you willing to support the children's relationship with the other parent?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 I am committed to supporting the children's relationship with both parents"},{"value":"yes_with_conditions","label":"Yes \u2014 but with conditions due to safety concerns"},{"value":"no","label":"No \u2014 I have serious concerns about the other parent's access to the children"}]},{"id":"conditions_for_access","label":"Describe the conditions or concerns","type":"textarea","required":false,"conditionalOn":{"field":"willing_to_facilitate_relationship","value":"yes_with_conditions","orValues":["yes_with_conditions","no"]},"placeholder":"e.g. I support the children having a relationship with the other party but believe all visits should be supervised by a neutral third party given the history of domestic violence. I am asking the court to order supervised access until a parenting assessment has been completed."}]},{"stepId":"f351-step9","title":"Declaration","description":"This affidavit must be sworn before a commissioner of oaths. Do not sign it until you are in front of the commissioner.","fields":[{"id":"swear_or_affirm","label":"Will you swear or affirm?","type":"select","required":true,"options":[{"value":"swear","label":"Swear (on a religious text)"},{"value":"affirm","label":"Affirm (non-religious solemn declaration)"}]},{"id":"municipality_of_swearing","label":"Municipality where you will swear or affirm this affidavit","type":"text","required":true,"placeholder":"e.g. Toronto"},{"id":"commissioning_date","label":"Date of commissioning (leave blank to complete at courthouse)","type":"date","required":false},{"id":"accuracy_declaration","label":"Declaration","type":"declaration","required":true,"text":"I, the deponent, declare that the contents of this affidavit are true, and I make this solemn declaration conscientiously believing it to be true and knowing that it is of the same force and effect as if made under oath. I understand that providing false information in an affidavit is perjury.","checkboxLabel":"I confirm this declaration is true and complete to the best of my knowledge and belief."}]}],"pdfMapping":{"notes":"Form 35.1 \u2014 Affidavit in Support of Claim for Custody or Access. Must be sworn before a commissioner of oaths. Required whenever custody or access is claimed in an Ontario family law proceeding. See ontario.ca/page/family-law-forms for current version.","case_header":["courthouse","court_file_number","applicant_full_name","respondent_full_name","deponent_name","deponent_role"],"children_section":["children"],"living_situation":["my_current_address","how_long_at_address","household_members","plan_to_move"],"previous_proceedings":["previous_custody_proceedings","previous_proceedings_details","existing_orders"],"cas_section":["has_cas_involvement","cas_involvement_details","cas_currently_open"],"criminal_section":["has_criminal_history","criminal_history_details","household_criminal_history"],"dv_section":["has_dv_history","dv_description_experienced","dv_description_alleged","police_involvement_dv","has_restraining_order","dv_impact_on_children"],"parenting_plan":["proposed_parenting_plan","decision_making_proposal","best_interests_narrative","children_views","relationship_with_other_parent"],"declaration":["swear_or_affirm","municipality_of_swearing","accuracy_declaration"]}};
+  window.__hp_formDefs['ON-F14B'] = {"formId":"ON-F14B","formCode":"form14b-motion-form","title":"Form 14B \u2014 Motion Form","jurisdiction":"Ontario","version":"2024","description":"Used for motions that can be decided without a hearing \u2014 either because both parties consent, or because the matter is procedural and can be decided on written materials alone (without notice). Common uses include consent orders, procedural directions, and unopposed motions.","autoPopulateFrom":["form8-general","form14-motion"],"steps":[{"stepId":"mb-step1","title":"Court & Case Information","description":"Enter the court file details. This motion will be decided by a judge without a hearing.","fields":[{"id":"courthouse","label":"Courthouse","type":"select","required":true,"autoPopulate":"courthouse","options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"]},{"id":"court_file_number","label":"Court file number","type":"text","required":true,"autoPopulate":"court_file_number","placeholder":"e.g. FC-2024-12345","helpText":"Required \u2014 a file number must exist before you can use Form 14B."},{"id":"applicant_full_name","label":"Applicant's full legal name","type":"text","required":true,"autoPopulate":"applicant_full_name"},{"id":"respondent_full_name","label":"Respondent's full legal name","type":"text","required":true,"autoPopulate":"respondent_full_name"},{"id":"moving_party","label":"Who is bringing this motion?","type":"select","required":true,"options":[{"value":"applicant","label":"The Applicant"},{"value":"respondent","label":"The Respondent"},{"value":"both_parties","label":"Both parties (joint / consent motion)"}]}]},{"stepId":"mb-step2","title":"Type of Motion","description":"Form 14B is used for motions that don't need a full court hearing. Select the type that applies to your situation.","fields":[{"id":"motion_type","label":"What type of motion is this?","type":"select","required":true,"options":[{"value":"consent","label":"Consent motion \u2014 both parties agree to the order being requested"},{"value":"without_notice","label":"Without notice motion \u2014 the other party has not been told about this motion"},{"value":"procedural","label":"Procedural / administrative motion \u2014 a routine procedural step"},{"value":"unopposed","label":"Unopposed motion \u2014 served on the other party who has not responded"}],"helpText":"Not sure which to choose? See the guidance below."},{"id":"motion_type_guide","label":"Which type applies to me?","type":"info-box","content":"**Consent motion:** Both parties have agreed on the order. Both must sign. Most common use of Form 14B \u2014 great for formalizing agreements.\n\n**Without notice (ex parte):** You are asking the court to make an order without telling the other party first. Only allowed in urgent circumstances \u2014 for example, emergency child protection, imminent risk of harm, or urgent asset preservation. The court will question why notice was not given.\n\n**Procedural:** Administrative or housekeeping steps \u2014 for example, extending a deadline, correcting a name in a file, or filing materials late.\n\n**Unopposed:** You served the other party and they did not respond within the required time. You are asking the court to grant the order based on their non-response."},{"id":"without_notice_reason","label":"Why is it necessary to bring this motion without notice to the other party?","type":"textarea","required":false,"conditionalOn":{"field":"motion_type","value":"without_notice"},"placeholder":"e.g. I am bringing this motion without notice because there is an immediate risk that the Respondent will remove the children from Ontario before a court order can be obtained. I have evidence that the Respondent has purchased plane tickets for travel outside Canada on July 4, 2025. Giving notice would defeat the purpose of the order.","helpText":"You must give a clear reason. Without notice orders are rare and scrutinized closely by judges."},{"id":"date_motion_submitted","label":"Date you are submitting this motion","type":"date","required":true}]},{"stepId":"mb-step3","title":"Order(s) You Are Requesting","description":"Describe exactly what you want the judge to order. Be as specific as possible \u2014 the judge will decide based on what you write here.","fields":[{"id":"orders_requested_categories","label":"What type of order are you asking for? (select all that apply)","type":"checkbox-group","required":true,"options":[{"value":"consent_order","label":"Consent order \u2014 formalizing an agreement between the parties"},{"value":"extend_deadline","label":"Extend a filing or service deadline"},{"value":"adjourn_matter","label":"Adjourn (postpone) a scheduled court date"},{"value":"vary_existing_order","label":"Vary or change a specific term of an existing order (by consent)"},{"value":"file_materials_late","label":"Permission to file materials after a deadline"},{"value":"set_aside_default","label":"Set aside a default (restore a party's right to participate)"},{"value":"add_remove_party","label":"Add or remove a party from the proceeding"},{"value":"seal_court_record","label":"Seal or restrict access to the court record"},{"value":"dispense_service","label":"Dispense with service on the other party"},{"value":"urgent_relief","label":"Urgent interim relief (without notice situations)"},{"value":"other_order","label":"Other order"}]},{"id":"orders_requested_details","label":"Write out the exact order(s) you are asking the judge to make","type":"textarea","required":true,"placeholder":"e.g. 1. THIS COURT ORDERS that the Respondent is prohibited from removing the children Alex Smith (born April 12, 2015) and Sam Smith (born September 3, 2018) from the Province of Ontario without the written consent of the Applicant or a further order of this court.\n\n2. THIS COURT ORDERS that the Respondent shall immediately surrender the children's passports to the Applicant's counsel.\n\n3. THIS COURT ORDERS that this order be served on the Respondent forthwith.","helpText":"Write each order on its own numbered line. Start with 'THIS COURT ORDERS that...' This is exactly what the judge will sign. For consent orders, write what both parties have agreed to."},{"id":"effective_date","label":"From what date should the order take effect?","type":"date","required":false,"helpText":"Leave blank if you want the order to take effect immediately upon signing. Courts can also backdate orders in appropriate circumstances."}]},{"stepId":"mb-step4","title":"Grounds for the Order","description":"Briefly explain the facts and legal basis that support the order you are requesting.","fields":[{"id":"grounds_narrative","label":"Grounds for this motion","type":"textarea","required":true,"placeholder":"e.g. The parties have both agreed to change the parenting schedule set out in the consent order dated March 1, 2025. The children have started a new school year and the current schedule no longer works with school pickups. Both parties consent to the proposed change as set out in the draft order attached. The proposed change is in the children's best interests.\n\n\u2014 OR \u2014\n\nThe Applicant requires an extension of time to file their financial disclosure. The Applicant's accountant requires an additional 3 weeks to prepare the required documents. The Respondent consents to this extension. No hearing date is affected.","helpText":"For consent motions, briefly describe why both parties agree. For without-notice motions, describe the urgent facts in detail. For procedural motions, briefly explain what is needed and why."},{"id":"supporting_materials","label":"What supporting materials are you attaching to this motion?","type":"checkbox-group","required":false,"helpText":"Attach any materials that support your request.","options":[{"value":"affidavit","label":"Affidavit (sworn statement of facts)"},{"value":"draft_order","label":"Draft order (the proposed order for the judge to sign)"},{"value":"consent_both_parties","label":"Written consent signed by both parties"},{"value":"correspondence","label":"Relevant correspondence or emails"},{"value":"existing_order_copy","label":"Copy of the existing order being varied or referenced"},{"value":"other_documents","label":"Other documents"}]},{"id":"other_documents_description","label":"Describe the other documents attached","type":"text","required":false,"conditionalOn":{"field":"supporting_materials","value":"other_documents"},"placeholder":"e.g. Airline itinerary showing booked flights for July 4"},{"id":"legal_authority","label":"Legal authority for this order (optional \u2014 helpful for complex motions)","type":"textarea","required":false,"placeholder":"e.g. Family Law Rules, Rule 14(12) \u2014 motion without notice. Children's Law Reform Act, section 35 \u2014 order for return of child. / Leave blank for simple consent or procedural matters.","helpText":"You don't need to cite law for simple procedural motions. For more complex motions (especially without notice), citing the relevant rule or statute is helpful."}]},{"stepId":"mb-step5","title":"Service & Response","description":"Tell the court whether the other party has been served and whether they have responded.","fields":[{"id":"other_party_served","label":"Has the other party been served with this motion?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 they have been served"},{"value":"no_consent","label":"No \u2014 this is a consent motion and they will sign instead of being served"},{"value":"no_without_notice","label":"No \u2014 I am asking the court to dispense with service (without notice motion)"}]},{"id":"service_details","label":"How and when was the other party served?","type":"textarea","required":false,"conditionalOn":{"field":"other_party_served","value":"yes"},"placeholder":"e.g. Served by email on June 20, 2025. The other party acknowledged receipt but has not responded within the required time."},{"id":"other_party_response","label":"Did the other party respond?","type":"radio","required":false,"conditionalOn":{"field":"other_party_served","value":"yes"},"options":[{"value":"yes_consents","label":"Yes \u2014 they consent to the order"},{"value":"yes_opposes","label":"Yes \u2014 they oppose the order"},{"value":"no_response","label":"No \u2014 they did not respond within the required time"}]},{"id":"opposition_details","label":"Describe the other party's opposition","type":"textarea","required":false,"conditionalOn":{"field":"other_party_response","value":"yes_opposes"},"placeholder":"e.g. The Respondent has communicated through their counsel that they oppose the extension of the filing deadline. Their position is that any further delay is prejudicial. I respectfully submit that the court should grant the extension despite this opposition because [reason].","helpText":"If the other party opposes, Form 14B may not be the right form \u2014 a full hearing may be required. Describe their position and why you believe the matter can still proceed on written materials."},{"id":"dispense_service_reason","label":"Why should service be dispensed with?","type":"textarea","required":false,"conditionalOn":{"field":"other_party_served","value":"no_without_notice"},"placeholder":"e.g. Serving the other party before obtaining this order would defeat its purpose, as they would have the opportunity to remove the children or dissipate assets before the order is made. This is an emergency situation requiring immediate court intervention."}]},{"stepId":"mb-step6","title":"Consent (if applicable)","description":"For consent motions, both parties must agree. Confirm consent details here.","fields":[{"id":"is_consent_motion","label":"Is this a consent motion (both parties agree)?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 both parties consent"},{"value":"no","label":"No \u2014 this is not a consent motion"}]},{"id":"consent_details","label":"Confirm consent","type":"info-box","conditionalOn":{"field":"is_consent_motion","value":"yes"},"content":"For a consent motion, both parties must sign the motion form or a separate written consent. The judge does not need to hold a hearing \u2014 they will review the materials and, if satisfied, sign the order.\n\nMake sure your draft order accurately reflects what both parties have agreed to. Once signed by the judge, it becomes a binding court order."},{"id":"consent_basis","label":"How was consent confirmed?","type":"select","required":false,"conditionalOn":{"field":"is_consent_motion","value":"yes"},"options":[{"value":"both_sign_form","label":"Both parties will sign this motion form"},{"value":"separate_consent","label":"A separate written consent is attached"},{"value":"lawyer_confirmation","label":"Consent confirmed by letters from both parties' lawyers"},{"value":"minutes_of_settlement","label":"Based on Minutes of Settlement signed at a conference"}]},{"id":"children_involved_consent","label":"Does this consent motion involve the children?","type":"radio","required":false,"conditionalOn":{"field":"is_consent_motion","value":"yes"},"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No \u2014 this is about finances, procedures, or other matters only"}]},{"id":"best_interests_consent","label":"Why is the consent order in the best interests of the children?","type":"textarea","required":false,"conditionalOn":{"field":"children_involved_consent","value":"yes"},"placeholder":"e.g. Both parties have agreed that the new parenting schedule better reflects the children's current school and activity schedules. The children are comfortable with both parents. The proposed change maintains stability while accommodating the children's growing independence.","helpText":"The court must be satisfied that any order involving children serves their best interests, even when both parties consent."}]},{"stepId":"mb-step7","title":"Declaration & Signature","description":"Confirm the accuracy of this motion before filing.","fields":[{"id":"costs_request","label":"Are you asking for costs?","type":"radio","required":true,"helpText":"Costs are rare on procedural or consent motions. If you are asking for costs, state the amount and basis.","options":[{"value":"no","label":"No \u2014 no order as to costs"},{"value":"yes","label":"Yes \u2014 I am asking for costs"}]},{"id":"costs_details","label":"Describe the costs you are requesting","type":"textarea","required":false,"conditionalOn":{"field":"costs_request","value":"yes"},"placeholder":"e.g. The Respondent caused the need for this motion by failing to comply with the existing order. I am asking for costs of $500 on a partial indemnity basis."},{"id":"declaration_confirmed","label":"Declaration","type":"declaration","required":true,"text":"I declare that the information in this Motion Form is true and complete to the best of my knowledge and belief. I understand that this form will be filed with the Ontario court.","checkboxLabel":"I confirm this declaration is true and accurate."},{"id":"signature_date","label":"Date","type":"date","required":true}]}],"pdfMapping":{"notes":"Form 14B \u2014 Motion Form. Used for consent, without notice, procedural, or unopposed motions decided on written materials without a hearing. Attach a draft order for the judge to sign. See ontario.ca/page/family-law-forms.","case_header":["courthouse","court_file_number","applicant_full_name","respondent_full_name","moving_party"],"motion_type_section":["motion_type","without_notice_reason","date_motion_submitted"],"orders_section":["orders_requested_categories","orders_requested_details","effective_date"],"grounds_section":["grounds_narrative","supporting_materials","legal_authority"],"service_section":["other_party_served","service_details","other_party_response"],"consent_section":["is_consent_motion","consent_basis","children_involved_consent","best_interests_consent"],"declaration_section":["costs_request","declaration_confirmed","signature_date"]}};
+  window.__hp_formDefs['ON-F13B'] = {"formId":"ON-F13B","formCode":"form13b-net-family-property","title":"Form 13B \u2014 Net Family Property Statement","jurisdiction":"Ontario","version":"2024","description":"Used to calculate the equalization of net family property under Part I of the Family Law Act. Each party completes their own Form 13B. The difference between the two net family property values determines the equalization payment owed from one spouse to the other.","autoPopulateFrom":["form8-general","form13-financial","form13_1-property"],"steps":[{"stepId":"nfp-step1","title":"About This Form","description":"Form 13B calculates your net family property (NFP) \u2014 the foundation of property equalization in Ontario.","fields":[{"id":"nfp_explainer","label":"How equalization works in Ontario","type":"info-box","content":"**Ontario's equalization of net family property** means that when a marriage ends, each spouse keeps what they brought in \u2014 but they share equally in what was accumulated during the marriage.\n\n**How it works:**\n1. Calculate your assets and debts on the **valuation date** (usually the date you separated)\n2. Subtract your assets and debts on the **date of marriage** (your starting point)\n3. Subtract any **excluded property** (gifts, inheritances, and certain other assets)\n4. The result is your **Net Family Property (NFP)**\n5. The spouse with the higher NFP pays the other half the difference \u2014 this is the **equalization payment**\n\n**You need:** your separation date, your marriage date, values of all property at both dates, and records of any gifts or inheritances."},{"id":"courthouse","label":"Courthouse","type":"select","required":true,"autoPopulate":"courthouse","options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"]},{"id":"court_file_number","label":"Court file number","type":"text","required":false,"autoPopulate":"court_file_number","placeholder":"e.g. FC-2024-12345"},{"id":"applicant_full_name","label":"Applicant's full legal name","type":"text","required":true,"autoPopulate":"applicant_full_name"},{"id":"respondent_full_name","label":"Respondent's full legal name","type":"text","required":true,"autoPopulate":"respondent_full_name"},{"id":"completing_party","label":"You are completing this form as","type":"select","required":true,"options":[{"value":"applicant","label":"The Applicant"},{"value":"respondent","label":"The Respondent"}]},{"id":"marriage_date","label":"Date of marriage","type":"date","required":true,"autoPopulate":"marriage_date","helpText":"The date your marriage was legally performed."},{"id":"valuation_date","label":"Valuation date (usually your separation date)","type":"date","required":true,"autoPopulate":"separation_date","helpText":"The valuation date is the earliest of: the date you separated, the date a divorce order is made, or the date of an event triggering equalization. Usually this is your separation date."}]},{"stepId":"nfp-step2","title":"Assets on Valuation Date","description":"List the value of everything you owned on the valuation date (your separation date). Include all assets even if they were partially or fully inherited or gifted \u2014 you will deduct excluded property later.","fields":[{"id":"asset_family_home_value","label":"Family home \u2014 value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Enter the fair market value. Use a recent appraisal if available. If you do not own or have an interest in the family home, enter 0."},{"id":"asset_family_home_address","label":"Family home \u2014 address","type":"text","required":false,"placeholder":"e.g. 123 Main St, Toronto ON M5V 1A1"},{"id":"asset_other_real_estate","label":"Other real estate \u2014 total value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Include rental properties, cottages, vacant land, or any other real property you have an interest in."},{"id":"asset_other_real_estate_description","label":"Describe other real estate","type":"textarea","required":false,"placeholder":"e.g. Rental property at 456 Oak Ave, Toronto \u2014 value $480,000 / Cottage at 789 Lake Rd, Muskoka \u2014 value $320,000"},{"id":"asset_bank_accounts","label":"Bank accounts, savings, GICs \u2014 total balance on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Total balance across all accounts \u2014 chequing, savings, GICs, high-interest savings, TFSAs. Include accounts in your name only and any joint accounts."},{"id":"asset_bank_accounts_description","label":"Describe bank accounts","type":"textarea","required":false,"placeholder":"e.g. TD chequing \u2014 $4,200 / RBC savings \u2014 $12,500 / TFSA at TD \u2014 $38,000"},{"id":"asset_rrsp_rrif","label":"RRSPs, RRIFs, LIRAs \u2014 total value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Use the market value before tax. Note: the tax owing on withdrawal is often deducted separately as a liability or negotiated between parties."},{"id":"asset_pension","label":"Pension plans \u2014 value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Use the commuted value (transfer value) of your pension. For defined benefit pensions, you may need an actuarial valuation. Contact your pension administrator."},{"id":"asset_pension_description","label":"Describe pension plan(s)","type":"textarea","required":false,"placeholder":"e.g. OMERS defined benefit pension \u2014 commuted value on valuation date: $185,000 / Company RRSP/DC pension \u2014 $52,000"},{"id":"asset_investments","label":"Non-registered investments \u2014 total value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Include stocks, bonds, mutual funds, ETFs, investment accounts held outside an RRSP or TFSA."},{"id":"asset_business_interest","label":"Business interests \u2014 value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Include shares or ownership interest in any business. A business valuation by a qualified valuator may be required. Enter the fair market value of your interest."},{"id":"asset_business_description","label":"Describe business interests","type":"textarea","required":false,"placeholder":"e.g. 50% ownership in ABC Plumbing Inc. \u2014 valued at $240,000 by business valuator John Smith, CA\u00b7CBV, on [date]"},{"id":"asset_vehicles","label":"Vehicles \u2014 total value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Include cars, trucks, motorcycles, boats, RVs, snowmobiles, etc. Use Canadian Black Book or similar for market value."},{"id":"asset_life_insurance","label":"Life insurance \u2014 cash surrender value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Only include policies with a cash surrender value (whole life, universal life). Term life insurance has no cash value \u2014 enter 0."},{"id":"asset_household_contents","label":"Household contents and personal property \u2014 value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Include furniture, appliances, electronics, jewelry, art, collections, and other personal property. Use fair market value (what you could sell it for today)."},{"id":"asset_money_owed_to_you","label":"Money owed to you (loans receivable, legal settlements) \u2014 value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Include any money others owe you \u2014 loans you made, pending legal settlements, expected tax refunds, etc."},{"id":"asset_other","label":"Other assets \u2014 value on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"asset_other_description","label":"Describe other assets","type":"textarea","required":false,"placeholder":"e.g. Cryptocurrency \u2014 $8,500 / Structured settlement \u2014 $25,000 / Intellectual property rights \u2014 $12,000"},{"id":"total_assets_valuation_date","label":"TOTAL assets on valuation date","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"Add up all assets listed above.","autoCalculate":{"operation":"sum","fields":["asset_family_home_value","asset_other_real_estate","asset_bank_accounts","asset_rrsp_rrif","asset_pension","asset_investments","asset_business_interest","asset_vehicles","asset_life_insurance","asset_household_contents","asset_money_owed_to_you","asset_other"]}}]},{"stepId":"nfp-step3","title":"Debts on Valuation Date","description":"List all debts and liabilities you owed on the valuation date. These reduce your net family property.","fields":[{"id":"debt_mortgage_family_home","label":"Mortgage on family home \u2014 balance owing on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"debt_mortgage_other","label":"Mortgages on other properties \u2014 total balance owing on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"debt_vehicle_loans","label":"Vehicle loans \u2014 total balance owing on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"debt_credit_cards","label":"Credit card balances \u2014 total owing on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"debt_lines_of_credit","label":"Lines of credit \u2014 total balance owing on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"debt_student_loans","label":"Student loans \u2014 balance owing on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"debt_personal_loans","label":"Personal loans (family, bank) \u2014 balance owing on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"debt_business_debts","label":"Business debts you are personally responsible for \u2014 balance owing on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"debt_tax_owing","label":"Income taxes owing (including estimated deferred taxes on RRSPs) \u2014 on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Include any income tax owing to CRA, and optionally an estimate of the tax you would owe if you cashed out your RRSP/pension (parties often negotiate whether to include this)."},{"id":"debt_other","label":"Other debts \u2014 total owing on valuation date","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"debt_other_description","label":"Describe other debts","type":"textarea","required":false,"placeholder":"e.g. Money owed to parents for home down payment loan \u2014 $20,000 / Unpaid legal fees \u2014 $8,000"},{"id":"total_debts_valuation_date","label":"TOTAL debts on valuation date","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"Add up all debts listed above.","autoCalculate":{"operation":"sum","fields":["debt_mortgage_family_home","debt_mortgage_other","debt_vehicle_loans","debt_credit_cards","debt_lines_of_credit","debt_student_loans","debt_personal_loans","debt_business_debts","debt_tax_owing","debt_other"]}},{"id":"net_on_valuation_date","label":"Net value on valuation date (assets minus debts)","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"Subtract total debts from total assets.","autoCalculate":{"operation":"subtract","fields":["total_assets_valuation_date","total_debts_valuation_date"]}}]},{"stepId":"nfp-step4","title":"Assets on Date of Marriage","description":"List what you owned on the day you were married. This is subtracted from your valuation date net to calculate growth during the marriage.","fields":[{"id":"dom_asset_notice","label":"Date of marriage assets","type":"info-box","content":"List the value of your assets on the date of your marriage. These represent what you brought into the marriage \u2014 they are subtracted so that property you had before the marriage is not shared.\n\n**Important:** The family home you lived in at separation is NOT deducted even if you owned it before marriage \u2014 it is always included in the equalization calculation."},{"id":"dom_bank_accounts","label":"Bank accounts and savings \u2014 balance on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_rrsp","label":"RRSPs, investments \u2014 value on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_real_estate","label":"Real estate (excluding the matrimonial home) \u2014 value on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_business","label":"Business interests \u2014 value on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_pension","label":"Pension \u2014 value on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_vehicles","label":"Vehicles \u2014 value on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_other_assets","label":"Other assets on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_other_assets_description","label":"Describe other assets on date of marriage","type":"textarea","required":false,"placeholder":"e.g. Inheritance received before marriage \u2014 $30,000 / Personal property \u2014 $5,000"},{"id":"total_assets_dom","label":"TOTAL assets on date of marriage","type":"number","required":true,"prefix":"$","placeholder":"0.00","autoCalculate":{"operation":"sum","fields":["dom_bank_accounts","dom_rrsp","dom_real_estate","dom_business","dom_pension","dom_vehicles","dom_other_assets"]}}]},{"stepId":"nfp-step5","title":"Debts on Date of Marriage","description":"List the debts you owed on the day you were married. These reduce your date-of-marriage deduction.","fields":[{"id":"dom_debt_mortgage","label":"Mortgage(s) \u2014 balance owing on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_debt_vehicle","label":"Vehicle loans \u2014 balance owing on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_debt_student","label":"Student loans \u2014 balance owing on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_debt_credit_cards","label":"Credit card and line of credit balances \u2014 on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"dom_debt_other","label":"Other debts on date of marriage","type":"number","required":false,"prefix":"$","placeholder":"0.00"},{"id":"total_debts_dom","label":"TOTAL debts on date of marriage","type":"number","required":true,"prefix":"$","placeholder":"0.00","autoCalculate":{"operation":"sum","fields":["dom_debt_mortgage","dom_debt_vehicle","dom_debt_student","dom_debt_credit_cards","dom_debt_other"]}},{"id":"net_dom","label":"Net value on date of marriage (assets minus debts)","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"This is the amount subtracted from your valuation date net to account for what you brought into the marriage.","autoCalculate":{"operation":"subtract","fields":["total_assets_dom","total_debts_dom"]}}]},{"stepId":"nfp-step6","title":"Excluded Property","description":"Certain property is excluded from equalization even if you owned it on the valuation date. List any property that qualifies as excluded.","fields":[{"id":"excluded_property_notice","label":"What property is excluded?","type":"info-box","content":"Under the Family Law Act, the following property received **during the marriage** is excluded from equalization:\n\n- **Gifts or inheritances** received from a third party during the marriage (not from your spouse)\n- **Proceeds from a life insurance policy** received during the marriage\n- **Damages or settlement** for personal injury, nervous shock, or a prescribed right\n- **Property traceable to** any of the above (e.g. if you invested an inheritance and it grew, the original inheritance value is excluded)\n\n**Important:** The increase in value of excluded property is NOT excluded \u2014 only the original value of the excluded property itself."},{"id":"has_excluded_property","label":"Do you have any excluded property?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"excluded_property_items","label":"List each excluded property item","type":"repeatable-group","required":false,"conditionalOnParent":{"field":"has_excluded_property","value":"yes"},"maxItems":10,"addLabel":"Add another excluded property item","fields":[{"id":"excluded_description","label":"Description of the excluded property","type":"text","required":true,"placeholder":"e.g. Inheritance from my father's estate / Gift of money from my parents / Personal injury settlement"},{"id":"excluded_source","label":"Type of exclusion","type":"select","required":true,"options":[{"value":"gift","label":"Gift from a third party (not from spouse)"},{"value":"inheritance","label":"Inheritance"},{"value":"insurance_proceeds","label":"Life insurance proceeds"},{"value":"personal_injury","label":"Personal injury damages or settlement"},{"value":"traceable","label":"Property traceable to an excluded source"}]},{"id":"excluded_date_received","label":"Date received","type":"date","required":false,"helpText":"Approximate date you received this property during the marriage."},{"id":"excluded_value","label":"Value of the excluded property (at the time you received it, or at valuation date if it still exists in original form)","type":"number","required":true,"prefix":"$","placeholder":"0.00"},{"id":"excluded_still_exists","label":"Does this property still exist in its original form on the valuation date?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 still exists (e.g. still in a bank account or investment)"},{"value":"partly","label":"Partly \u2014 some was spent or converted, some remains"},{"value":"no","label":"No \u2014 it was spent or no longer traceable"}]},{"id":"excluded_tracing_notes","label":"Notes on how you can trace this exclusion","type":"textarea","required":false,"placeholder":"e.g. The $45,000 inheritance I received in 2019 was deposited into my TD savings account. I have bank records showing the deposit and the account balance over time. I kept the inheritance separate from joint funds."}]},{"id":"total_excluded_property","label":"TOTAL excluded property value","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Add up the values of all excluded property items listed above."}]},{"stepId":"nfp-step7","title":"Net Family Property Calculation","description":"Calculate your net family property. This is the number that determines whether you owe an equalization payment or are entitled to receive one.","fields":[{"id":"calculation_notice","label":"The formula","type":"info-box","content":"**Net Family Property (NFP) = A \u2212 B \u2212 C**\n\nWhere:\n- **A** = Net value on valuation date (total assets minus total debts at separation)\n- **B** = Net value on date of marriage (total assets minus total debts at marriage)\n- **C** = Excluded property\n\nIf the result is negative, your NFP is treated as zero.\n\nThe spouse with the **higher NFP** pays the other spouse **half the difference**. That payment is the equalization payment."},{"id":"nfp_line_a","label":"Line A \u2014 Net value on valuation date","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"Copy from Step 3: Net value on valuation date.","autoPopulate":"net_on_valuation_date"},{"id":"nfp_line_b","label":"Line B \u2014 Net value on date of marriage","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"Copy from Step 5: Net value on date of marriage.","autoPopulate":"net_dom"},{"id":"nfp_line_c","label":"Line C \u2014 Total excluded property","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"Copy from Step 6: Total excluded property value. Enter 0 if no excluded property.","autoPopulate":"total_excluded_property"},{"id":"nfp_result","label":"Your Net Family Property (A minus B minus C)","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"If this number is negative, your NFP is zero for equalization purposes.","autoCalculate":{"operation":"subtract","fields":["nfp_line_a","nfp_line_b","nfp_line_c"]}},{"id":"nfp_is_negative","label":"Is your calculated NFP negative?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 my NFP is negative, so I will report it as zero"},{"value":"no","label":"No \u2014 my NFP is zero or positive"}]},{"id":"nfp_final","label":"Your final Net Family Property (zero if negative)","type":"number","required":true,"prefix":"$","placeholder":"0.00","helpText":"If your calculated NFP above was negative, enter 0 here. Otherwise enter the same number as above."}]},{"stepId":"nfp-step8","title":"Equalization Claim","description":"Based on your NFP, describe what equalization payment you are claiming or expect to owe.","fields":[{"id":"other_party_nfp_estimate","label":"What is your estimate of the other party's Net Family Property?","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"If you know or can estimate the other party's NFP, enter it here. The equalization payment is half the difference between the two NFPs."},{"id":"equalization_payment_estimate","label":"Estimated equalization payment","type":"number","required":false,"prefix":"$","placeholder":"0.00","helpText":"If your NFP is lower than the other party's, you are owed an equalization payment = (Their NFP \u2212 Your NFP) \u00f7 2."},{"id":"equalization_direction","label":"Based on your estimate","type":"select","required":false,"options":[{"value":"i_am_owed","label":"I am owed an equalization payment from the other party"},{"value":"i_owe","label":"I owe an equalization payment to the other party"},{"value":"equal","label":"The NFPs appear roughly equal \u2014 no significant payment either way"},{"value":"unknown","label":"I don't have enough information to estimate"}]},{"id":"property_division_disputes","label":"Are there any specific assets or valuations that are in dispute with the other party?","type":"textarea","required":false,"placeholder":"e.g. The parties disagree on the value of the family home \u2014 I believe it is worth $780,000 based on a recent appraisal; the other party claims $850,000. The parties also disagree on the valuation of the other party's dental practice.","helpText":"Identifying disputed valuations helps the court understand what needs to be resolved."},{"id":"unequal_division_claim","label":"Are you asking the court to award an amount other than the standard equalization payment?","type":"radio","required":true,"helpText":"In rare cases, a court can order an unequal division of property if the standard equalization payment would be unconscionable (shockingly unfair).","options":[{"value":"yes","label":"Yes \u2014 I am asking for an unequal division"},{"value":"no","label":"No \u2014 I am asking for the standard equalization payment"}]},{"id":"unequal_division_reason","label":"Explain why an unequal division is warranted","type":"textarea","required":false,"conditionalOn":{"field":"unequal_division_claim","value":"yes"},"placeholder":"e.g. The other party deliberately dissipated significant family assets in the two years before separation by making large unauthorized withdrawals from joint accounts and gambling losses totalling approximately $85,000. Standard equalization would be unconscionable in these circumstances."}]},{"stepId":"nfp-step9","title":"Declaration","description":"Confirm the accuracy of your Net Family Property Statement.","fields":[{"id":"documents_available","label":"What documents do you have to support the values in this statement?","type":"checkbox-group","required":false,"options":[{"value":"mortgage_statement","label":"Mortgage statement as of valuation date"},{"value":"bank_statements","label":"Bank and investment statements as of valuation date"},{"value":"rrsp_statements","label":"RRSP/RRIF statements as of valuation date"},{"value":"pension_valuation","label":"Pension commuted value letter from administrator"},{"value":"property_appraisal","label":"Property appraisal or real estate valuation"},{"value":"business_valuation","label":"Business valuation report"},{"value":"vehicle_valuation","label":"Vehicle valuation (Canadian Black Book or appraisal)"},{"value":"tax_returns","label":"Income tax returns and Notices of Assessment"},{"value":"marriage_date_documents","label":"Bank/investment statements from date of marriage"},{"value":"inheritance_documents","label":"Estate documents or gift letters (for excluded property)"}]},{"id":"sworn_declaration","label":"Declaration","type":"declaration","required":true,"text":"I declare that the information in this Net Family Property Statement is true and complete to the best of my knowledge and belief. I understand that providing false information to the court is a serious matter.","checkboxLabel":"I confirm this declaration is true and accurate."},{"id":"signature_date","label":"Date","type":"date","required":true}]}],"pdfMapping":{"notes":"Form 13B \u2014 Net Family Property Statement. Each party completes separately. Used to calculate equalization payment under the Family Law Act. See ontario.ca/page/family-law-forms for the current version.","case_header":["courthouse","court_file_number","applicant_full_name","respondent_full_name","completing_party","marriage_date","valuation_date"],"valuation_date_assets":["asset_family_home_value","asset_other_real_estate","asset_bank_accounts","asset_rrsp_rrif","asset_pension","asset_investments","asset_business_interest","asset_vehicles","total_assets_valuation_date"],"valuation_date_debts":["debt_mortgage_family_home","debt_mortgage_other","debt_credit_cards","total_debts_valuation_date","net_on_valuation_date"],"marriage_date_section":["total_assets_dom","total_debts_dom","net_dom"],"excluded_property":["has_excluded_property","excluded_property_items","total_excluded_property"],"nfp_calculation":["nfp_line_a","nfp_line_b","nfp_line_c","nfp_result","nfp_final"],"equalization_claim":["equalization_direction","equalization_payment_estimate","unequal_division_claim"],"declaration":["sworn_declaration","signature_date"]}};
+  window.__hp_formDefs['ON-F23C'] = {"formId":"ON-F26B","formCode":"form23c-uncontested-trial","title":"Affidavit for Uncontested Trial","jurisdiction":"Ontario","version":"December 2020","description":"Filed when you are applying for divorce or another family law order and the other party is not contesting (disputing) the matter. Allows the court to grant the order based on your written evidence without a live hearing. Must be sworn before a commissioner of oaths.","autoPopulateFrom":["form8-general","form36-divorce"],"steps":[{"stepId":"ud-step1","title":"About This Affidavit","description":"Form 26B allows a divorce to proceed without a court hearing. A judge reviews the written materials and grants the divorce if all requirements are met.","fields":[{"id":"ud_explainer","label":"When is Form 26B used?","type":"info-box","content":"**Form 26B is used when:**\n- You have filed for divorce and the other party has NOT contested it (has not filed an Answer disputing the divorce)\n- OR both parties agree to a joint divorce application\n- There is no need for a court hearing \u2014 the judge decides on the written materials\n\n**You will also need:**\n- A certified copy of your marriage certificate\n- Your Form 36 (Affidavit for Divorce) \u2014 already sworn\n- Form 25A (Order for Divorce) \u2014 the draft order for the judge to sign\n- Proof of service on the other party (Form 6B) if they were not a joint applicant\n\n**After the divorce is granted:** The divorce order becomes effective 31 days after it is made, unless the judge waives the waiting period."},{"id":"courthouse","label":"Courthouse","type":"select","required":true,"autoPopulate":"courthouse","options":["Barrie \u2014 Superior Court of Justice","Brampton \u2014 Superior Court of Justice","Brantford \u2014 Superior Court of Justice","Cornwall \u2014 Superior Court of Justice","Hamilton \u2014 Superior Court of Justice","Kingston \u2014 Superior Court of Justice","Kitchener \u2014 Superior Court of Justice","London \u2014 Superior Court of Justice","Milton \u2014 Superior Court of Justice","Newmarket \u2014 Superior Court of Justice","Oshawa \u2014 Superior Court of Justice","Ottawa \u2014 Superior Court of Justice","Peterborough \u2014 Superior Court of Justice","St. Catharines \u2014 Superior Court of Justice","Sudbury \u2014 Superior Court of Justice","Thunder Bay \u2014 Superior Court of Justice","Toronto \u2014 Superior Court of Justice","Windsor \u2014 Superior Court of Justice"]},{"id":"court_file_number","label":"Court file number","type":"text","required":true,"autoPopulate":"court_file_number","placeholder":"e.g. FC-2024-12345"},{"id":"applicant_full_name","label":"Applicant's full legal name","type":"text","required":true,"autoPopulate":"applicant_full_name"},{"id":"respondent_full_name","label":"Respondent's full legal name","type":"text","required":true,"autoPopulate":"respondent_full_name"},{"id":"application_type","label":"Type of divorce application","type":"select","required":true,"options":[{"value":"sole","label":"Sole application \u2014 I am the only applicant"},{"value":"joint","label":"Joint application \u2014 both parties are applicants"}]},{"id":"deponent_role","label":"You are swearing this affidavit as","type":"select","required":true,"options":[{"value":"applicant","label":"The Applicant"},{"value":"joint_applicant","label":"One of the joint applicants"}]}]},{"stepId":"ud-step2","title":"The Marriage","description":"Confirm the details of your marriage. These must match your marriage certificate exactly.","fields":[{"id":"marriage_date","label":"Date of marriage","type":"date","required":true,"autoPopulate":"marriage_date","helpText":"Must match your marriage certificate."},{"id":"marriage_city","label":"City or town where you were married","type":"text","required":true,"placeholder":"e.g. Toronto"},{"id":"marriage_province_country","label":"Province or country where you were married","type":"text","required":true,"placeholder":"e.g. Ontario, Canada"},{"id":"applicant_name_at_marriage","label":"Your full name at the time of marriage (if different from current name)","type":"text","required":false,"placeholder":"Leave blank if your name has not changed"},{"id":"respondent_name_at_marriage","label":"Other party's full name at the time of marriage (if different from current name)","type":"text","required":false,"placeholder":"Leave blank if their name has not changed"},{"id":"marriage_certificate_available","label":"Do you have a certified copy of your marriage certificate?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 I will attach a certified copy"},{"value":"no","label":"No \u2014 I need to obtain one"},{"value":"applied_for","label":"I have applied for one and it is pending"}],"helpText":"A certified copy of your marriage certificate is required to be filed with your divorce application. Obtain one from ServiceOntario or the vital statistics office in the jurisdiction where you were married."},{"id":"marriage_certificate_note","label":"If you do not have a marriage certificate, explain why and what steps you are taking","type":"textarea","required":false,"conditionalOn":{"field":"marriage_certificate_available","value":"no","orValues":["no","applied_for"]},"placeholder":"e.g. We were married in India. I have applied to the Indian government registry for a certified copy and expect to receive it within 8\u201310 weeks. I am asking the court to allow me to file the certificate once received."}]},{"stepId":"ud-step3","title":"Residence & Jurisdiction","description":"The court must confirm it has jurisdiction to grant the divorce. At least one spouse must have lived in Ontario for at least one year before the divorce application was filed.","fields":[{"id":"applicant_current_address","label":"Your current address","type":"text","required":true,"autoPopulate":"applicant_address","placeholder":"e.g. 123 Main St, Toronto ON M5V 1A1"},{"id":"applicant_residency_duration","label":"How long have you lived in Ontario?","type":"select","required":true,"options":[{"value":"more_than_1_year","label":"More than 1 year \u2014 I have lived in Ontario for at least 1 year"},{"value":"less_than_1_year","label":"Less than 1 year \u2014 I have not lived in Ontario for a full year yet"}],"helpText":"You must have been ordinarily resident in Ontario for at least one year immediately before the divorce application was filed."},{"id":"residency_note","label":"Note on residency requirement","type":"info-box","conditionalOn":{"field":"applicant_residency_duration","value":"less_than_1_year"},"content":"If you have not lived in Ontario for at least one year, check whether your spouse has \u2014 if so, they may need to be the applicant, or you may need to wait until the one-year requirement is met."},{"id":"respondent_address_known","label":"Do you know the other party's current address?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No \u2014 their address is not known to me"}]},{"id":"respondent_current_address","label":"Other party's current address","type":"text","required":false,"conditionalOn":{"field":"respondent_address_known","value":"yes"},"placeholder":"e.g. 456 Oak Ave, Ottawa ON K1A 0A1"}]},{"stepId":"ud-step4","title":"Separation","description":"Confirm the separation facts. One year of separation is the most common ground for divorce in Canada.","fields":[{"id":"separation_date","label":"Date you and your spouse separated","type":"date","required":true,"autoPopulate":"separation_date","helpText":"The date one or both of you decided the marriage was over."},{"id":"separated_one_year","label":"Have you lived separate and apart for at least one year as of today?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 we have been separated for at least one year"},{"value":"no","label":"No \u2014 we have not yet been separated for one year"}],"helpText":"You must have been separated for at least one year before the divorce can be granted."},{"id":"not_yet_separated_note","label":"Separation requirement not yet met","type":"info-box","conditionalOn":{"field":"separated_one_year","value":"no"},"content":"You can file a divorce application before the one-year anniversary of your separation \u2014 but the court will not grant the divorce until one year has passed. Make note of your one-year anniversary date and follow up with the court at that time."},{"id":"reconciliation_attempts","label":"Did you and your spouse attempt to reconcile after separating?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 we had a period of attempted reconciliation"},{"value":"no","label":"No \u2014 we did not attempt to reconcile"}]},{"id":"reconciliation_details","label":"Describe the reconciliation attempt(s)","type":"textarea","required":false,"conditionalOn":{"field":"reconciliation_attempts","value":"yes"},"placeholder":"e.g. We reconciled from October 1 to October 28, 2024 (28 days). We then separated again on October 29, 2024. Our total reconciliation period was less than 90 days so our one-year separation clock was not reset.","helpText":"Reconciliation periods of 90 days or less (combined) do not reset the one-year clock. Periods over 90 days do reset it."},{"id":"no_reasonable_chance","label":"Is there any reasonable chance of reconciliation?","type":"radio","required":true,"options":[{"value":"no","label":"No \u2014 there is no reasonable chance of reconciliation"},{"value":"yes","label":"Yes \u2014 there may be a possibility"}],"helpText":"You must confirm there is no reasonable chance of reconciliation for the court to grant the divorce."},{"id":"separated_same_home","label":"Did you live in the same home after separating?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 we continued to live in the same home after separating"},{"value":"no","label":"No \u2014 we moved to separate homes when we separated"}]},{"id":"same_home_details","label":"Describe how you lived separately in the same home","type":"textarea","required":false,"conditionalOn":{"field":"separated_same_home","value":"yes"},"placeholder":"e.g. After we separated on March 1, 2024, we continued to share the house due to financial constraints. We slept in separate bedrooms, had no intimate relationship, ate separately, and managed our finances independently. We told family and friends that we had separated. I moved out on September 15, 2024.","helpText":"The court must be satisfied you were truly living 'separate and apart' even if under the same roof. Be specific."}]},{"stepId":"ud-step5","title":"Children","description":"Confirm whether there are children of the marriage and what support arrangements are in place.","fields":[{"id":"has_children","label":"Are there any children of the marriage \u2014 under 18, or 18 or over but still dependent?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No \u2014 there are no children of the marriage"}],"helpText":"Children of the marriage include biological, adopted, and step-children who were treated as children of the family."},{"id":"children_list","label":"List the children","type":"repeatable-group","required":false,"conditionalOnParent":{"field":"has_children","value":"yes"},"maxItems":8,"addLabel":"Add another child","fields":[{"id":"child_name","label":"Child's full name","type":"text","required":true,"placeholder":"e.g. Alex Jordan Smith"},{"id":"child_dob","label":"Date of birth","type":"date","required":true},{"id":"child_lives_with","label":"Child currently lives with","type":"select","required":true,"options":[{"value":"applicant","label":"The Applicant"},{"value":"respondent","label":"The Respondent"},{"value":"both_equal","label":"Both parents (shared/equal time)"},{"value":"other","label":"Another person"}]},{"id":"child_still_dependent","label":"Is this child still dependent (if 18 or over)?","type":"radio","required":false,"options":[{"value":"yes_still_dependent","label":"Yes \u2014 still in school or otherwise dependent"},{"value":"no_independent","label":"No \u2014 fully independent"},{"value":"under_18","label":"Under 18 \u2014 automatically a child of the marriage"}]}]},{"id":"child_support_in_place","label":"Are reasonable arrangements in place for child support?","type":"radio","required":false,"conditionalOn":{"field":"has_children","value":"yes"},"options":[{"value":"yes","label":"Yes \u2014 child support is in place"},{"value":"no","label":"No \u2014 child support has not been arranged"}],"helpText":"The court will not grant the divorce unless satisfied that reasonable support arrangements exist for the children."},{"id":"child_support_details","label":"Describe the child support arrangements","type":"textarea","required":false,"conditionalOn":{"field":"child_support_in_place","value":"yes"},"placeholder":"e.g. The Respondent pays child support of $1,200 per month pursuant to the Federal Child Support Guidelines, as set out in the separation agreement dated March 15, 2025. Payments are made through the Family Responsibility Office."},{"id":"parenting_arrangement_details","label":"Describe the parenting (custody/access) arrangement","type":"textarea","required":false,"conditionalOn":{"field":"has_children","value":"yes"},"placeholder":"e.g. The children reside primarily with the Applicant. The Respondent has parenting time every other weekend from Friday 6 p.m. to Sunday 6 p.m. and Wednesday evenings from 4 p.m. to 7 p.m. This is set out in the separation agreement dated March 15, 2025."}]},{"stepId":"ud-step6","title":"Service on the Other Party","description":"Confirm how the other party was served with the divorce application, or why service is not required.","fields":[{"id":"service_situation","label":"Service of the divorce application","type":"select","required":true,"options":[{"value":"served_personally","label":"The other party was personally served with the application"},{"value":"served_by_mail","label":"The other party was served by mail"},{"value":"served_by_lawyer","label":"Service was accepted by the other party's lawyer"},{"value":"joint_application","label":"This is a joint application \u2014 service is not required"},{"value":"court_dispensed_service","label":"The court dispensed with service"}]},{"id":"service_date","label":"Date the other party was served","type":"date","required":false,"conditionalOn":{"field":"service_situation","value":"joint_application","inverse":true},"helpText":"This should match the date on your Form 6B (Affidavit of Service)."},{"id":"respondent_did_not_contest","label":"Did the other party file an Answer contesting the divorce?","type":"radio","required":false,"conditionalOn":{"field":"service_situation","value":"joint_application","inverse":true},"options":[{"value":"no","label":"No \u2014 they did not file an Answer"},{"value":"yes","label":"Yes \u2014 they filed a response"}],"helpText":"Form 26B can only be used if the divorce is uncontested. If the other party filed an Answer, you may need to proceed to a hearing instead."},{"id":"answer_filed_note","label":"Other party filed a response","type":"info-box","conditionalOn":{"field":"respondent_did_not_contest","value":"yes"},"content":"If the other party filed an Answer to your divorce application, the divorce may be contested and cannot proceed on written materials alone. Contact the court clerk to discuss whether a hearing is required. Form 26B may not be the appropriate form for your situation."}]},{"stepId":"ud-step7","title":"Previous Divorce Proceedings","description":"Disclose any previous divorce or family law proceedings between you and the other party.","fields":[{"id":"previous_divorce_proceedings","label":"Are there any other divorce or family law proceedings between you and the other party in any court in Canada or elsewhere?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"previous_proceedings_details","label":"Describe the other proceedings","type":"textarea","required":false,"conditionalOn":{"field":"previous_divorce_proceedings","value":"yes"},"placeholder":"e.g. There is an existing Ontario Superior Court of Justice proceeding (File No. FC-2024-12345) which is the proceeding within which this divorce application is filed. There are no other proceedings in any other court in Canada or internationally."},{"id":"existing_separation_agreement","label":"Do you have a signed separation agreement?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes"},{"value":"no","label":"No"}]},{"id":"separation_agreement_details","label":"Describe the separation agreement","type":"textarea","required":false,"conditionalOn":{"field":"existing_separation_agreement","value":"yes"},"placeholder":"e.g. The parties executed a separation agreement dated March 15, 2025, which addresses parenting, child support, spousal support, and property division. A copy is filed with the court."}]},{"stepId":"ud-step8","title":"Collusion & No Reconciliation","description":"Standard declarations required by the Divorce Act.","fields":[{"id":"no_collusion","label":"Declaration regarding collusion","type":"checkbox","required":true,"checkboxLabel":"I confirm that there has been no collusion in relation to this divorce application \u2014 meaning no agreement, conspiracy, or arrangement to fabricate or suppress evidence or to deceive the court.","helpText":"Collusion is extremely rare in practice but must be declared. It refers to a secret agreement to mislead the court \u2014 for example, fabricating grounds for divorce."},{"id":"no_condonation","label":"Declaration regarding condonation","type":"checkbox","required":true,"checkboxLabel":"I confirm that I have not condoned any conduct that might otherwise be raised as a ground for divorce.","helpText":"Condonation means forgiving a matrimonial offence (such as adultery or cruelty) and resuming the marriage knowing about it. For separation-based divorces, this is generally not applicable."},{"id":"divorce_grounds","label":"Grounds for divorce","type":"select","required":true,"options":[{"value":"separation","label":"Separation \u2014 we have been separated for at least one year (most common)"},{"value":"adultery","label":"Adultery \u2014 my spouse committed adultery"},{"value":"cruelty","label":"Physical or mental cruelty"}],"helpText":"Virtually all Canadian divorces proceed on the grounds of one year's separation. Adultery and cruelty are very rarely used because they are more difficult to prove."}]},{"stepId":"ud-step9","title":"Name Change (Optional)","description":"If you wish to resume a former name after the divorce, this can be included in the divorce order.","fields":[{"id":"name_change_requested","label":"Do you want to resume a former surname after the divorce?","type":"radio","required":true,"options":[{"value":"yes","label":"Yes \u2014 I want to resume a former name"},{"value":"no","label":"No \u2014 I do not want to change my name"}],"helpText":"You can resume a surname you used before the marriage. The divorce order itself serves as proof of the name change \u2014 no separate process is required."},{"id":"name_to_resume","label":"Surname you want to resume","type":"text","required":false,"conditionalOn":{"field":"name_change_requested","value":"yes"},"placeholder":"e.g. Johnson (your surname before marriage)"},{"id":"waive_31_days","label":"Are you asking the court to waive the standard 31-day waiting period before the divorce takes effect?","type":"radio","required":true,"options":[{"value":"no","label":"No \u2014 the standard 31-day effective date is fine"},{"value":"yes","label":"Yes \u2014 I am asking the court to waive the 31-day period"}],"helpText":"The divorce normally becomes effective 31 days after the order is made \u2014 this allows time for an appeal. The waiting period is rarely waived; it requires a compelling reason such as an imminent remarriage."},{"id":"waive_reason","label":"Reason for requesting the 31-day waiver","type":"textarea","required":false,"conditionalOn":{"field":"waive_31_days","value":"yes"},"placeholder":"e.g. Both parties consent to the divorce taking immediate effect. The Applicant plans to remarry on [date] and needs the divorce to be final before that date. Both parties waive their right to appeal."}]},{"stepId":"ud-step10","title":"Documents Checklist & Declaration","description":"Confirm what documents you are filing with this affidavit and swear to the accuracy of your information.","fields":[{"id":"documents_filed","label":"Documents you are filing with this affidavit","type":"checkbox-group","required":true,"helpText":"Check all that apply. You must file all required documents together.","options":[{"value":"divorce_application","label":"Divorce application (Form 8A)"},{"value":"form36","label":"Form 36 \u2014 Affidavit for Divorce (sworn)"},{"value":"form25a","label":"Form 25A \u2014 Order for Divorce (draft, unsigned)"},{"value":"marriage_certificate","label":"Certified copy of the marriage certificate"},{"value":"form6b","label":"Form 6B \u2014 Affidavit of Service (proof of service on the other party)"},{"value":"separation_agreement","label":"Separation agreement (if one exists)"},{"value":"draft_minutes","label":"Minutes of settlement or draft consent order"},{"value":"other_form","label":"Other court forms or documents"}]},{"id":"other_documents_description","label":"Describe other documents being filed","type":"text","required":false,"conditionalOn":{"field":"documents_filed","value":"other_form"},"placeholder":"e.g. Financial statement Form 13, property valuation report"},{"id":"swear_or_affirm","label":"Will you swear or affirm?","type":"select","required":true,"options":[{"value":"swear","label":"Swear (on a religious text)"},{"value":"affirm","label":"Affirm (non-religious solemn declaration)"}]},{"id":"municipality_of_swearing","label":"Municipality where you will swear or affirm this affidavit","type":"text","required":true,"placeholder":"e.g. Toronto"},{"id":"commissioning_date","label":"Date of commissioning (leave blank to complete at courthouse)","type":"date","required":false},{"id":"sworn_declaration","label":"Declaration","type":"declaration","required":true,"text":"I, the deponent, declare that the contents of this affidavit are true and complete to the best of my knowledge and belief. I make this solemn declaration conscientiously believing it to be true and knowing that it is of the same force and effect as if made under oath.","checkboxLabel":"I confirm this declaration is true and accurate."}]}],"pdfMapping":{"notes":"Form 26B \u2014 Affidavit (Divorce) for uncontested divorce applications. Must be sworn before a commissioner of oaths. Filed with Form 36, Form 25A, marriage certificate, and proof of service. See ontario.ca/page/family-law-forms.","case_header":["courthouse","court_file_number","applicant_full_name","respondent_full_name","application_type","deponent_role"],"marriage_section":["marriage_date","marriage_city","marriage_province_country","marriage_certificate_available"],"residence_section":["applicant_current_address","applicant_residency_duration"],"separation_section":["separation_date","separated_one_year","reconciliation_attempts","no_reasonable_chance","separated_same_home"],"children_section":["has_children","children_list","child_support_in_place","parenting_arrangement_details"],"service_section":["service_situation","service_date","respondent_did_not_contest"],"previous_proceedings":["previous_divorce_proceedings","existing_separation_agreement"],"declarations":["no_collusion","no_condonation","divorce_grounds"],"name_change":["name_change_requested","name_to_resume","waive_31_days"],"documents_and_oath":["documents_filed","swear_or_affirm","municipality_of_swearing","sworn_declaration"]},"formNumber":"Form 23C"},
+      {
+        icon: "📋",
+        label: "Draft a court order",
+        description: "Prepare a draft Order (General) for the judge or clerk to sign",
+        formKeys: ["form25-order-general"]
+      },
+      {
+        icon: "🔄",
+        label: "Change your representation",
+        description: "File a Notice of Change in Representation (hire a lawyer, switch lawyers, or go self-represented)",
+        formKeys: ["form4-change-representation"]
+      };
+  window.__hp_formDefs['ON-F25'] = {"formCode":"form25-order-general","formNumber":"Form 25","title":"Order (General)","jurisdiction":"Ontario","act":"Family Law Rules","version":"December 2020","description":"Used to draft a proposed court order for the judge or clerk to sign. Can be temporary or final and may refer to the Divorce Act, Children's Law Reform Act, or Family Law Act.","steps":[{"step":1,"title":"Court & File Information","description":"Enter the court location and file details for this order.","fields":[{"id":"court_file_number","label":"Court File Number","type":"text","required":true,"placeholder":"e.g. FC-12345-24","hint":"This is the number the court assigned when the case was started. It appears on your Application."},{"id":"court_name","label":"Name of Court","type":"text","required":true,"placeholder":"e.g. Ontario Court of Justice","hint":"Write the full name of the court where your case is being heard."},{"id":"court_location","label":"Court Location (City)","type":"text","required":true,"placeholder":"e.g. Toronto","hint":"The city or municipality where the court office is located."},{"id":"court_office_address","label":"Court Office Address","type":"text","required":true,"placeholder":"e.g. 311 Jarvis Street, Toronto, ON M5B 2C4","hint":"Full street address of the courthouse."},{"id":"order_type","label":"Type of Order","type":"radio","required":true,"options":[{"value":"temporary","label":"Temporary \u2014 an order that lasts until a future court date or further order"},{"value":"final","label":"Final \u2014 a permanent order that ends this issue in your case"}],"hint":"A temporary order is often made at a motion. A final order is made after a trial or on consent. If you are not sure, ask the court office."}]},{"step":2,"title":"Applicant Information","description":"Enter the full name and contact details for the applicant.","fields":[{"id":"applicant_fullname","label":"Applicant \u2014 Full Legal Name","type":"text","required":true,"placeholder":"e.g. Jane Elizabeth Smith","autoFill":"user_fullname","hint":"Use your full legal name exactly as it appears on your Application."},{"id":"applicant_address","label":"Applicant \u2014 Address for Service","type":"text","required":true,"placeholder":"Street & number, city, province, postal code","autoFill":"user_address","hint":"This is the address where court documents will be sent to you."},{"id":"applicant_phone","label":"Applicant \u2014 Telephone Number","type":"tel","required":true,"placeholder":"e.g. 416-555-0100","autoFill":"user_phone"},{"id":"applicant_fax","label":"Applicant \u2014 Fax Number (if any)","type":"tel","required":false,"placeholder":"e.g. 416-555-0101"},{"id":"applicant_email","label":"Applicant \u2014 Email Address (if any)","type":"email","required":false,"placeholder":"e.g. jane.smith@email.com","autoFill":"user_email"},{"id":"applicant_lawyer_name","label":"Applicant's Lawyer \u2014 Full Name & Address","type":"textarea","required":false,"rows":3,"placeholder":"Lawyer's full name, firm, street & number, city, province, postal code, telephone, fax, email","hint":"Leave blank if the applicant is self-represented."}]},{"step":3,"title":"Respondent Information","description":"Enter the full name and contact details for the respondent.","fields":[{"id":"respondent_fullname","label":"Respondent \u2014 Full Legal Name","type":"text","required":true,"placeholder":"e.g. John Robert Smith","autoFill":"spouse_fullname","hint":"Use the respondent's full legal name exactly as it appears on the Application."},{"id":"respondent_address","label":"Respondent \u2014 Address for Service","type":"text","required":true,"placeholder":"Street & number, city, province, postal code","autoFill":"spouse_address"},{"id":"respondent_phone","label":"Respondent \u2014 Telephone Number","type":"tel","required":false,"placeholder":"e.g. 416-555-0200"},{"id":"respondent_fax","label":"Respondent \u2014 Fax Number (if any)","type":"tel","required":false,"placeholder":"e.g. 416-555-0201"},{"id":"respondent_email","label":"Respondent \u2014 Email Address (if any)","type":"email","required":false,"placeholder":"e.g. john.smith@email.com"},{"id":"respondent_lawyer_name","label":"Respondent's Lawyer \u2014 Full Name & Address","type":"textarea","required":false,"rows":3,"placeholder":"Lawyer's full name, firm, street & number, city, province, postal code, telephone, fax, email","hint":"Leave blank if the respondent is self-represented."}]},{"step":4,"title":"Hearing Details","description":"Describe what happened at the court hearing that led to this order.","fields":[{"id":"judge_name","label":"Judge's Name (print or type)","type":"text","required":false,"placeholder":"e.g. The Honourable Justice A. Lee","hint":"The name of the judge who made or will sign the order. If you do not know this yet, leave blank and fill in at the courthouse."},{"id":"hearing_date","label":"Date of Hearing / Date of Order","type":"date","required":true,"hint":"The date the court hearing took place, or the date the order is to be signed."},{"id":"motion_made_by","label":"Application / Motion Made By","type":"text","required":true,"placeholder":"e.g. the Applicant, Jane Smith","hint":"Write the name of the person or persons who brought the motion or application."},{"id":"persons_in_court","label":"Persons Present in Court","type":"textarea","required":false,"rows":3,"placeholder":"e.g. Jane Smith (Applicant, self-represented); John Smith (Respondent, represented by A. Jones)","hint":"List the names of all parties and lawyers who were present at the hearing."},{"id":"evidence_submissions_by","label":"Evidence and Submissions Received On Behalf Of","type":"textarea","required":false,"rows":2,"placeholder":"e.g. the Applicant, Jane Smith","hint":"List the names of the persons on whose behalf the court received evidence or heard submissions."}]},{"step":5,"title":"Applicable Legislation","description":"Select the legislation under which the order is being made. Most family law orders are made under more than one Act \u2014 check all that apply.","fields":[{"id":"legislation_provincial_only","label":"This order is made pursuant to provincial legislation only","type":"checkbox","required":false,"hint":"Check this if the order does NOT involve the Divorce Act (for example, you are not married, or this is a common-law matter)."},{"id":"legislation_divorce_act","label":"Divorce Act (Canada)","type":"checkbox","required":false,"hint":"Check if any part of the order relates to divorce, or to custody/access/support between married spouses under the federal Divorce Act."},{"id":"legislation_clra","label":"Children's Law Reform Act (Ontario)","type":"checkbox","required":false,"hint":"Check if the order involves parenting time, decision-making, or contact for children of unmarried parents, or for any child custody/access matter under provincial law."},{"id":"legislation_fla","label":"Family Law Act (Ontario)","type":"checkbox","required":false,"hint":"Check if the order involves spousal support, property division, net family property, or possession of the matrimonial home under Ontario's Family Law Act."}]},{"step":6,"title":"Order Terms \u2014 Divorce Act","description":"If the Divorce Act applies, type the exact terms of the order here.","showIf":{"field":"legislation_divorce_act","value":true},"fields":[{"id":"order_terms_divorce_act","label":"PURSUANT TO THE DIVORCE ACT (CANADA), THIS COURT ORDERS THAT:","type":"textarea","required":false,"rows":8,"placeholder":"e.g.\n1. The parties shall have joint decision-making responsibility for the child, Emma Smith, born March 1, 2018.\n2. The child shall reside primarily with the Applicant.\n3. The Respondent shall have parenting time with the child every other weekend...","hint":"Write the exact terms of each order. Number each term. Be as specific as possible \u2014 include names, dates, amounts, and conditions. Leave blank if this legislation does not apply."}]},{"step":7,"title":"Order Terms \u2014 Children's Law Reform Act","description":"If the Children's Law Reform Act applies, type the exact terms of the order here.","showIf":{"field":"legislation_clra","value":true},"fields":[{"id":"order_terms_clra","label":"PURSUANT TO THE CHILDREN'S LAW REFORM ACT, THIS COURT ORDERS THAT:","type":"textarea","required":false,"rows":8,"placeholder":"e.g.\n1. The Applicant shall have sole decision-making responsibility for the child, Liam Jones, born June 5, 2017.\n2. The Respondent shall have parenting time as agreed between the parties in writing...","hint":"Write the exact terms of each order. Number each term. Leave blank if this legislation does not apply."}]},{"step":8,"title":"Order Terms \u2014 Family Law Act","description":"If the Family Law Act applies, type the exact terms of the order here.","showIf":{"field":"legislation_fla","value":true},"fields":[{"id":"order_terms_fla","label":"PURSUANT TO THE FAMILY LAW ACT, THIS COURT ORDERS THAT:","type":"textarea","required":false,"rows":8,"placeholder":"e.g.\n1. The Respondent shall pay to the Applicant spousal support in the amount of $1,500 per month commencing January 1, 2025.\n2. The equalization payment of $45,000 shall be paid by the Respondent to the Applicant within 60 days of this order...","hint":"Write the exact terms of each order. Number each term. Leave blank if this legislation does not apply."}]},{"step":9,"title":"Additional Order Terms","description":"Use this section for any order terms not covered by a specific Act, or for additional terms that continue from the previous sections.","fields":[{"id":"order_terms_additional","label":"THIS COURT ALSO ORDERS THAT (additional terms, specify legislation where applicable):","type":"textarea","required":false,"rows":8,"placeholder":"e.g.\n1. The Respondent shall pay costs of this motion fixed at $2,500 payable within 30 days.\n2. Either party may apply to vary this order on notice.","hint":"Include costs awards, service directions, compliance timelines, or any other terms. Put a line through any blank space left on the printed form."},{"id":"order_attach_sheets","label":"Additional sheets attached?","type":"checkbox","required":false,"hint":"Check this if you have attached extra pages continuing the order terms. Make sure each page is clearly numbered and cross-referenced."}]},{"step":10,"title":"Signature & Declaration","description":"Review and confirm. The order is signed by the judge or clerk of the court \u2014 not by you. Your role is to present this draft to the court.","fields":[{"id":"signature_date","label":"Date of Signature (to be completed by court)","type":"date","required":false,"hint":"This field is filled in by the judge or clerk at the courthouse when the order is signed. Leave blank or enter the expected hearing date."},{"id":"preparer_confirmation","label":"I confirm that I have prepared this draft order accurately and that it reflects the order I am seeking from the court.","type":"checkbox","required":true},{"id":"hearth_page_notice","label":"Hearth & Page Notice","type":"info","content":"This draft order was prepared using Hearth & Page. It must be reviewed and signed by a judge or clerk of the court before it becomes a legally binding order. Bring this completed draft to your court hearing."}]}]};
+  window.__hp_formDefs['ON-F4'] = {"formCode":"form4-change-representation","formNumber":"Form 4","title":"Notice of Change in Representation","jurisdiction":"Ontario","act":"Family Law Rules","version":"October 2013","description":"Used when a party changes their legal representation \u2014 for example, hiring a lawyer, switching to a new lawyer, dismissing a lawyer to self-represent, or getting court permission to be represented by someone who is not a lawyer.","steps":[{"step":1,"title":"Court & File Information","description":"Enter the court location and file number for your case.","fields":[{"id":"court_file_number","label":"Court File Number","type":"text","required":true,"placeholder":"e.g. FC-12345-24","hint":"This is the number the court assigned to your case. It appears on your Application or any prior court documents."},{"id":"court_name","label":"Name of Court","type":"text","required":true,"placeholder":"e.g. Ontario Court of Justice","hint":"Write the full name of the court where your case is being heard."},{"id":"court_location","label":"Court Location (City)","type":"text","required":true,"placeholder":"e.g. Toronto","hint":"The city or municipality where the court office is located."},{"id":"court_office_address","label":"Court Office Address","type":"text","required":true,"placeholder":"e.g. 311 Jarvis Street, Toronto, ON M5B 2C4","hint":"Full street address of the courthouse."}]},{"step":2,"title":"Applicant Information","description":"Enter the applicant's full name and contact details.","fields":[{"id":"applicant_fullname","label":"Applicant \u2014 Full Legal Name","type":"text","required":true,"placeholder":"e.g. Jane Elizabeth Smith","autoFill":"user_fullname","hint":"Use the full legal name exactly as it appears on the original Application."},{"id":"applicant_address","label":"Applicant \u2014 Address for Service","type":"text","required":true,"placeholder":"Street & number, city, province, postal code","autoFill":"user_address"},{"id":"applicant_phone","label":"Applicant \u2014 Telephone Number","type":"tel","required":true,"placeholder":"e.g. 416-555-0100","autoFill":"user_phone"},{"id":"applicant_fax","label":"Applicant \u2014 Fax Number (if any)","type":"tel","required":false,"placeholder":"e.g. 416-555-0101"},{"id":"applicant_email","label":"Applicant \u2014 Email Address (if any)","type":"email","required":false,"placeholder":"e.g. jane.smith@email.com","autoFill":"user_email"},{"id":"applicant_lawyer_current","label":"Applicant's Current / Previous Lawyer (if any)","type":"textarea","required":false,"rows":3,"placeholder":"Lawyer's full name, firm, address, telephone, fax, email","hint":"Enter the current or previous lawyer's details if applicable. Leave blank if the applicant has always been self-represented."}]},{"step":3,"title":"Respondent Information","description":"Enter the respondent's full name and contact details.","fields":[{"id":"respondent_fullname","label":"Respondent \u2014 Full Legal Name","type":"text","required":true,"placeholder":"e.g. John Robert Smith","autoFill":"spouse_fullname"},{"id":"respondent_address","label":"Respondent \u2014 Address for Service","type":"text","required":true,"placeholder":"Street & number, city, province, postal code","autoFill":"spouse_address"},{"id":"respondent_phone","label":"Respondent \u2014 Telephone Number","type":"tel","required":false,"placeholder":"e.g. 416-555-0200"},{"id":"respondent_fax","label":"Respondent \u2014 Fax Number (if any)","type":"tel","required":false,"placeholder":"e.g. 416-555-0201"},{"id":"respondent_email","label":"Respondent \u2014 Email Address (if any)","type":"email","required":false,"placeholder":"e.g. john.smith@email.com"},{"id":"respondent_lawyer_name","label":"Respondent's Lawyer \u2014 Full Name & Address (if any)","type":"textarea","required":false,"rows":3,"placeholder":"Lawyer's full name, firm, address, telephone, fax, email","hint":"Leave blank if the respondent is self-represented."}]},{"step":4,"title":"Children's Lawyer (if involved)","description":"If a Children's Lawyer has been appointed in your case, enter their information here.","fields":[{"id":"childrens_lawyer_involved","label":"Is a Children's Lawyer involved in this case?","type":"radio","required":true,"options":[{"value":"no","label":"No \u2014 no Children's Lawyer is involved"},{"value":"yes","label":"Yes \u2014 a Children's Lawyer has been appointed"}],"hint":"A Children's Lawyer may be appointed by the court to represent your child's interests separately."},{"id":"childrens_lawyer_details","label":"Children's Lawyer / Agent \u2014 Name, Address & Child Represented","type":"textarea","required":false,"rows":4,"placeholder":"Name & address of Children's Lawyer's agent for service (street & number, municipality, postal code, telephone & fax), and name of person represented.","showIf":{"field":"childrens_lawyer_involved","value":"yes"},"hint":"Enter the Children's Lawyer's contact information and the name of the child they represent."}]},{"step":5,"title":"Who is Filing This Notice","description":"Tell the court which party is changing their representation.","fields":[{"id":"filer_role","label":"I am the:","type":"radio","required":true,"options":[{"value":"applicant","label":"Applicant"},{"value":"respondent","label":"Respondent"},{"value":"other","label":"Other party in this case"}]},{"id":"filer_name","label":"My Full Legal Name","type":"text","required":true,"placeholder":"e.g. Jane Elizabeth Smith","autoFill":"user_fullname","hint":"This notice is addressed to all parties and their lawyers."}]},{"step":6,"title":"Nature of the Change","description":"Select the change in representation that applies to you. Choose only one.","fields":[{"id":"representation_change","label":"My change in representation is:","type":"radio","required":true,"options":[{"value":"new_lawyer_first_time","label":"I have chosen to be represented by a lawyer (I was previously self-represented)"},{"value":"new_lawyer_switch","label":"I have chosen a new lawyer (replacing my previous lawyer)"},{"value":"self_represented","label":"I have decided to act in person (I am dismissing my lawyer and will represent myself)"},{"value":"non_lawyer_rep","label":"I have the court's permission to be represented by a person who is not a lawyer"},{"value":"self_rep_child_protection","label":"I have the court's permission to appear in person at a child protection trial"}],"hint":"If you are switching to self-representation from a lawyer, you must also serve this notice on your former lawyer."}]},{"step":7,"title":"New Representation Details","description":"Provide the contact details for your new lawyer or representative, or your new address for service if acting in person.","fields":[{"id":"new_rep_name","label":"New Lawyer / Representative \u2014 Full Name","type":"text","required":false,"placeholder":"e.g. A. Jones, Barrister & Solicitor","showIf":{"field":"representation_change","values":["new_lawyer_first_time","new_lawyer_switch","non_lawyer_rep"]},"hint":"Enter the full name of your new lawyer or court-approved representative."},{"id":"new_rep_address","label":"New Lawyer / Representative \u2014 Address","type":"text","required":false,"placeholder":"Street & number, city, province, postal code","showIf":{"field":"representation_change","values":["new_lawyer_first_time","new_lawyer_switch","non_lawyer_rep"]}},{"id":"new_rep_phone","label":"New Lawyer / Representative \u2014 Telephone Number","type":"tel","required":false,"placeholder":"e.g. 416-555-0300","showIf":{"field":"representation_change","values":["new_lawyer_first_time","new_lawyer_switch","non_lawyer_rep"]}},{"id":"new_rep_fax","label":"New Lawyer / Representative \u2014 Fax Number (if any)","type":"tel","required":false,"placeholder":"e.g. 416-555-0301","showIf":{"field":"representation_change","values":["new_lawyer_first_time","new_lawyer_switch","non_lawyer_rep"]}},{"id":"new_rep_email","label":"New Lawyer / Representative \u2014 Email Address (if any)","type":"email","required":false,"placeholder":"e.g. a.jones@lawfirm.com","showIf":{"field":"representation_change","values":["new_lawyer_first_time","new_lawyer_switch","non_lawyer_rep"]}},{"id":"self_rep_service_address","label":"My Address for Service (if acting in person)","type":"text","required":false,"placeholder":"Street & number, city, province, postal code","showIf":{"field":"representation_change","values":["self_represented","self_rep_child_protection"]},"autoFill":"user_address","hint":"If you are acting without a lawyer, documents will be served on you at this address. Provide a complete address \u2014 a PO Box alone is not sufficient."},{"id":"self_rep_phone","label":"My Telephone Number (if acting in person)","type":"tel","required":false,"placeholder":"e.g. 416-555-0100","showIf":{"field":"representation_change","values":["self_represented","self_rep_child_protection"]},"autoFill":"user_phone"},{"id":"self_rep_email","label":"My Email Address (if acting in person)","type":"email","required":false,"placeholder":"e.g. jane.smith@email.com","showIf":{"field":"representation_change","values":["self_represented","self_rep_child_protection"]},"autoFill":"user_email"},{"id":"lawyer_consent_attached","label":"I have attached the new lawyer's consent to this notice","type":"checkbox","required":false,"showIf":{"field":"representation_change","values":["new_lawyer_first_time","new_lawyer_switch"]},"hint":"Rule 4 of the Family Law Rules requires you to attach the new lawyer's consent when you were previously self-represented and are now hiring a lawyer."}]},{"step":8,"title":"Service Instructions","description":"Important steps you must complete after filing this notice.","fields":[{"id":"service_instructions_info","label":"Important Service Requirements","type":"info","content":"After completing this form, you must:\n\n1. Serve a copy of this notice on the lawyers for all other parties. If another party does not have a lawyer, serve it on that party directly.\n\n2. If you had a lawyer who is no longer representing you because of this notice, you must also serve a copy on your former lawyer.\n\n3. You may serve by any method in Rule 6 of the Family Law Rules (mail, courier, fax, or email).\n\n4. After serving, file this notice with the court clerk together with proof of service (Form 6B: Affidavit of Service).\n\n5. If a child protection case has been scheduled for trial, you must obtain the court's permission before removing your lawyer."},{"id":"service_completed_on_parties","label":"I confirm I will serve this notice on all parties or their lawyers before filing with the court.","type":"checkbox","required":true},{"id":"service_completed_on_former_lawyer","label":"I will also serve this notice on my former lawyer (if applicable).","type":"checkbox","required":false,"hint":"Check this if you had a lawyer who is being replaced or dismissed."},{"id":"form6b_reminder","label":"I understand I must file Form 6B (Affidavit of Service) as proof that I served this notice.","type":"checkbox","required":true}]},{"step":9,"title":"Signature & Date","description":"Sign and date this notice. You must sign it personally.","fields":[{"id":"signature_date","label":"Date of Signature","type":"date","required":true,"hint":"Enter today's date or the date you are signing this notice."},{"id":"signature_confirmation","label":"I confirm that all information in this notice is true and correct, and I am signing this notice personally.","type":"checkbox","required":true},{"id":"hearth_page_notice","label":"Hearth & Page Notice","type":"info","content":"This notice was prepared using Hearth & Page. You must serve a copy on all parties (or their lawyers) and file it with the court together with Form 6B as proof of service. This document does not replace legal advice."}]}]};
+
+})();

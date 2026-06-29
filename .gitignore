@@ -1,0 +1,20 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Environment variables — never commit secrets
+.env
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+*.log
