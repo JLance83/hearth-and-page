@@ -938,6 +938,49 @@
       container.innerHTML = '';
       container.className = 'fe-container';
 
+      // ── safetyFlag: non-dismissible red banner for Forms 25F / 25G ────────
+      if (def.safetyFlag && def.safetyFlag.criticalWarning) {
+        var sf = def.safetyFlag;
+        var banner = document.createElement('div');
+        banner.id = 'fe-safety-banner';
+        banner.setAttribute('role', 'alert');
+        banner.setAttribute('aria-live', 'assertive');
+        banner.style.cssText = [
+          'background:#450a0a',
+          'border-bottom:2px solid #991b1b',
+          'color:#fca5a5',
+          'padding:14px 20px',
+          'font-size:13px',
+          'line-height:1.6',
+          'display:flex',
+          'align-items:flex-start',
+          'gap:14px',
+          'width:100%',
+          'box-sizing:border-box',
+          'position:relative',
+          'z-index:10'
+        ].join(';');
+        banner.innerHTML = [
+          '<span style="font-size:22px;flex-shrink:0;line-height:1.3;">&#x26A0;&#xFE0F;</span>',
+          '<span style="flex:1;">',
+          '<strong style="display:block;color:#f87171;font-size:13.5px;margin-bottom:4px;">Safety Notice &mdash; Read Before Continuing</strong>',
+          '<span>' + (sf.message || 'If you or your children are in immediate danger, call 911.') + '</span>',
+          '<span style="display:block;margin-top:6px;">',
+          '<strong>Assaulted Women&rsquo;s Helpline:</strong> ',
+          '<a href="tel:18668630511" style="color:#fca5a5;text-decoration:underline;">1-866-863-0511</a>',
+          ' (24 hours, free, confidential)',
+          '</span>',
+          '<span style="display:block;margin-top:4px;">',
+          '<strong>Duty Counsel (free legal advice)</strong> is available at every Ontario family courthouse on motion days.',
+          '</span>',
+          (sf.reviewDateNote ? '<span style="display:block;margin-top:6px;color:#fcd34d;">' + sf.reviewDateNote + '</span>' : ''),
+          '</span>'
+        ].join('');
+        container.appendChild(banner);
+        // Override fe-container layout so banner spans full width above wizard
+        container.style.cssText = (container.style.cssText || '') + ';display:block;';
+      }
+
       var parts = def.parts || [];
       var currentPart = 0;
 
