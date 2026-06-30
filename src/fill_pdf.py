@@ -2061,6 +2061,105 @@ def fill_form36b(input_path, output_path, form_data_list):
     return n
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 30A — Request for Default Hearing
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form30a(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    ca   = COURTHOUSE_ADDRESSES_FE.get(courthouse, d.get('court_office_address', ''))
+    fnum = d.get('court_file_number', '')
+    recipient = d.get('recipient_full_name', d.get('applicant_full_name', ''))
+    recipient_a = d.get('recipient_address', d.get('applicant_address', ''))
+    rec_law  = d.get('recipient_lawyer_name', d.get('applicant_lawyer_name', ''))
+    rec_law_a = d.get('recipient_lawyer_address', d.get('applicant_lawyer_address', ''))
+    payor    = d.get('payor_full_name', d.get('respondent_full_name', ''))
+    payor_a  = d.get('payor_address', d.get('respondent_address', ''))
+    pay_law  = d.get('payor_lawyer_name', d.get('respondent_lawyer_name', ''))
+    pay_law_a = d.get('payor_lawyer_address', d.get('respondent_lawyer_address', ''))
+    payor_dob   = d.get('payor_dob', '')
+    arrears     = d.get('arrears_amount', '')
+    filer_role  = d.get('filer_role', 'recipient_self')
+    filer_name  = d.get('filer_name', recipient)
+    sig_date    = d.get('signature_date', '')
+
+    # Checkbox values — /Btn fields use /Yes or /Off
+    check0 = pypdf.generic.NameObject('/Yes') if filer_role == 'recipient_self'   else pypdf.generic.NameObject('/Off')
+    check1 = pypdf.generic.NameObject('/Yes') if filer_role == 'recipient_lawyer' else pypdf.generic.NameObject('/Off')
+    check2 = pypdf.generic.NameObject('/Yes') if filer_role == 'other'            else pypdf.generic.NameObject('/Off')
+
+    fields = {
+        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]':            fnum,
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].nameOfCourt[0]':       courthouse,
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].courtOfficeAddress[0]': ca,
+        # Recipient
+        'form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[0]':       recipient,
+        'form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[1]':       recipient_a,
+        'form1[0].page1[0].body[0].applicants[0].Lawyer[0].textfield[0]':          rec_law,
+        'form1[0].page1[0].body[0].applicants[0].Lawyer[0].textfield[1]':          rec_law_a,
+        # Payor
+        'form1[0].page1[0].body[0].Payor[0].Payor[0].textfield[0]':               payor,
+        'form1[0].page1[0].body[0].Payor[0].Payor[0].textfield[1]':               payor_a,
+        'form1[0].page1[0].body[0].Payor[0].PayorLawyer[0].textfield[0]':         pay_law,
+        'form1[0].page1[0].body[0].Payor[0].PayorLawyer[0].textfield[1]':         pay_law_a,
+        # Arrears body
+        'form1[0].page1[0].body[0].allParties[0].conditions[0].#subform[0].BornDate[0]': payor_dob,
+        'form1[0].page1[0].body[0].allParties[0].conditions[0].Amount[0]':        str(arrears),
+        # Signature
+        'form1[0].page1[0].body[0].signature[0].sig[0]':                          filer_name,
+        'form1[0].page1[0].body[0].signature[0].Date[0]':                         sig_date,
+    }
+
+    # Write text + choice fields via _write_pdf_lc, then handle checkboxes manually
+    n = _write_pdf_lc(input_path, output_path, fields)
+
+    # Patch checkboxes in the already-written output
+    reader = pypdf.PdfReader(output_path)
+    writer = pypdf.PdfWriter()
+    writer.append(reader)
+    btn_map = {
+        'form1[0].page1[0].body[0].allParties[0].conditions[0].check[0]': check0,
+        'form1[0].page1[0].body[0].allParties[0].conditions[0].check[1]': check1,
+        'form1[0].page1[0].body[0].allParties[0].conditions[0].check[2]': check2,
+    }
+
+    def get_path(obj):
+        parts = []
+        cur = obj
+        while cur:
+            t = cur.get('/T')
+            if t:
+                parts.append(str(t))
+            pr = cur.get('/Parent')
+            if pr is None:
+                break
+            try:
+                cur = pr.get_object()
+            except Exception:
+                break
+        parts.reverse()
+        return '.'.join(parts)
+
+    for page in writer.pages:
+        if '/Annots' not in page:
+            continue
+        for annot in page['/Annots']:
+            obj = annot.get_object()
+            if obj.get('/Subtype') == '/Widget' and obj.get('/FT') == '/Btn':
+                fp = get_path(obj)
+                if fp in btn_map:
+                    obj.update({pypdf.generic.NameObject('/V'): btn_map[fp],
+                                pypdf.generic.NameObject('/AS'): btn_map[fp]})
+                    n += 1
+
+    with open(output_path, 'wb') as fh:
+        writer.write(fh)
+
+    sys.stderr.write(f'[fill_form30a] Filled {n} fields\n')
+    return n
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 4:
         sys.stderr.write(f'Usage: {sys.argv[0]} <input_pdf> <output_pdf> <json_data_file> [form_type]\n')
@@ -2102,6 +2201,7 @@ if __name__ == '__main__':
         'form35-1': fill_form35_1,
         'form36':   fill_form36,
         'form36b':  fill_form36b,
+        'form30a':  fill_form30a,
     }
     fn = FORM_DISPATCH.get(form_type.lower().replace('-', '_'))
     if fn:
