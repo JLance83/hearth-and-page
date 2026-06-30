@@ -1046,6 +1046,684 @@ def fill_form13_1(input_path, output_path, form_data_list):
     sys.stderr.write(f'[fill_form13_1] Filled {filled} fields → {output_path}\n')
     return filled
 
+
+# =============================================================================
+# BATCH FILL FUNCTIONS — Forms 4, 6B, 10, 14, 14A, 14B, 14C,
+#                        15, 15B, 15C, 17, 17E, 17F,
+#                        13B, 23C, 25, 25A, 25F, 25G, 35_1, 36, 36B
+# =============================================================================
+
+def _write_pdf(input_path, output_path, fields, checkboxes=None):
+    """Generic PDF writer used by all fill functions below."""
+    import pypdf
+    checkboxes = checkboxes or {}
+    reader = pypdf.PdfReader(input_path)
+    writer = pypdf.PdfWriter()
+    writer.append(reader)
+    filled = 0
+    for page in writer.pages:
+        if '/Annots' not in page:
+            continue
+        for annot in page['/Annots']:
+            obj = annot.get_object()
+            if obj.get('/Subtype') != '/Widget':
+                continue
+            ft = obj.get('/FT')
+            t  = str(obj.get('/T', ''))
+            if ft == '/Tx' and t in fields:
+                obj.update({
+                    pypdf.generic.NameObject('/V'):  pypdf.generic.create_string_object(str(fields[t])),
+                    pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject(),
+                })
+                filled += 1
+            elif ft == '/Btn' and t in checkboxes:
+                v = '/Yes' if checkboxes[t] else '/Off'
+                obj.update({
+                    pypdf.generic.NameObject('/V'):  pypdf.generic.NameObject(v),
+                    pypdf.generic.NameObject('/AS'): pypdf.generic.NameObject(v),
+                })
+                filled += 1
+    with open(output_path, 'wb') as f:
+        writer.write(f)
+    return filled
+
+
+def _header(d, pages=1):
+    """Build standard court-header fields dict shared across most forms."""
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    cn = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
+    ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, COURTHOUSE_ADDRESSES_FE.get(cn, ''))
+    fnum = d.get('court_file_number', d.get('fileNumber', ''))
+    ap = d.get('applicant_full_name', d.get('applicantFullName', ''))
+    ap_addr = d.get('applicant_address', d.get('applicantAddress', ''))
+    ap_ph   = format_phone(d.get('applicant_phone', d.get('applicantPhone', '')))
+    ap_em   = d.get('applicant_email', d.get('applicantEmail', ''))
+    ap_law  = d.get('applicant_lawyer', '')
+    re_name = d.get('respondent_full_name', d.get('respondentFullName', ''))
+    re_addr = d.get('respondent_address', d.get('respondentAddress', ''))
+    re_ph   = format_phone(d.get('respondent_phone', d.get('respondentPhone', '')))
+    re_em   = d.get('respondent_email', d.get('respondentEmail', ''))
+    re_law  = d.get('respondent_lawyer', '')
+    h = {
+        'Name of court': cn, 'Name of Court': cn,
+        'Court office address': ca, 'Court Office Address': ca,
+        'Court File Number': fnum,
+    }
+    for pg in range(1, pages + 1):
+        h[f'Court File Number, page {pg}'] = fnum
+        h[f'Court File Number, Page {pg}'] = fnum
+        h[f'Court File Number - page {pg}'] = fnum
+        h[f'Court File Number - Page {pg}'] = fnum
+        h[f'Court File Number, page {pg}'] = fnum
+    ap_full = f'{ap}\n{ap_addr}\nTel: {ap_ph}\nEmail: {ap_em}' if ap_addr else ap
+    re_full = f'{re_name}\n{re_addr}\nTel: {re_ph}\nEmail: {re_em}' if re_addr else re_name
+    h["Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = ap_full
+    h["Applicant(s) - Full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = ap_full
+    h["Full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = ap_full
+    h['Applicant - Full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)'] = ap_full
+    h["Respondent's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = re_full
+    h["Respondent(s) - Full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = re_full
+    h['Respondent full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)'] = re_full
+    h['Respondent - Full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)'] = re_full
+    h["Applicant lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = ap_law
+    h["Applicant(s) - Lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = ap_law
+    h["Applicant(s) Lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = ap_law
+    h["Respondent lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = re_law
+    h["Respondent(s) - Lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = re_law
+    h["Respondent(s) Lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = re_law
+    h['Name & address of Children\'s Lawyer\'s agent (street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)) and name of person represented'] = d.get('childrens_lawyer', '')
+    return h
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 4 — Notice of Change in Representation
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form4(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=2)
+    fields['Name'] = d.get('filer_full_name', d.get('applicant_full_name', ''))
+    fields['Date of signature'] = d.get('date_signed', '')
+    fields['Name, address, telephone & fax numbers and e-mail address'] = d.get('new_rep_address', '')
+    fields['Additional text'] = d.get('additional_info', '')
+    checkboxes = {}
+    rep_change = d.get('representation_change', '').lower()
+    if 'new representative' in rep_change or 'new lawyer' in rep_change:
+        checkboxes['I have chosen a new licensed representative'] = True
+    elif 'acting in person' in rep_change or 'self' in rep_change:
+        checkboxes['I have decided to act in person'] = True
+    else:
+        checkboxes['I have chosen to be represented by a licensed representative'] = True
+    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    sys.stderr.write(f'[fill_form4] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 6B — Affidavit of Service
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form6b(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    # Form 6B uses XFA dot-path field names
+    fields = {
+        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', d.get('fileNumber', '')),
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].#subform[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].body[0].courtDetails[0].date[0]': d.get('service_date', ''),
+        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
+        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
+        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
+        'form1[0].page1[0].body[0].four[0].liveIn[0]': d.get('server_name', ''),
+        'form1[0].page1[0].body[0].four[0].liveIn[1]': d.get('server_address', ''),
+        'form1[0].page1[0].body[0].four[0].liveIn[2]': d.get('served_on_name', ''),
+        'form1[0].page1[0].body[0].four[0].liveIn[3]': d.get('service_method', ''),
+        'form1[0].page1[0].body[0].four[0].liveIn[4]': d.get('documents_served', ''),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form6b] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 10 — Answer
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form10(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=5)
+    fields['Name of court'] = fields.pop('Name of court', '')  # form10 uses lower-case key
+    fields['Full legal name'] = d.get('respondent_full_name', '')
+    fields['Address of added party'] = d.get('added_party_address', '')
+    fields['Name - Applicant(s) Lawyer'] = d.get('applicant_lawyer_name', '')
+    fields['Address - Applicant(s) Lawyer'] = d.get('applicant_lawyer_address', '')
+    fields['Phone & fax - Applicant(s) Lawyer'] = d.get('applicant_lawyer_phone', '')
+    fields['Email - Applicant(s) Lawyer'] = d.get('applicant_lawyer_email', '')
+    fields['Full legal name - Respondent(s)'] = d.get('respondent_full_name', '')
+    fields['Address - Respondent(s)'] = d.get('respondent_address', '')
+    fields['Phone & fax - Respondent(s)'] = format_phone(d.get('respondent_phone', ''))
+    fields['Email - Respondent(s)'] = d.get('respondent_email', '')
+    fields['Name - Respondent(s) Lawyer'] = d.get('respondent_lawyer_name', '')
+    fields['I do not agree with the following claim(s) made by the applicant: (Refer to the numbers alongside the boxes on page 4 of the application form.)'] = d.get('disagree_claims', '')
+    checkboxes = {}
+    if d.get('making_own_claim', '').lower() in ('yes', 'true', '1'):
+        checkboxes['I am making a claim of my own'] = True
+    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    sys.stderr.write(f'[fill_form10] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 14 — Notice of Motion
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form14(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    courthouse = d.get('courthouse', '')
+    cn = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
+    ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    ap = d.get('applicant_full_name', '')
+    ap_addr = d.get('applicant_address', '')
+    ap_ph = format_phone(d.get('applicant_phone', ''))
+    ap_em = d.get('applicant_email', '')
+    ap_full = f'{ap}\n{ap_addr}\nTel: {ap_ph}\nEmail: {ap_em}' if ap_addr else ap
+    re_name = d.get('respondent_full_name', '')
+    re_addr = d.get('respondent_address', '')
+    re_ph = format_phone(d.get('respondent_phone', ''))
+    re_em = d.get('respondent_email', '')
+    re_full = f'{re_name}\n{re_addr}\nTel: {re_ph}\nEmail: {re_em}' if re_addr else re_name
+    fields = {
+        'Court File Number': d.get('court_file_number', ''),
+        'Court office address': ca,
+        'date': d.get('hearing_date', ''),
+        'time': d.get('hearing_time', ''),
+        'place of hearing': d.get('hearing_location', cn),
+        'name of person making the motion': d.get('moving_party_name', ap),
+        'State the order or orders requested on this motion': d.get('orders_requested', ''),
+        'list documents': d.get('documents_served', ''),
+        'date of signature': d.get('date_signed', ''),
+        'Typed or printed name of person or of persons lawyer address for service, telephone & fax numbers and e-mail address (if any)': d.get('filer_contact', ap_full),
+        "Applicant's full legal name & address for servce \xad\xad\u2010 street & number, municipality, postal code, telephone & fax numers and e-mail address (if any)": ap_full,
+        "Applicant lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('applicant_lawyer', ''),
+        "Respondent's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": re_full,
+        "Respondent lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('respondent_lawyer', ''),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form14] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 14A — Affidavit (General)
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form14a(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = {
+        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', ''),
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].body[0].courtDetails[0].Dated[0]': d.get('date_sworn', ''),
+        'form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[0]': d.get('applicant_full_name', ''),
+        'form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[1]': d.get('applicant_address', ''),
+        'form1[0].page1[0].body[0].Payor[0].Payor[0].textfield[0]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].body[0].Payor[0].Payor[0].textfield[1]': d.get('respondent_address', ''),
+        'form1[0].page1[0].body[0].conditions[0].Reasons[0]': d.get('affidavit_text', ''),
+        'form1[0].page1[0].body[0].Page2[0].Reasons[0]': d.get('affidavit_continued', ''),
+        'form1[0].page1[0].body[0].Page2[0].PageHeader[0].#subform[0].courtFileNumber[0]': d.get('court_file_number', ''),
+        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Municipality[0]': d.get('city', ''),
+        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Province[0]': d.get('province', 'Ontario'),
+        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Date[0]': d.get('date_sworn', ''),
+        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Commissioner[0]': d.get('commissioner_name', ''),
+        'form1[0].page1[0].body[0].childrensLawyer[0].Name[0]': d.get('childrens_lawyer', ''),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form14a] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 14B — Motion Form (Procedural)
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form14b(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=3)
+    fields['Applicant'] = d.get('applicant_full_name', '')
+    fields['Respondent'] = d.get('respondent_full_name', '')
+    fields['Next scheduled court date (if any)'] = d.get('next_court_date', '')
+    fields['Name of case management judge (if any)'] = d.get('judge_name', '')
+    fields['Procedural, uncomplicated or unopposed order that you want the court to make'] = d.get('order_requested', '')
+    fields['Reasons why the court should make this order'] = d.get('reasons', '')
+    fields['name of statute and section numbers; name of regulation and section numbers; and rule numbers'] = d.get('legal_authority', '')
+    fields['Date of signature'] = d.get('date_signed', '')
+    fields['Names of parties'] = f"{d.get('applicant_full_name','')} and {d.get('respondent_full_name','')}"
+    fields['Specify other'] = d.get('other_party', '')
+    fields['Persons without notice'] = d.get('without_notice_party', '')
+    fields["other party's lawyer's name, firm, telephone & fax number and e-mail address (if any)"] = d.get('other_lawyer_contact', '')
+    fields["This party's lawyer's name, firm, telephone & fax number and e-mail address (if any)"] = d.get('filer_lawyer_contact', '')
+    checkboxes = {
+        'Making this motion': d.get('role', '').lower() in ('applicant', 'making'),
+        'Responding to a motion Form 14B already filed': d.get('role', '').lower() == 'responding',
+        'with the consent of all persons affected': d.get('motion_type', '') == 'consent',
+        'with notice to all persons affected': d.get('motion_type', '') == 'notice',
+        'without notice to': d.get('motion_type', '') == 'without_notice',
+        'form filled by applicant': d.get('filed_by', '').lower() == 'applicant',
+        'form filled by respondent': d.get('filed_by', '').lower() == 'respondent',
+    }
+    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    sys.stderr.write(f'[fill_form14b] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 14C — Confirmation of Motion
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form14c(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=2)
+    fields['Full legal name'] = d.get('filer_full_name', d.get('applicant_full_name', ''))
+    fields['Date and time for this motion'] = d.get('motion_date_time', '')
+    fields['Name of Justice'] = d.get('judge_name', '')
+    fields['Name of Justice (case managment judge)'] = d.get('judge_name', '')
+    fields['List the specific orders below'] = d.get('orders_sought', '')
+    fields['pages / tabs'] = d.get('document_pages', '')
+    fields['total minutes'] = d.get('time_estimate', '')
+    fields['event'] = d.get('adjournment_event', '')
+    fields['reasons for adjournment'] = d.get('adjournment_reason', '')
+    fields['date of contested adjournment'] = d.get('contested_adj_date', '')
+    fields['name of person asking for adjournment'] = d.get('adj_party_name', '')
+    fields['Reasons for contested adjournment'] = d.get('contested_adj_reason', '')
+    fields['Provide reasons'] = d.get('no_case_conf_reason', '')
+    fields['Specify'] = d.get('other_role', '')
+    checkboxes = {
+        'the applicant in this case': d.get('filer_role', '') == 'applicant',
+        'the respondent in this case': d.get('filer_role', '') == 'respondent',
+        'the lawyer': d.get('filer_is_lawyer', '') in ('yes','true','1'),
+        'going ahead on the issues listed in paragraph 7 below': d.get('motion_status', '') == 'going_ahead',
+        'going ahead for a consent order': d.get('motion_status', '') == 'consent',
+        'being adjourned on consent': d.get('motion_status', '') == 'adj_consent',
+        'going ahead for a contested adjournment': d.get('motion_status', '') == 'adj_contested',
+        'I confirm that I will bring a draft order to the motion': d.get('draft_order', '') in ('yes','true','1'),
+        'I confirm that the parties have discussed costs': d.get('costs_discussed', '') in ('yes','true','1'),
+        'Yes': d.get('case_conf_held', '') in ('yes','true','1'),
+        'No a case conference has not been held on the substantive issues in this case': d.get('case_conf_held', '') not in ('yes','true','1'),
+    }
+    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    sys.stderr.write(f'[fill_form14c] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 15 — Motion to Change
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form15(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=6)
+    fields['Name of requesting party'] = d.get('applicant_full_name', '')
+    fields['municipality'] = d.get('city', '')
+    fields['Date of issue by the clerk of the court'] = d.get('issue_date', '')
+    fields['the agreement that you want to change You can only use this form to change support terms in an agreement that'] = d.get('order_or_agreement_desc', '')
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form15] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 15B — Response to Motion to Change
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form15b(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=5)
+    # Income table rows (up to 3 years)
+    fields['YearRow1'] = d.get('income_year_1', '')
+    fields['Income sources for example employer self employment social assistance etc'] = d.get('income_source_1', '')
+    fields['YearRow2'] = d.get('income_year_2', '')
+    fields['Income sources for example employer self employment social assistance etc_3'] = d.get('income_source_2', '')
+    fields['YearRow3'] = d.get('income_year_3', '')
+    fields['Income sources for example employer self employment social assistance etc_5'] = d.get('income_source_3', '')
+    # Change table
+    fields['Current term'] = d.get('current_term_1', '')
+    fields['Requested change'] = d.get('requested_change_1', '')
+    fields['Current term_2'] = d.get('current_term_2', '')
+    fields['Requested change_2'] = d.get('requested_change_2', '')
+    fields['Current term_3'] = d.get('current_term_3', '')
+    fields['Requested change_3'] = d.get('requested_change_3', '')
+    checkboxes = {
+        'I agree with the following claims made by the requesting party at paragraph 11 of their Motion to Change Form': d.get('agree_claims', '') in ('yes','true','1'),
+        'I disagree with the following claims made by the requesting party at paragraph 11 of their Motion to Change': d.get('disagree_claims', '') in ('yes','true','1'),
+        'I am asking that the motion to change except the parts that I agree with be dismissed with costs': d.get('dismiss_motion', '') in ('yes','true','1'),
+    }
+    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    sys.stderr.write(f'[fill_form15b] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 15C — Consent Motion to Change
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form15c(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=5)
+    fields['name of party'] = d.get('applicant_full_name', '')
+    # Children table (up to 4)
+    for i in range(1, 5):
+        suffix = f'Row{i}'
+        fields[f'Childs full legal name{suffix}'] = d.get(f'child_{i}_name', '')
+        fields[f'Birthdate d m y{suffix}'] = d.get(f'child_{i}_dob', '')
+        fields[f'Age{suffix}'] = d.get(f'child_{i}_age', '')
+        fields[f'Sex{suffix}'] = d.get(f'child_{i}_sex', '')
+    # Special expenses table
+    for i in range(1, 4):
+        suffix = '' if i == 1 else f'_{i}'
+        fields[f"Childs name{'Row' + str(i) if i>1 else 'Row1'}"] = d.get(f'expense_child_{i}', '')
+        fields[f"Type of expense{'Row' + str(i) if i>1 else 'Row1'}"] = d.get(f'expense_type_{i}', '')
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form15c] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 17 — Conference Notice
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form17(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    courthouse = d.get('courthouse', '')
+    cn = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
+    ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    ap = d.get('applicant_full_name', '')
+    re_name = d.get('respondent_full_name', '')
+    ap_addr = d.get('applicant_address', '')
+    re_addr = d.get('respondent_address', '')
+    fields = {
+        'Court File Number': d.get('court_file_number', ''),
+        'Court office address': ca,
+        'TO name of party or parties or lawyers': d.get('to_parties', f'{ap}, {re_name}'),
+        'place of conference': d.get('conference_location', cn),
+        'date': d.get('conference_date', ''),
+        'time': d.get('conference_time', ''),
+        'to deal with the following issues:': d.get('conference_issues', ''),
+        'Date of signature': d.get('date_signed', ''),
+        'location of video terminal or telephone': d.get('video_location', ''),
+        'name of person': d.get('contact_person', ''),
+        'other; specify': d.get('other_instructions', ''),
+        "Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": f'{ap}\n{ap_addr}',
+        "Applicant lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('applicant_lawyer', ''),
+        'Respondent full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)': f'{re_name}\n{re_addr}',
+        "Respondent lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('respondent_lawyer', ''),
+        "Name & address of Children's Lawyer's agent (street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)) and name of person represented": d.get('childrens_lawyer', ''),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form17] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 17E — Trial Management Brief
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form17e(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=5)
+    fields['Name of party filing this brief'] = d.get('filer_full_name', d.get('applicant_full_name', ''))
+    fields['Date of trial management conference'] = d.get('conference_date', '')
+    fields['Full name(s)'] = d.get('filer_full_name', d.get('applicant_full_name', ''))
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form17e] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 17F — Confirmation of Conference
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form17f(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=2)
+    fields['Full legal name'] = d.get('filer_full_name', d.get('applicant_full_name', ''))
+    fields["Name of lawyer's client"] = d.get('client_name', d.get('applicant_full_name', ''))
+    fields['Reasons for not conferring with the opposing counsel or party'] = d.get('no_confer_reason', '')
+    fields['Time (00:00)'] = d.get('conference_time', '')
+    fields['Name of case management judge'] = d.get('judge_name', '')
+    fields['Other (Specify)'] = d.get('other_role', '')
+    checkboxes = {
+        'case conference': d.get('conference_type', '') == 'case',
+        'settlement conference': d.get('conference_type', '') == 'settlement',
+        'trial management conference': d.get('conference_type', '') == 'trial_management',
+        'I am the lawyer': d.get('filer_is_lawyer', '') in ('yes','true','1'),
+        'I am the applicant': d.get('filer_role', '') == 'applicant',
+        'I am the respondent': d.get('filer_role', '') == 'respondent',
+        'going ahead on the issues listed in paragraph 6 below': d.get('conf_status', '') == 'going_ahead',
+        'going ahead for a consent order': d.get('conf_status', '') == 'consent',
+        'being adjourned on consent': d.get('conf_status', '') == 'adj_consent',
+        'I confirm that the parties have discussed costs': d.get('costs_discussed', '') in ('yes','true','1'),
+    }
+    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    sys.stderr.write(f'[fill_form17f] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 13B — Net Family Property Statement
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form13b(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = {
+        'form1[0].page1[0].body[0].p1[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', ''),
+        'form1[0].page1[0].body[0].p1[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].body[0].p1[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
+        'form1[0].page1[0].body[0].p1[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
+        'form1[0].page1[0].body[0].p1[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].body[0].p1[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
+        'form1[0].page1[0].body[0].p1[0].text[0].name[0]': d.get('applicant_full_name', ''),
+        'form1[0].page1[0].body[0].p1[0].text[0].name[1]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].body[0].p1[0].Table1[0].Row1[0].Cell1[0]': d.get('nfp_date_valuation', ''),
+        'form1[0].page1[0].body[0].p1[0].Table1[0].Row1[0].Cell2[0]': d.get('nfp_applicant_assets', '0.00'),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form13b] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 23C — Affidavit (Divorce)
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form23c(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=4)
+    fields['date of birth'] = d.get('applicant_dob', '')
+    fields['Date of marriage'] = d.get('date_of_marriage', '')
+    fields['Place of marriage'] = d.get('place_of_marriage', '')
+    fields['Date - Separation'] = d.get('date_of_separation', '')
+    # Children table (up to 5)
+    for i in range(1, 6):
+        fields[f'Full Legal NameRow{i}'] = d.get(f'child_{i}_name', '')
+        fields[f'AgeRow{i}'] = d.get(f'child_{i}_age', '')
+        fields[f'Birthdate d m yRow{i}'] = d.get(f'child_{i}_dob', '')
+        fields[f'Resident in municipality  provinceRow{i}'] = d.get(f'child_{i}_residence', '')
+        fields[f'Now living with name of person and relationship to childRow{i}'] = d.get(f'child_{i}_living_with', '')
+    checkboxes = {
+        'married on date': d.get('relationship_type', '') == 'married',
+        'separated on date': bool(d.get('date_of_separation', '')),
+        'never lived together': d.get('relationship_type', '') == 'never_lived_together',
+    }
+    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    sys.stderr.write(f'[fill_form23c] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 25 — Order (General)
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form25(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    courthouse = d.get('courthouse', '')
+    cn = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
+    ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    ap = d.get('applicant_full_name', '')
+    ap_addr = d.get('applicant_address', '')
+    re_name = d.get('respondent_full_name', '')
+    re_addr = d.get('respondent_address', '')
+    fields = {
+        'Court File Number': d.get('court_file_number', ''),
+        'Court office address': ca,
+        'Date of order': d.get('order_date', ''),
+        "Judge's name": d.get('judge_name', ''),
+        'name of person or persons': d.get('present_parties', f'{ap} and {re_name}'),
+        'name of parties and lawyers in court': d.get('parties_in_court', ''),
+        'name or names': d.get('other_parties', ''),
+        'This court orders that': d.get('order_terms', ''),
+        'pursuant to the Divorce Act (Canada), this court order that': d.get('divorce_act_terms', ''),
+        "Pursuant to the Children's Law Reform Act, this court orders that": d.get('clra_terms', ''),
+        'Pursuant to the Family Law Act, this court orders that': d.get('fla_terms', ''),
+        'Date of signature': d.get('date_signed', ''),
+        "Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": f'{ap}\n{ap_addr}',
+        "Respondent's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": f'{re_name}\n{re_addr}',
+        "Applicant lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('applicant_lawyer', ''),
+        "Respondent lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('respondent_lawyer', ''),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form25] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 25A — Divorce Order
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form25a(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = {
+        'form1[0].page1[0].p1[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', ''),
+        'form1[0].page1[0].p1[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].p1[0].appl[0].#subform[0].judge[0]': d.get('judge_name', ''),
+        'form1[0].page1[0].p1[0].appl[0].#subform[0].dateofOrder[0]': d.get('order_date', ''),
+        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
+        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
+        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].applicantLawyer[0].textfield[0]': d.get('applicant_lawyer', ''),
+        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
+        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondantLawyer[0].textfield[0]': d.get('respondent_lawyer', ''),
+        'form1[0].page1[0].p1[0].line1[0].application[0]': d.get('divorce_order_terms', ''),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form25a] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 25F — Support Deduction Order
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form25f(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = {
+        'form1[0].page1[0].courtDetails[0].courtFileNo[0]': d.get('court_file_number', ''),
+        'form1[0].page1[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].appl[0].#subform[0].judge[0]': d.get('judge_name', ''),
+        'form1[0].page1[0].appl[0].#subform[0].dateofOrder[0]': d.get('order_date', ''),
+        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
+        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
+        'form1[0].page1[0].q1[0].legalname[0]': d.get('payor_full_name', d.get('respondent_full_name', '')),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form25f] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 25G — Restraining Order
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form25g(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = {
+        'form1[0].page1[0].courtDetails[0].courtFileNo[0]': d.get('court_file_number', ''),
+        'form1[0].page1[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].appl[0].#subform[0].judge[0]': d.get('judge_name', ''),
+        'form1[0].page1[0].appl[0].#subform[0].dateofOrder[0]': d.get('order_date', ''),
+        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
+        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
+        'form1[0].page1[0].q1[0].legalname[0]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].q1[0].born[0]': d.get('respondent_dob', ''),
+        'form1[0].page1[0].q1[0].clauses[0]': d.get('restraining_order_terms', ''),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form25g] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 35.1 — Affidavit (Best Interests of Child)
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form35_1(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=5)
+    fields['Full legal name'] = d.get('filer_full_name', d.get('applicant_full_name', ''))
+    fields['Date of birth (d, m, y)'] = d.get('filer_dob', '')
+    fields['Name of city, town or municipality and province, state or country if outside of Ontario'] = d.get('filer_city', d.get('city', ''))
+    fields['Court address'] = COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), '')
+    # Children (up to 5)
+    for i in range(1, 6):
+        fields[f'Children in this case - full legal name - child {i}'] = d.get(f'child_{i}_name', '')
+        fields[f'Children in this case - Birthdate (d, m, y) - child {i}'] = d.get(f'child_{i}_dob', '')
+        fields[f'Children in this case - Age - child {i}'] = d.get(f'child_{i}_age', '')
+    checkboxes = {
+        'by me': d.get('affidavit_by', '') == 'me',
+        'jointly by me and names of persons': d.get('affidavit_by', '') == 'jointly',
+        'I work': d.get('employment_status', '') in ('employed','working'),
+        'I attend school': d.get('employment_status', '') == 'student',
+        'full time': d.get('work_schedule', '') == 'full_time',
+        'part time': d.get('work_schedule', '') == 'part_time',
+    }
+    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    sys.stderr.write(f'[fill_form35_1] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 36 — Affidavit for Divorce
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form36(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = _header(d, pages=4)
+    fields['Full legal name'] = d.get('applicant_full_name', '')
+    fields['Municipality & Province'] = f"{d.get('city','')}, {d.get('province','Ontario')}"
+    fields['Title of certificate'] = d.get('marriage_cert_title', 'Certificate of Marriage')
+    fields['Place of issue'] = d.get('marriage_cert_place', '')
+    fields['Date of issue'] = d.get('marriage_cert_date', '')
+    fields['Name and title of person who issued certificate'] = d.get('marriage_cert_issuer', '')
+    fields['Date of marriage'] = d.get('date_of_marriage', '')
+    fields['Place of marriage'] = d.get('place_of_marriage', '')
+    fields['Name and title of person who performed the marriage'] = d.get('marriage_officiant', '')
+    fields['Date - Separation'] = d.get('date_of_separation', '')
+    fields['Other - Specify'] = d.get('other_divorce_ground', '')
+    fields['Commissioner for taking affidavits'] = d.get('commissioner_name', '')
+    fields['State any corrections or changes to the information in the application.  Write "NONE" if there are no corrections or changes'] = d.get('corrections', 'NONE')
+    checkboxes = {
+        'that the respondent and I have been separated for at least one year': d.get('separation_one_year', '') in ('yes','true','1'),
+        'has been filed with the application': d.get('cert_filed_with_app', '') in ('yes','true','1'),
+        'is attached to this affidavit': d.get('cert_attached', '') in ('yes','true','1'),
+    }
+    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    sys.stderr.write(f'[fill_form36] Filled {n} fields\n')
+    return n
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 36B — Certificate of Divorce
+# ─────────────────────────────────────────────────────────────────────────────
+def fill_form36b(input_path, output_path, form_data_list):
+    d = _fe_flat(form_data_list)
+    fields = {
+        'form1[0].page1[0].header[0].middle[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].header[0].rigth[0].courtFileNumber[0]': d.get('court_file_number', ''),
+        'form1[0].page1[0].body[0].recipient[0].persons[0].person1[0]': d.get('applicant_full_name', ''),
+        'form1[0].page1[0].body[0].recipient[0].persons[0].person2[0]': d.get('applicant_address', ''),
+        'form1[0].page1[0].body[0].recipient[0].lawyers[0].laywer1[0]': d.get('applicant_lawyer', ''),
+        'form1[0].page1[0].body[0].payor[0].persons[0].person1[0]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].body[0].payor[0].persons[0].person2[0]': d.get('respondent_address', ''),
+        'form1[0].page1[0].body[0].payor[0].lawyers[0].laywer1[0]': d.get('respondent_lawyer', ''),
+        'form1[0].page1[0].body[0].#subform[2].spouses[0]': f"{d.get('applicant_full_name','')} and {d.get('respondent_full_name','')}",
+        'form1[0].page1[0].body[0].#subform[3].place[0]': d.get('divorce_granted_location', ''),
+        'form1[0].page1[0].body[0].#subform[4].place[1]': d.get('divorce_effective_date', ''),
+    }
+    n = _write_pdf(input_path, output_path, fields)
+    sys.stderr.write(f'[fill_form36b] Filled {n} fields\n')
+    return n
+
 if __name__ == '__main__':
     if len(sys.argv) < 4:
         sys.stderr.write(f'Usage: {sys.argv[0]} <input_pdf> <output_pdf> <json_data_file> [form_type]\n')
@@ -1059,13 +1737,40 @@ if __name__ == '__main__':
     with open(json_file, 'r') as f:
         form_data = json.load(f)
 
-    if form_type == 'form8':
-        n = fill_form8(input_pdf, output_pdf, form_data)
-    elif form_type == 'form13':
-        n = fill_form13(input_pdf, output_pdf, form_data)
-    elif form_type in ('form13_1', 'form13-1'):
-        n = fill_form13_1(input_pdf, output_pdf, form_data)
+    FORM_DISPATCH = {
+        'form4':    fill_form4,
+        'form6b':   fill_form6b,
+        'form8':    fill_form8,
+        'form10':   fill_form10,
+        'form13':   fill_form13,
+        'form13_1': fill_form13_1,
+        'form13-1': fill_form13_1,
+        'form13b':  fill_form13b,
+        'form14':   fill_form14,
+        'form14a':  fill_form14a,
+        'form14b':  fill_form14b,
+        'form14c':  fill_form14c,
+        'form15':   fill_form15,
+        'form15b':  fill_form15b,
+        'form15c':  fill_form15c,
+        'form17':   fill_form17,
+        'form17e':  fill_form17e,
+        'form17f':  fill_form17f,
+        'form23c':  fill_form23c,
+        'form25':   fill_form25,
+        'form25a':  fill_form25a,
+        'form25f':  fill_form25f,
+        'form25g':  fill_form25g,
+        'form35_1': fill_form35_1,
+        'form35-1': fill_form35_1,
+        'form36':   fill_form36,
+        'form36b':  fill_form36b,
+    }
+    fn = FORM_DISPATCH.get(form_type.lower().replace('-', '_'))
+    if fn:
+        n = fn(input_pdf, output_pdf, form_data)
     else:
         n = fill_pdf(input_pdf, output_pdf, form_data)
     print(f'OK ({n} fields filled)')
+
 
