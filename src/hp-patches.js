@@ -2665,3 +2665,314 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
   window.__hp_formDefs['ON-F25F'] = {"formId":"ON-F25F","formCode":"form25f-restraining-order-fla","formNumber":"Form 25F","jurisdiction":"Ontario","act":"Family Law Act, R.S.O. 1990, c. F.3, s. 46 (Order restraining harassment); Family Law Rules, O. Reg. 114/99, Rules 25(11)(b)(i.1), 25(11.1)","version":"September 1, 2009","title":"Form 25F — Restraining Order","subtitle":"Ontario Family Court — Family Law Act, s. 46","description":"A court-issued restraining order under s. 46 of the Family Law Act to prevent harassment and communication between former spouses or partners. Completed by the court clerk after a judge grants the order. The user fills in the applicant details and the conduct being restrained; a judge signs the order. Registered on the Canadian Police Information Centre (CPIC) database. Disobeying this order is a criminal offence.","requiredPlan":"standard","freeForm":false,"safetyFlag":{"enabled":true,"criticalWarning":true,"message":"If you or your children are in immediate danger, call 911. A restraining order takes time to obtain through the courts. If you need protection immediately, contact the police first.","urgentMotion":"If you need a restraining order urgently (without waiting weeks for a hearing), you can file an urgent motion WITHOUT NOTICE to the other party using Form 14 (Notice of Motion) and Form 14A (Affidavit). The judge can grant a temporary restraining order the same day."},"steps":[{"stepId":"safety-check","stepNumber":1,"title":"Safety Information","subtitle":"Read before continuing","intro":"Form 25F is the restraining order itself, signed by a judge. You need to apply for it first using a motion or application. This section explains what you need to do.","fields":[{"fieldId":"safety_info","type":"info","label":"Immediate Danger","content":"If you or your children are in immediate danger, call 911. Do not wait for a court order."},{"fieldId":"urgent_info","type":"info","label":"Urgent Restraining Order (Without Notice)","content":"If you need protection quickly, you can file an urgent motion WITHOUT telling the other party first. File Form 14 (Notice of Motion) and Form 14A (Affidavit) explaining why you are afraid. A judge can grant a temporary restraining order the same day. You will also need to start or reopen a family court case with Form 8 (Application General)."},{"fieldId":"legislation_info","type":"info","label":"Which Law Applies — Form 25F","content":"Form 25F is used for restraining orders under section 46 of the Family Law Act (FLA). This applies to former spouses or partners in a family law case. It orders the restrained person to stop harassing or communicating with you. If your case involves children and the order is under the Children's Law Reform Act (CLRA), use Form 25G instead."},{"fieldId":"cpic_info","type":"info","label":"CPIC Registration & Criminal Consequences","content":"Once granted, this order is registered on the Canadian Police Information Centre (CPIC) database. Any police officer in Canada can enforce it. Disobeying this order is a criminal offence punishable by fine or imprisonment. The restrained person can be arrested without a warrant under s. 495 of the Criminal Code."},{"fieldId":"has_existing_case","type":"yesno","label":"Do you already have a family court case open (a court file number)?","required":true,"default":"no","helpText":"If yes, your restraining order application will be added to your existing case. If no, you will need to file Form 8 (Application General) to start a new case at the same time."},{"fieldId":"no_case_info","type":"info","label":"Starting a New Case","content":"Since you don't have an open case, you will need to file Form 8 (Application General) to start one. Hearth & Page will help you prepare both Form 8 and this restraining order application together.","showIf":{"field":"has_existing_case","value":"no"}}]},{"stepId":"court-info","stepNumber":2,"title":"Court Information","subtitle":"Where the case is or will be filed","fields":[{"fieldId":"court_name","type":"select","label":"Name of Court","required":true,"options":["Ontario Court of Justice","Superior Court of Justice","Superior Court of Justice (Family Court Branch)"]},{"fieldId":"court_office_address","type":"text","label":"Court Office Address","required":true,"placeholder":"393 University Ave, Toronto, ON M5G 1E6","source":"profile.case.courthouse"},{"fieldId":"court_file_number","type":"text","label":"Court File Number (if you already have one)","required":false,"placeholder":"FC-2026-000000","source":"profile.case.fileNumber"}]},{"stepId":"parties","stepNumber":3,"title":"Applicant & Respondent","subtitle":"Who is applying and who is being restrained","intro":"The applicant is the person seeking the restraining order (you). The respondent is the person you want restrained.","groups":[{"label":"Applicant (You — person seeking protection)","fields":[{"fieldId":"applicant_full_name","type":"text","label":"Your Full Legal Name","required":true,"source":"profile.applicant.fullName"},{"fieldId":"applicant_address","type":"text","label":"Your Address for Service","required":true,"source":"profile.applicant.address","helpText":"This address will appear on the court form. You may use a lawyer's address or a P.O. Box if you are concerned about the respondent knowing your location."},{"fieldId":"applicant_phone","type":"tel","label":"Your Phone Number","required":true,"source":"profile.applicant.phone"},{"fieldId":"applicant_email","type":"email","label":"Your Email (if any)","required":false,"source":"profile.applicant.email"},{"fieldId":"applicant_has_lawyer","type":"yesno","label":"Do you have a lawyer?","required":true,"default":"no"},{"fieldId":"applicant_lawyer_name","type":"text","label":"Lawyer's Full Name","required":false,"showIf":{"field":"applicant_has_lawyer","value":"yes"}},{"fieldId":"applicant_lawyer_address","type":"text","label":"Lawyer's Address","required":false,"showIf":{"field":"applicant_has_lawyer","value":"yes"}}]},{"label":"Respondent (Person to be restrained)","fields":[{"fieldId":"respondent_full_name","type":"text","label":"Respondent Full Legal Name","required":true,"source":"profile.respondent.fullName"},{"fieldId":"respondent_dob","type":"date","label":"Respondent Date of Birth","required":true,"helpText":"Required for CPIC registration of the restraining order."},{"fieldId":"respondent_address","type":"text","label":"Respondent Address (if known)","required":false,"source":"profile.respondent.address"},{"fieldId":"respondent_has_lawyer","type":"yesno","label":"Does the respondent have a lawyer?","required":false,"default":"no"},{"fieldId":"respondent_lawyer_name","type":"text","label":"Respondent's Lawyer's Name","required":false,"showIf":{"field":"respondent_has_lawyer","value":"yes"}},{"fieldId":"respondent_lawyer_address","type":"text","label":"Respondent's Lawyer's Address","required":false,"showIf":{"field":"respondent_has_lawyer","value":"yes"}}]}]},{"stepId":"conduct","stepNumber":4,"title":"Conduct to be Restrained","subtitle":"What you are asking the court to order","intro":"Describe the specific conduct you want the judge to order the respondent to stop. Be as specific as possible — a judge can only order what you ask for.","fields":[{"fieldId":"conduct_types","type":"checkbox","label":"I am asking the court to order the respondent not to:","required":false,"helpText":"Select all that apply."},{"fieldId":"conduct_attend_home","type":"checkbox","label":"Come to or near my home or residence"},{"fieldId":"conduct_attend_workplace","type":"checkbox","label":"Come to or near my workplace"},{"fieldId":"conduct_attend_school","type":"checkbox","label":"Come to or near my children's school or daycare"},{"fieldId":"conduct_contact_me","type":"checkbox","label":"Contact or communicate with me (by any means including phone, text, email, or social media)"},{"fieldId":"conduct_contact_children","type":"checkbox","label":"Contact or communicate with our children except as permitted by a parenting order"},{"fieldId":"conduct_other","type":"checkbox","label":"Other conduct (describe below)"},{"fieldId":"conduct_other_description","type":"textarea","label":"Describe the other conduct to be restrained","required":false,"showIf":{"field":"conduct_other","value":true}},{"fieldId":"addresses_to_protect","type":"textarea","label":"Specific addresses / locations to include in the order","required":false,"placeholder":"123 Main Street, Toronto, ON — my residence\n456 School Road, Toronto, ON — children's school","helpText":"List all addresses the restraining order should cover. The more specific you are, the easier it is for police to enforce."},{"fieldId":"exclusion_zone_metres","type":"number","label":"Exclusion distance (metres) — how close the respondent must not come","required":false,"placeholder":"100","min":10,"max":1000,"helpText":"Common distances are 100-500 metres. Leave blank if you are not requesting a specific distance."},{"fieldId":"order_effective_date","type":"date","label":"Order Effective Date (usually the date the judge signs)","required":false,"helpText":"Usually left for the judge to complete. Leave blank unless your lawyer advises otherwise."},{"fieldId":"order_expiry_date","type":"date","label":"Order Expiry Date (if not indefinite)","required":false,"helpText":"Restraining orders can be permanent or time-limited. If you want a permanent order, leave blank. If you want a specific end date (e.g., until children finish high school), enter it here."},{"fieldId":"order_permanent","type":"yesno","label":"Are you requesting a permanent (indefinite) restraining order?","required":true,"default":"yes"}]},{"stepId":"motion-type","stepNumber":5,"title":"Motion Type","subtitle":"With or without notice to the respondent","intro":"You must decide whether to give the respondent notice of your motion before the hearing, or to apply without notice for an emergency order.","fields":[{"fieldId":"motion_type","type":"radio","label":"How are you bringing your motion?","required":true,"options":[{"value":"with_notice","label":"With notice — I will serve the respondent before the hearing (standard process)"},{"value":"without_notice","label":"Without notice — I need an emergency temporary order immediately (the respondent will be served after)"}],"helpText":"Most motions are made with notice. A motion without notice is only appropriate in urgent safety situations where giving notice could put you or your children at risk."},{"fieldId":"without_notice_reason","type":"textarea","label":"Why are you asking for a motion without notice?","required":false,"showIf":{"field":"motion_type","value":"without_notice"},"placeholder":"Describe the urgency and why giving notice to the respondent would put you or your children at risk.","helpText":"The judge needs to know why you cannot give notice. Describe recent incidents, threats, or danger."},{"fieldId":"prior_incidents","type":"textarea","label":"Describe the incidents of harassment or threatening behaviour","required":true,"placeholder":"On [date], the respondent...\nOn [date], the respondent...","helpText":"Provide specific dates, locations, and descriptions of each incident. This information will go in your Form 14A (Affidavit) which must be filed with this motion."},{"fieldId":"police_involved","type":"yesno","label":"Have you called the police about any of these incidents?","required":true,"default":"no"},{"fieldId":"police_report_details","type":"text","label":"Police report number(s) and detachment","required":false,"showIf":{"field":"police_involved","value":"yes"}}]},{"stepId":"delivery-signature","stepNumber":6,"title":"Required Documents & Next Steps","subtitle":"What to file with the court","intro":"Form 25F is the order itself — it is signed by the judge, not by you. You must file supporting documents to get the order granted.","fields":[{"fieldId":"filing_checklist_info","type":"info","label":"What to File with the Court","content":"To apply for a restraining order, file these documents together: (1) Form 8 (Application General) if you don't already have an open case, (2) Form 14 (Notice of Motion) stating you are asking for a restraining order under s. 46 of the Family Law Act, (3) Form 14A (Affidavit General) describing the incidents of harassment, (4) A blank Form 10 (Answer) for the respondent, (5) CPIC Restraining Order Information Form (available only at the courthouse counter). If your motion is WITH notice, also file Form 14C (Confirmation of Motion) at least 3 business days before the hearing."},{"fieldId":"form8_needed","type":"checkbox","label":"I understand I need to file Form 8 (Application General) to start or reopen my court case.","required":false},{"fieldId":"form14_needed","type":"checkbox","label":"I understand I need to file Form 14 (Notice of Motion) and Form 14A (Affidavit) to support my request.","required":true},{"fieldId":"cpic_form_needed","type":"checkbox","label":"I understand the CPIC Restraining Order Information Form is available only at the courthouse counter — not online.","required":true},{"fieldId":"victim_services","type":"info","label":"Support Resources","content":"If you are leaving an abusive relationship, contact a Family Court Support Worker at your local courthouse (free service). You can also call the Assaulted Women's Helpline at 1-866-863-0511 (24 hours). Duty counsel (free legal advice) is available at every Ontario family courthouse on motion days."},{"fieldId":"signature_date","type":"date","label":"Date Prepared","required":true}]}]};
   window.__hp_formDefs['ON-F25G'] = {"formId":"ON-F25G","formCode":"form25g-restraining-order-clra","formNumber":"Form 25G","jurisdiction":"Ontario","act":"Children's Law Reform Act, R.S.O. 1990, c. C.12, s. 35; Family Law Act, R.S.O. 1990, c. F.3, s. 46; Family Law Rules, O. Reg. 114/99, Rules 25(11)(b)(i.1), 25(11.1)","version":"September 1, 2009","title":"Form 25G — Restraining Order on Motion Without Notice","subtitle":"Ontario Family Court — Emergency Restraining Order (CLRA and/or FLA)","description":"An emergency restraining order granted by a judge on a motion made WITHOUT notice to the respondent. Used in urgent situations where giving notice could put the applicant or children at risk. Can be made under s. 35 of the Children's Law Reform Act (CLRA), s. 46 of the Family Law Act (FLA), or both. The order is temporary and the matter returns to court on a review date. Registered on the CPIC database. Disobeying is a criminal offence.","requiredPlan":"standard","freeForm":false,"safetyFlag":{"enabled":true,"criticalWarning":true,"message":"If you or your children are in immediate danger RIGHT NOW, call 911. Form 25G is for urgent situations but still requires a court hearing before a judge.","reviewDateNote":"After a motion without notice, the court MUST set a review date (usually within a few days to 2 weeks). Both parties attend the review. The respondent will be served with a copy of the order and told about the review date."},"steps":[{"stepId":"safety-check","stepNumber":1,"title":"Emergency Safety Information","subtitle":"Read carefully before proceeding","fields":[{"fieldId":"emergency_info","type":"info","label":"When to Use Form 25G","content":"Form 25G is for emergency restraining orders made WITHOUT telling the other person first. Use this when: (1) You or your children are in danger and cannot wait for a regular hearing, or (2) Telling the respondent about your motion could put you at greater risk. A judge will review the order within days. The respondent will be served after the order is granted."},{"fieldId":"legislation_choice_info","type":"info","label":"Which Law Applies — CLRA vs FLA","content":"Form 25G can be made under either or both laws. Use CLRA (s. 35) when your children are at risk and parenting/custody is involved. Use FLA (s. 46) when the harassment or threats are directed at you as a former spouse or partner. Your lawyer or duty counsel can advise which applies to your situation."},{"fieldId":"clra_or_fla","type":"radio","label":"Which law is this order being sought under?","required":true,"options":[{"value":"clra","label":"Section 35 of the Children's Law Reform Act (CLRA) — children are at risk"},{"value":"fla","label":"Section 46 of the Family Law Act (FLA) — I am being harassed or threatened"},{"value":"both","label":"Both CLRA s. 35 and FLA s. 46"}],"helpText":"If unsure, speak to duty counsel at the courthouse before filing. Duty counsel is a free service."},{"fieldId":"cpic_info","type":"info","label":"CPIC Registration & Criminal Consequences","content":"This order is immediately registered on the Canadian Police Information Centre (CPIC) database. Any police officer in Canada can enforce it. Disobeying this order is a criminal offence punishable by fine or imprisonment under the Criminal Code."}]},{"stepId":"court-info","stepNumber":2,"title":"Court Information","subtitle":"Where the case is or will be filed","fields":[{"fieldId":"court_name","type":"select","label":"Name of Court","required":true,"options":["Ontario Court of Justice","Superior Court of Justice","Superior Court of Justice (Family Court Branch)"]},{"fieldId":"court_office_address","type":"text","label":"Court Office Address","required":true,"placeholder":"393 University Ave, Toronto, ON M5G 1E6","source":"profile.case.courthouse"},{"fieldId":"court_file_number","type":"text","label":"Court File Number (if you already have one)","required":false,"source":"profile.case.fileNumber"}]},{"stepId":"parties","stepNumber":3,"title":"Applicant & Respondent","subtitle":"Who is applying and who is being restrained","groups":[{"label":"Applicant (You)","fields":[{"fieldId":"applicant_full_name","type":"text","label":"Your Full Legal Name","required":true,"source":"profile.applicant.fullName"},{"fieldId":"applicant_address","type":"text","label":"Address for Service","required":true,"source":"profile.applicant.address","helpText":"You may use a lawyer's address or safe address if you are concerned about safety."},{"fieldId":"applicant_phone","type":"tel","label":"Phone Number","required":true,"source":"profile.applicant.phone"},{"fieldId":"applicant_has_lawyer","type":"yesno","label":"Do you have a lawyer?","required":true,"default":"no"},{"fieldId":"applicant_lawyer_name","type":"text","label":"Lawyer's Full Name","required":false,"showIf":{"field":"applicant_has_lawyer","value":"yes"}},{"fieldId":"applicant_lawyer_address","type":"text","label":"Lawyer's Address","required":false,"showIf":{"field":"applicant_has_lawyer","value":"yes"}}]},{"label":"Respondent (Person to be restrained)","fields":[{"fieldId":"respondent_full_name","type":"text","label":"Respondent Full Legal Name","required":true,"source":"profile.respondent.fullName"},{"fieldId":"respondent_dob","type":"date","label":"Respondent Date of Birth","required":true,"helpText":"Required for CPIC registration. If unknown, contact police or duty counsel."},{"fieldId":"respondent_address","type":"text","label":"Respondent's Last Known Address","required":false,"source":"profile.respondent.address"}]}]},{"stepId":"children","stepNumber":4,"title":"Children Involved","subtitle":"Children named in the order","intro":"If the restraining order is under the CLRA (s. 35), the children must be named in the order.","fields":[{"fieldId":"children_involved","type":"yesno","label":"Are there children involved in this restraining order?","required":true,"default":"yes","showIf":{"field":"clra_or_fla","operator":"in","values":["clra","both"]}},{"fieldId":"child_1_name","type":"text","label":"Child 1 — Full Name","required":false,"showIf":{"field":"children_involved","value":"yes"}},{"fieldId":"child_1_dob","type":"date","label":"Child 1 — Date of Birth","required":false,"showIf":{"field":"children_involved","value":"yes"}},{"fieldId":"child_2_name","type":"text","label":"Child 2 — Full Name (if applicable)","required":false,"showIf":{"field":"children_involved","value":"yes"}},{"fieldId":"child_2_dob","type":"date","label":"Child 2 — Date of Birth","required":false,"showIf":{"field":"children_involved","value":"yes"}},{"fieldId":"child_3_name","type":"text","label":"Child 3 — Full Name (if applicable)","required":false,"showIf":{"field":"children_involved","value":"yes"}},{"fieldId":"additional_children_note","type":"textarea","label":"Additional children (name and date of birth)","required":false,"showIf":{"field":"children_involved","value":"yes"},"helpText":"If more than 3 children, list the remaining children here."}]},{"stepId":"order-terms","stepNumber":5,"title":"Order Terms","subtitle":"What the judge will order the respondent not to do","intro":"Describe exactly what you are asking the court to order. The more specific, the easier it is for police to enforce.","fields":[{"fieldId":"restrained_person_clause","type":"info","label":"Order Format","content":"The order will read: '[Respondent's name], born [date of birth], SHALL NOT...' followed by the specific terms you request below."},{"fieldId":"conduct_attend_home","type":"checkbox","label":"Come to or near my home or residence"},{"fieldId":"conduct_attend_workplace","type":"checkbox","label":"Come to or near my workplace"},{"fieldId":"conduct_attend_school","type":"checkbox","label":"Come to or near the children's school or daycare"},{"fieldId":"conduct_contact_applicant","type":"checkbox","label":"Contact or communicate with me (by any means)"},{"fieldId":"conduct_contact_children","type":"checkbox","label":"Contact the children except as permitted by a parenting order"},{"fieldId":"conduct_harass","type":"checkbox","label":"Follow, watch, or surveil me or the children"},{"fieldId":"conduct_other","type":"checkbox","label":"Other (describe below)"},{"fieldId":"conduct_other_description","type":"textarea","label":"Other conduct to be restrained","required":false,"showIf":{"field":"conduct_other","value":true}},{"fieldId":"protected_addresses","type":"textarea","label":"Addresses / locations covered by this order","required":false,"placeholder":"123 Main Street, Toronto, ON — my home\n789 School Lane, Toronto, ON — children's school"},{"fieldId":"exclusion_distance","type":"number","label":"Exclusion distance (metres)","required":false,"min":10,"max":1000,"placeholder":"100"},{"fieldId":"review_date_info","type":"info","label":"Review Date — Required for Without-Notice Orders","content":"Because this is a motion WITHOUT notice, the court must set a review date so the respondent can come to court and respond. The clerk will set this date. The order will include the review date. The respondent must be served with a copy of the order and told about the review date immediately after the order is granted."},{"fieldId":"review_date","type":"date","label":"Review Date (set by the court — leave blank if unknown)","required":false,"helpText":"The court clerk will set this date. It is usually within a few days to 2 weeks of the order being granted."},{"fieldId":"service_method","type":"select","label":"How will the respondent be served with a copy of this order?","required":true,"options":["Personal service (handed directly to the respondent)","Substituted service (with court permission, another method)","By a process server","By police (if approved by the court)"],"helpText":"Form 25G requires immediate service on the respondent after the order is granted. The notice of motion and supporting affidavit must also be served at the same time."}]},{"stepId":"urgency-affidavit","stepNumber":6,"title":"Urgency & Affidavit Details","subtitle":"Why you need this order without notice","intro":"You must explain to the judge why you cannot give the respondent notice of this motion. This information will go into your Form 14A (Affidavit).","fields":[{"fieldId":"affidavit_info","type":"info","label":"Form 14A (Affidavit) Required","content":"You must file a Form 14A (Affidavit) explaining the incidents of harassment or danger and why you need this order without notice. Hearth & Page will help you prepare Form 14A. The more specific and detailed your affidavit, the stronger your case."},{"fieldId":"urgency_reason","type":"textarea","label":"Why do you need this order immediately, without notifying the respondent first?","required":true,"placeholder":"Describe the specific danger or risk if the respondent were notified in advance...","helpText":"Be specific. Examples: 'The respondent threatened to harm me if I took legal action'; 'I fear the respondent will flee with the children if notified'; 'The respondent has a history of violence.'"},{"fieldId":"recent_incidents","type":"textarea","label":"Describe the most recent incidents (include dates and details)","required":true,"placeholder":"Date: [date]\nWhat happened: [describe incident]\n\nDate: [date]\nWhat happened: [describe incident]"},{"fieldId":"injuries_or_threats","type":"yesno","label":"Have you been physically harmed or directly threatened with physical harm?","required":true,"default":"no"},{"fieldId":"injury_details","type":"textarea","label":"Describe the physical harm or threats","required":false,"showIf":{"field":"injuries_or_threats","value":"yes"}},{"fieldId":"police_called","type":"yesno","label":"Have you called the police?","required":true,"default":"no"},{"fieldId":"police_report_number","type":"text","label":"Police report number and detachment","required":false,"showIf":{"field":"police_called","value":"yes"}},{"fieldId":"signature_date","type":"date","label":"Date Prepared","required":true}]}]};
 })();
+
+// --- Hash Guard: block free users from navigating directly to locked forms ---
+// Intercepts hash navigation to FormEngine wizard routes for non-free forms.
+// Works alongside applyFormLocks (which handles form card clicks) to catch
+// direct URL entry, browser back/forward, and programmatic navigation.
+(function() {
+  var FREE_FORM_KEYS = ['form8', 'on-f8'];
+
+  function isLockedFormHash(hash) {
+    if (!hash) return false;
+    // FormEngine is launched via hash like #/case/2/wizard?formId=ON-F14
+    // or #/wizard/ON-F14 etc.
+    if (!hash.includes('wizard') && !hash.includes('formId')) return false;
+    // Extract formId from query string
+    var m = hash.match(/[?&]formId=([^&]+)/i);
+    if (!m) {
+      // Try to extract from path like #/wizard/ON-F14
+      m = hash.match(/wizard\/([^/?&#]+)/i);
+    }
+    if (!m) return false;
+    var fid = decodeURIComponent(m[1]).toLowerCase().replace(/[^a-z0-9_]/g, '');
+    return !FREE_FORM_KEYS.includes(fid);
+  }
+
+  function checkHashForLock() {
+    var hash = window.location.hash;
+    if (!isLockedFormHash(hash)) return;
+    // Check plan
+    var isPaid = false;
+    if (window.__hp_sub_status === 'active' && window.__hp_plan !== 'free') {
+      isPaid = true;
+    } else if (window.__hp_currentUser) {
+      var u = window.__hp_currentUser;
+      isPaid = (u.subscriptionStatus === 'active') && u.plan !== 'free';
+    }
+    if (isPaid) return;
+    // Redirect back to dashboard
+    window.location.hash = '#/dashboard';
+    setTimeout(function() {
+      if (typeof showUpgradeModal === 'function') showUpgradeModal('form');
+    }, 300);
+  }
+
+  window.addEventListener('hashchange', function() {
+    // Only block after plan data is loaded (2s grace period on cold load)
+    if (window.__hp_sub_status !== undefined || window.__hp_currentUser) {
+      checkHashForLock();
+    }
+  });
+
+  // Also check on initial load after user data is ready
+  window.addEventListener('hp:userready', checkHashForLock);
+})();
+
+
+// --- Account Settings Page ---
+// Renders an in-app account settings page when hash is #/account-settings
+// or when user clicks the account settings nav link.
+// Handles: change password, manage subscription, account info.
+(function() {
+  var RAILWAY_ACCT = 'https://api-production-2334.up.railway.app';
+  var TEAL_D = '#1B4150';
+  var BURG   = '#7B2D3E';
+
+  function renderAccountSettings() {
+    // Find the main content area — replace its content
+    var root = document.querySelector('[data-page="account-settings"]') ||
+               document.getElementById('hp-account-settings-page');
+
+    if (root) { root.remove(); }
+
+    var user = window.__hp_currentUser;
+    var plan = (user && user.plan) || window.__hp_plan || 'free';
+    var status = (user && user.subscriptionStatus) || window.__hp_sub_status || null;
+    var email = (user && user.email) || '';
+    var isPaid = (status === 'active' || status === 'past_due') && plan !== 'free';
+    var planLabel = plan === 'plus' ? 'Plus ($19.99/mo CAD)' :
+                    plan === 'standard' ? 'Standard ($9.99/mo CAD)' : 'Free';
+    var statusLabel = status === 'active' ? 'Active' :
+                      status === 'past_due' ? 'Past Due' :
+                      status === 'canceled' ? 'Cancelled' : 'No subscription';
+
+    var page = document.createElement('div');
+    page.id = 'hp-account-settings-page';
+    page.setAttribute('data-page', 'account-settings');
+    page.style.cssText = 'position:fixed;inset:0;z-index:9000;background:#f8f5f0;overflow-y:auto;font-family:DM Sans,system-ui,sans-serif;padding-bottom:60px;';
+
+    page.innerHTML = [
+      // Header
+      '<div style="background:' + TEAL_D + ';padding:20px 24px;display:flex;align-items:center;gap:16px;">',
+        '<button id="hp-acct-back" style="background:transparent;border:none;color:#fff;font-size:22px;cursor:pointer;padding:0 8px 0 0;line-height:1;">&larr;</button>',
+        '<div>',
+          '<div style="font-size:11px;color:#7ecfcf;text-transform:uppercase;letter-spacing:0.1em;">Hearth &amp; Page</div>',
+          '<div style="font-size:20px;font-weight:700;color:#fff;">Account Settings</div>',
+        '</div>',
+      '</div>',
+
+      // Account info card
+      '<div style="max-width:580px;margin:28px auto 0;padding:0 16px;">',
+
+        '<div style="background:#fff;border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.07);">',
+          '<div style="font-size:13px;font-weight:700;color:' + TEAL_D + ';text-transform:uppercase;letter-spacing:0.07em;margin-bottom:14px;">Account</div>',
+          '<div style="font-size:14px;color:#555;margin-bottom:6px;">Email address</div>',
+          '<div style="font-size:16px;font-weight:600;color:#222;margin-bottom:16px;">' + email + '</div>',
+          '<div style="font-size:14px;color:#555;margin-bottom:4px;">Plan</div>',
+          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">',
+            '<span style="font-size:16px;font-weight:600;color:#222;">' + planLabel + '</span>',
+            '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:' +
+              (status === 'active' ? '#d1fae5' : status === 'past_due' ? '#fef3c7' : '#f3f4f6') +
+              ';color:' +
+              (status === 'active' ? '#065f46' : status === 'past_due' ? '#92400e' : '#6b7280') +
+              ';">' + statusLabel + '</span>',
+          '</div>',
+        '</div>',
+
+        // Subscription management
+        '<div style="background:#fff;border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.07);">',
+          '<div style="font-size:13px;font-weight:700;color:' + TEAL_D + ';text-transform:uppercase;letter-spacing:0.07em;margin-bottom:14px;">Subscription</div>',
+          isPaid ? [
+            '<p style="font-size:14px;color:#555;margin:0 0 16px;line-height:1.5;">Manage your plan, update your payment method, or cancel your subscription through the billing portal.</p>',
+            '<button id="hp-acct-portal" style="background:' + TEAL_D + ';color:#fff;border:none;border-radius:10px;padding:13px 22px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">Manage Subscription &rarr;</button>',
+          ].join('') : [
+            '<p style="font-size:14px;color:#555;margin:0 0 16px;line-height:1.5;">You are on the free plan. Subscribe to access all 35 Ontario court forms and download court-ready PDFs.</p>',
+            '<button id="hp-acct-std" style="background:' + TEAL_D + ';color:#fff;border:none;border-radius:10px;padding:13px 22px;font-size:15px;font-weight:600;cursor:pointer;width:100%;margin-bottom:8px;">Standard \u2014 $9.99/mo CAD</button>',
+            '<button id="hp-acct-plus" style="background:' + BURG + ';color:#fff;border:none;border-radius:10px;padding:13px 22px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">Plus \u2014 $19.99/mo CAD</button>',
+          ].join(''),
+        '</div>',
+
+        // Change password
+        '<div style="background:#fff;border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.07);">',
+          '<div style="font-size:13px;font-weight:700;color:' + TEAL_D + ';text-transform:uppercase;letter-spacing:0.07em;margin-bottom:14px;">Change Password</div>',
+          '<div id="hp-pw-msg" style="display:none;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;"></div>',
+          '<label style="display:block;font-size:13px;color:#555;margin-bottom:6px;">Current password</label>',
+          '<input id="hp-pw-current" type="password" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:12px;">',
+          '<label style="display:block;font-size:13px;color:#555;margin-bottom:6px;">New password</label>',
+          '<input id="hp-pw-new" type="password" placeholder="8+ characters" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:12px;">',
+          '<label style="display:block;font-size:13px;color:#555;margin-bottom:6px;">Confirm new password</label>',
+          '<input id="hp-pw-confirm" type="password" placeholder="Repeat new password" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:16px;">',
+          '<button id="hp-pw-submit" style="background:' + TEAL_D + ';color:#fff;border:none;border-radius:10px;padding:12px 22px;font-size:14px;font-weight:600;cursor:pointer;width:100%;">Update Password</button>',
+        '</div>',
+
+        // Danger zone
+        '<div style="background:#fff;border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,0.07);border:1px solid #fee2e2;">',
+          '<div style="font-size:13px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Danger Zone</div>',
+          '<p style="font-size:13px;color:#555;margin:0 0 14px;line-height:1.5;">Permanently delete your account and all associated data. This cannot be undone.</p>',
+          '<button id="hp-acct-delete" style="background:transparent;color:#dc2626;border:1.5px solid #dc2626;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:600;cursor:pointer;">Delete My Account</button>',
+        '</div>',
+
+      '</div>',
+    ].join('');
+
+    document.body.appendChild(page);
+
+    // Back button
+    document.getElementById('hp-acct-back').addEventListener('click', function() {
+      page.remove();
+      window.history.back();
+    });
+
+    // Billing portal
+    var portalBtn = document.getElementById('hp-acct-portal');
+    if (portalBtn) {
+      portalBtn.addEventListener('click', function() {
+        portalBtn.textContent = 'Opening\u2026';
+        portalBtn.disabled = true;
+        fetch(RAILWAY_ACCT + '/api/stripe/billing-portal', {
+          method: 'POST',
+          headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+          body: JSON.stringify({ returnUrl: window.location.href })
+        }).then(function(r){ return r.json(); })
+          .then(function(d){ if (d && d.url) window.location.href = d.url; else { portalBtn.textContent = 'Manage Subscription \u2192'; portalBtn.disabled = false; } })
+          .catch(function(){ portalBtn.textContent = 'Manage Subscription \u2192'; portalBtn.disabled = false; });
+      });
+    }
+
+    // Subscribe buttons (free users)
+    var stdBtn = document.getElementById('hp-acct-std');
+    var plusBtn = document.getElementById('hp-acct-plus');
+    function launchAcctCheckout(priceId, btn) {
+      btn.disabled = true; btn.textContent = 'Opening checkout\u2026';
+      fetch(RAILWAY_ACCT + '/api/stripe/create-checkout', {
+        method: 'POST',
+        headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+        body: JSON.stringify({ priceId: priceId, successUrl: window.location.href + '?checkout=success', cancelUrl: window.location.href })
+      }).then(function(r){ return r.json(); })
+        .then(function(d){ if (d && d.url) window.location.href = d.url; else { btn.disabled = false; btn.textContent = btn.id === 'hp-acct-std' ? 'Standard \u2014 $9.99/mo CAD' : 'Plus \u2014 $19.99/mo CAD'; } })
+        .catch(function(){ btn.disabled = false; });
+    }
+    if (stdBtn) stdBtn.addEventListener('click', function() { launchAcctCheckout('price_1Tduf0DyokC7Tv7bDRAZBk57', stdBtn); });
+    if (plusBtn) plusBtn.addEventListener('click', function() { launchAcctCheckout('price_1TduyXDyokC7Tv7bKKoeeh1v', plusBtn); });
+
+    // Change password
+    document.getElementById('hp-pw-submit').addEventListener('click', async function() {
+      var btn = document.getElementById('hp-pw-submit');
+      var msgEl = document.getElementById('hp-pw-msg');
+      var cur = document.getElementById('hp-pw-current').value;
+      var nw  = document.getElementById('hp-pw-new').value;
+      var cnf = document.getElementById('hp-pw-confirm').value;
+
+      function showMsg(msg, ok) {
+        msgEl.style.display = 'block';
+        msgEl.style.background = ok ? '#f0fdf4' : '#fef2f2';
+        msgEl.style.border = '1px solid ' + (ok ? '#bbf7d0' : '#fecaca');
+        msgEl.style.color  = ok ? '#15803d' : '#dc2626';
+        msgEl.textContent  = msg;
+      }
+
+      if (!cur) { showMsg('Enter your current password.', false); return; }
+      if (nw.length < 8) { showMsg('New password must be at least 8 characters.', false); return; }
+      if (nw !== cnf) { showMsg('Passwords do not match.', false); return; }
+
+      btn.disabled = true; btn.textContent = 'Updating\u2026';
+      try {
+        var resp = await fetch(RAILWAY_ACCT + '/api/auth/change-password', {
+          method: 'POST',
+          headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+          body: JSON.stringify({ currentPassword: cur, newPassword: nw })
+        });
+        var data = await resp.json();
+        if (resp.ok) {
+          showMsg('\u2713 Password updated successfully.', true);
+          document.getElementById('hp-pw-current').value = '';
+          document.getElementById('hp-pw-new').value = '';
+          document.getElementById('hp-pw-confirm').value = '';
+        } else {
+          showMsg(data.message || 'Could not update password. Check your current password and try again.', false);
+        }
+      } catch(e) {
+        showMsg('Network error. Please try again.', false);
+      }
+      btn.disabled = false; btn.textContent = 'Update Password';
+    });
+
+    // Delete account (with confirmation)
+    document.getElementById('hp-acct-delete').addEventListener('click', function() {
+      var confirmed = window.confirm(
+        'Are you sure you want to permanently delete your Hearth & Page account?\n\n' +
+        'All your cases, saved data, and subscription will be removed. This cannot be undone.'
+      );
+      if (!confirmed) return;
+      fetch(RAILWAY_ACCT + '/api/account', {
+        method: 'DELETE',
+        headers: __authHdr()
+      }).then(function(r){ return r.json(); })
+        .then(function() {
+          window.__hp_token = null;
+          window.__hp_currentUser = null;
+          localStorage.removeItem('hp_token');
+          page.remove();
+          window.location.hash = '#/';
+          window.location.reload();
+        }).catch(function() { alert('Could not delete account. Please contact support@hearthandpage.ca'); });
+    });
+  }
+
+  // Open settings when hash changes to #/account-settings
+  window.addEventListener('hashchange', function() {
+    if (window.location.hash === '#/account-settings') {
+      setTimeout(renderAccountSettings, 100);
+    } else {
+      var pg = document.getElementById('hp-account-settings-page');
+      if (pg) pg.remove();
+    }
+  });
+
+  // Intercept clicks on any settings link
+  document.addEventListener('click', function(e) {
+    var el = e.target.closest('a[href="#/account-settings"],a[href*="account-settings"],button[data-hp-settings]');
+    if (el) {
+      e.preventDefault();
+      window.location.hash = '#/account-settings';
+      setTimeout(renderAccountSettings, 100);
+    }
+  }, true);
+
+  // Expose globally for nav patch
+  window.__openAccountSettings = function() {
+    window.location.hash = '#/account-settings';
+    setTimeout(renderAccountSettings, 100);
+  };
+
+  // Inject "Settings" link into navbar account menu (MutationObserver)
+  (function injectSettingsLink() {
+    var injected = false;
+    var obs = new MutationObserver(function() {
+      if (injected) return;
+      // Look for account menu items (Profile, Logout, etc.)
+      var logoutEl = Array.from(document.querySelectorAll('a,button')).find(function(el) {
+        return /log.?out|sign.?out/i.test(el.textContent || '');
+      });
+      if (!logoutEl) return;
+      injected = true;
+      obs.disconnect();
+
+      if (document.querySelector('[data-hp-settings-link]')) return;
+      var link = document.createElement('a');
+      link.setAttribute('data-hp-settings-link', '1');
+      link.href = '#/account-settings';
+      link.textContent = 'Account Settings';
+      link.style.cssText = 'display:block;padding:8px 16px;font-size:14px;color:#374151;text-decoration:none;cursor:pointer;';
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        window.__openAccountSettings();
+      });
+      logoutEl.parentNode.insertBefore(link, logoutEl);
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+    setTimeout(function() { obs.disconnect(); }, 30000);
+  })();
+})();
+
