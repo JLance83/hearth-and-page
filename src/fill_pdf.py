@@ -1088,6 +1088,59 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None):
     return filled
 
 
+def _get_field_full_path(widget_obj):
+    """Walk /Parent chain to build the full dotted path for a LiveCycle field widget."""
+    parts = []
+    cur = widget_obj
+    while cur is not None:
+        t = cur.get('/T')
+        if t is not None:
+            parts.append(str(t))
+        parent_ref = cur.get('/Parent')
+        if parent_ref is None:
+            break
+        try:
+            cur = parent_ref.get_object()
+        except Exception:
+            break
+    parts.reverse()
+    return '.'.join(parts)
+
+
+def _write_pdf_lc(input_path, output_path, fields):
+    """
+    LiveCycle-aware PDF writer.
+    Resolves each widget's full dotted path via /Parent chain before matching
+    against the supplied fields dict.  Also handles /Ch (choice) fields.
+    Returns the number of fields filled.
+    """
+    reader = pypdf.PdfReader(input_path)
+    writer = pypdf.PdfWriter()
+    writer.append(reader)
+    filled = 0
+    for page in writer.pages:
+        if '/Annots' not in page:
+            continue
+        for annot in page['/Annots']:
+            obj = annot.get_object()
+            if obj.get('/Subtype') != '/Widget':
+                continue
+            ft = obj.get('/FT')
+            if ft not in ('/Tx', '/Ch'):
+                continue
+            full_path = _get_field_full_path(obj)
+            if full_path in fields:
+                val = str(fields[full_path])
+                obj.update({
+                    pypdf.generic.NameObject('/V'):  pypdf.generic.create_string_object(val),
+                    pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject(),
+                })
+                filled += 1
+    with open(output_path, 'wb') as f:
+        writer.write(f)
+    return filled
+
+
 def _header(d, pages=1):
     """Build standard court-header fields dict shared across most forms."""
     courthouse = d.get('courthouse', d.get('court_name', ''))
@@ -1163,22 +1216,63 @@ def fill_form4(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form6b(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
-    # Form 6B uses XFA dot-path field names
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    fnum = d.get('court_file_number', d.get('fileNumber', ''))
+    ap   = d.get('applicant_full_name', d.get('applicantFullName', ''))
+    ap_a = d.get('applicant_address', '')
+    re_n = d.get('respondent_full_name', d.get('respondentFullName', ''))
+    re_a = d.get('respondent_address', '')
+    ap_law = d.get('applicant_lawyer_name', '')
+    ap_law_a = d.get('applicant_lawyer_address', '')
+    re_law = d.get('respondent_lawyer_name', '')
+    re_law_a = d.get('respondent_lawyer_address', '')
+    server = d.get('serverFullName', d.get('server_full_name', ''))
+    server_a = d.get('serverAddress', d.get('server_address', ''))
+    person_served = d.get('personServed', d.get('person_served', ''))
+    svc_date = d.get('serviceDate', d.get('service_date', ''))
+    svc_method = d.get('serviceMethod', d.get('service_method', ''))
+    docs = d.get('documentsList', d.get('documents_list', ''))
+    svc_addr = d.get('serviceAddress', d.get('service_address', ''))
+    email_served = d.get('emailAddress', d.get('email_address', ''))
+    comm_date = d.get('commissioningDate', d.get('commissioning_date', ''))
+    comm_muni = d.get('commissioningMunicipality', d.get('commissioning_municipality', ''))
     fields = {
-        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', d.get('fileNumber', '')),
-        'form1[0].page1[0].body[0].courtDetails[0].court[0].#subform[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
-        'form1[0].page1[0].body[0].courtDetails[0].date[0]': d.get('service_date', ''),
-        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
-        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
-        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
-        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
-        'form1[0].page1[0].body[0].four[0].liveIn[0]': d.get('server_name', ''),
-        'form1[0].page1[0].body[0].four[0].liveIn[1]': d.get('server_address', ''),
-        'form1[0].page1[0].body[0].four[0].liveIn[2]': d.get('served_on_name', ''),
-        'form1[0].page1[0].body[0].four[0].liveIn[3]': d.get('service_method', ''),
-        'form1[0].page1[0].body[0].four[0].liveIn[4]': d.get('documents_served', ''),
+        # Page 1 header
+        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': fnum,
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].#subform[0].courtOfficeAddress[0]': ca,
+        'form1[0].page1[0].body[0].courtDetails[0].date[0]': svc_date,
+        # Applicant / Respondent party boxes
+        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[0]': ap,
+        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[1]': ap_a,
+        'form1[0].page1[0].body[0].applicants[0].applicantLawyer[0].textfield[0]': ap_law,
+        'form1[0].page1[0].body[0].applicants[0].applicantLawyer[0].textfield[1]': ap_law_a,
+        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[0]': re_n,
+        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[1]': re_a,
+        'form1[0].page1[0].body[0].respondents[0].respondantLawyer[0].textfield[0]': re_law,
+        'form1[0].page1[0].body[0].respondents[0].respondantLawyer[0].textfield[1]': re_law_a,
+        # Section 4 — person serving (deponent identity)
+        'form1[0].page1[0].body[0].four[0].liveIn[0]': server,
+        'form1[0].page1[0].body[0].four[0].liveIn[1]': server_a,
+        'form1[0].page1[0].body[0].four[0].liveIn[2]': person_served,
+        'form1[0].page1[0].body[0].four[0].liveIn[3]': svc_addr,
+        'form1[0].page1[0].body[0].four[0].liveIn[4]': docs,
+        # Service table rows (Row1[N]: date + method)
+        'form1[0].page1[0].body[0].#subform[4].Table1[0].Row1[0].Cell1[0]': svc_date,
+        'form1[0].page1[0].body[0].#subform[4].Table1[0].Row1[0].Cell2[0]': svc_method,
+        # Page 2 header repetitions
+        'form1[0].Master[0].Page2[0].#subform[0].courtFileNumber[0]': fnum,
+        'form1[0].Master[0].Page2[0].#subform[0].#subform[1].date[0]': svc_date,
+        'form1[0].Master[0].Page2[1].#subform[0].courtFileNumber[0]': fnum,
+        'form1[0].Master[0].Page2[1].#subform[0].#subform[1].date[0]': svc_date,
+        # Page 3 — server name + commissioner
+        'form1[0].page3[0].body[0].six[0].applicant[0].#subform[0].fullName[0]': server,
+        'form1[0].page3[0].body[0].six[0].#subform[3].liveIn[1]': comm_muni,
+        'form1[0].page3[0].body[0].six[0].applicant[0].#subform[1].commissioner[0]': comm_date,
+        # Email service
+        'form1[0].page2[0].body[0].liveIn[0]': email_served,
     }
-    n = _write_pdf(input_path, output_path, fields)
+    n = _write_pdf_lc(input_path, output_path, fields)
     sys.stderr.write(f'[fill_form6b] Filled {n} fields\n')
     return n
 
@@ -1499,21 +1593,149 @@ def fill_form17f(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form13b(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    ca   = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    fnum = d.get('court_file_number', '')
+    ap   = d.get('applicant_full_name', '')
+    re_n = d.get('respondent_full_name', '')
+    ap_a = d.get('applicant_address', '')
+    re_a = d.get('respondent_address', '')
+    ap_law = d.get('applicant_lawyer_name', '')
+    re_law = d.get('respondent_lawyer_name', '')
+    completing  = d.get('completing_party', ap)
+    valuation_date = d.get('valuation_date', '')
+    sig_date = d.get('signature_date', '')
+
+    def fmt(key, default=''):
+        v = d.get(key, default)
+        if v in ('', None):
+            return ''
+        try:
+            return f'{float(str(v).replace(",","")):.2f}'
+        except Exception:
+            return str(v)
+
+    # Asset rows for Table1 (p1) — up to 13 rows
+    asset_rows = [
+        (d.get('asset_family_home_address', 'Family home'),     fmt('asset_family_home_value')),
+        (d.get('asset_other_real_estate_description', 'Other real estate'), fmt('asset_other_real_estate')),
+        (d.get('asset_bank_accounts_description', 'Bank accounts / GICs'),  fmt('asset_bank_accounts')),
+        ('RRSPs / RRIFs / LIRAs',                               fmt('asset_rrsp_rrif')),
+        (d.get('asset_pension_description', 'Pension plans'),   fmt('asset_pension')),
+        ('Non-registered investments',                           fmt('asset_investments')),
+        (d.get('asset_business_description', 'Business interests'), fmt('asset_business_interest')),
+        ('Vehicles',                                             fmt('asset_vehicles')),
+        ('Life insurance (CSV)',                                 fmt('asset_life_insurance')),
+        ('Household contents',                                   fmt('asset_household_contents')),
+        ('Money owed to you',                                    fmt('asset_money_owed_to_you')),
+        (d.get('asset_other_description', 'Other assets'),      fmt('asset_other')),
+    ]
+    total_assets_vd = fmt('total_assets_valuation_date')
+
+    # Debt rows for Table2 (p2) — up to 13 rows
+    debt_rows = [
+        ('Mortgage — family home',    fmt('debt_mortgage_family_home')),
+        ('Mortgage — other',          fmt('debt_mortgage_other')),
+        ('Vehicle loans',             fmt('debt_vehicle_loans')),
+        ('Credit card balances',      fmt('debt_credit_cards')),
+        ('Lines of credit',           fmt('debt_lines_of_credit')),
+        ('Student loans',             fmt('debt_student_loans')),
+        ('Personal loans',            fmt('debt_personal_loans')),
+        ('Business debts',            fmt('debt_business_debts')),
+        ('Income taxes owing',        fmt('debt_tax_owing')),
+        (d.get('debt_other_description', 'Other debts'), fmt('debt_other')),
+    ]
+    total_debts_vd = fmt('total_debts_valuation_date')
+    net_vd = fmt('net_on_valuation_date')
+
+    # DOM asset rows for Table4 (p3) — up to 12 rows
+    dom_asset_rows = [
+        ('Bank accounts / savings',   fmt('dom_bank_accounts')),
+        ('RRSPs / investments',       fmt('dom_rrsp')),
+        ('Real estate (excl. mat. home)', fmt('dom_real_estate')),
+        ('Business interests',        fmt('dom_business')),
+        ('Pension',                   fmt('dom_pension')),
+        ('Vehicles',                  fmt('dom_vehicles')),
+        (d.get('dom_other_assets_description', 'Other assets'), fmt('dom_other_assets')),
+    ]
+    total_assets_dom = fmt('total_assets_dom')
+
+    # DOM debt rows for Table3b
+    dom_debt_rows = [
+        ('Mortgage(s)',               fmt('dom_debt_mortgage')),
+        ('Vehicle loans',             fmt('dom_debt_vehicle')),
+        ('Student loans',             fmt('dom_debt_student')),
+        ('Credit cards / LOC',        fmt('dom_debt_credit_cards')),
+        (d.get('dom_debt_other_desc', 'Other debts'), fmt('dom_debt_other')),
+    ]
+    total_debts_dom = fmt('total_debts_dom')
+    net_dom = fmt('net_dom')
+    total_excluded = fmt('total_excluded_property')
+    nfp_result = fmt('nfp_result')
+    nfp_final  = fmt('nfp_final')
+
     fields = {
-        'form1[0].page1[0].body[0].p1[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', ''),
-        'form1[0].page1[0].body[0].p1[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
-        'form1[0].page1[0].body[0].p1[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
-        'form1[0].page1[0].body[0].p1[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
-        'form1[0].page1[0].body[0].p1[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
-        'form1[0].page1[0].body[0].p1[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
-        'form1[0].page1[0].body[0].p1[0].text[0].name[0]': d.get('applicant_full_name', ''),
-        'form1[0].page1[0].body[0].p1[0].text[0].name[1]': d.get('respondent_full_name', ''),
-        'form1[0].page1[0].body[0].p1[0].Table1[0].Row1[0].Cell1[0]': d.get('nfp_date_valuation', ''),
-        'form1[0].page1[0].body[0].p1[0].Table1[0].Row1[0].Cell2[0]': d.get('nfp_applicant_assets', '0.00'),
+        # Header (p1)
+        'form1[0].page1[0].body[0].p1[0].courtDetails[0].courtFileNumber[0]': fnum,
+        'form1[0].page1[0].body[0].p1[0].courtDetails[0].court[0].courtOfficeAddress[0]': ca,
+        'form1[0].page1[0].body[0].p1[0].applicants[0].appliant[0].textfield[0]': ap,
+        'form1[0].page1[0].body[0].p1[0].applicants[0].appliant[0].textfield[1]': ap_a,
+        'form1[0].page1[0].body[0].p1[0].applicants[0].applicantLawyer[0].textfield[0]': ap_law,
+        'form1[0].page1[0].body[0].p1[0].respondents[0].respondant[0].textfield[0]': re_n,
+        'form1[0].page1[0].body[0].p1[0].respondents[0].respondant[0].textfield[1]': re_a,
+        'form1[0].page1[0].body[0].p1[0].respondents[0].respondantLawyer[0].textfield[0]': re_law,
+        'form1[0].page1[0].body[0].p1[0].text[0].name[0]': completing,
+        'form1[0].page1[0].body[0].p1[0].text[0].name[1]': valuation_date,
+        # Table1 — assets at valuation date
+        **{f'form1[0].page1[0].body[0].p1[0].Table1[0].Row1[{i}].Cell1[0]': r[0]
+           for i, r in enumerate(asset_rows[:13])},
+        **{f'form1[0].page1[0].body[0].p1[0].Table1[0].Row1[{i}].Cell2[0]': r[1]
+           for i, r in enumerate(asset_rows[:13])},
+        'form1[0].page1[0].body[0].p1[0].Table1[0].total[0].Cell2[0]': total_assets_vd,
+        # p2 header
+        'form1[0].page1[0].body[0].p2[0].title[0].courtFileNumber[0]': fnum,
+        # Table2 — debts at valuation date
+        **{f'form1[0].page1[0].body[0].p2[0].Table2[0].Row1[{i}].Cell1[0]': r[0]
+           for i, r in enumerate(debt_rows[:13])},
+        **{f'form1[0].page1[0].body[0].p2[0].Table2[0].Row1[{i}].Cell2[0]': r[1]
+           for i, r in enumerate(debt_rows[:13])},
+        'form1[0].page1[0].body[0].p2[0].Table2[0].to[0].Cell2[0]': total_debts_vd,
+        # Table3 — net at valuation date summary
+        'form1[0].page1[0].body[0].p2[0].table3[0].Table3[0].Row1[0].Cell1[0]': 'Total assets (valuation date)',
+        'form1[0].page1[0].body[0].p2[0].table3[0].Table3[0].Row1[0].Cell2[0]': total_assets_vd,
+        'form1[0].page1[0].body[0].p2[0].table3[0].Table3[0].Row1[1].Cell1[0]': 'Less: Total debts (valuation date)',
+        'form1[0].page1[0].body[0].p2[0].table3[0].Table3[0].Row1[1].Cell2[0]': total_debts_vd,
+        'form1[0].page1[0].body[0].p2[0].table3[0].Table3[0].to[0].Cell2[0]': net_vd,
+        # Table3b — DOM debts
+        **{f'form1[0].page1[0].body[0].p2[0].table3[0].Table3b[0].Row1[{i}].Cell1[0]': r[0]
+           for i, r in enumerate(dom_debt_rows[:6])},
+        **{f'form1[0].page1[0].body[0].p2[0].table3[0].Table3b[0].Row1[{i}].Cell2[0]': r[1]
+           for i, r in enumerate(dom_debt_rows[:6])},
+        'form1[0].page1[0].body[0].p2[0].table3[0].Table3b[0].to[0].Cell2[0]': total_debts_dom,
+        # p3 header
+        'form1[0].page1[0].body[0].p3[0].title[0].courtFileNumber[0]': fnum,
+        # Table4 — DOM assets
+        **{f'form1[0].page1[0].body[0].p3[0].Table4[0].Row1[{i}].Cell1[0]': r[0]
+           for i, r in enumerate(dom_asset_rows[:12])},
+        **{f'form1[0].page1[0].body[0].p3[0].Table4[0].Row1[{i}].Cell2[0]': r[1]
+           for i, r in enumerate(dom_asset_rows[:12])},
+        'form1[0].page1[0].body[0].p3[0].Table4[0].to[0].Cell2[0]': total_assets_dom,
+        # table5 — NFP summary
+        'form1[0].page1[0].body[0].p3[0].table5[0].total4[0].Row1[0].Cell2[0]': net_vd,
+        'form1[0].page1[0].body[0].p3[0].table5[0].total4[0].Row1[1].Cell2[0]': net_dom,
+        'form1[0].page1[0].body[0].p3[0].table5[0].total4[0].Row1[2].Cell2[0]': total_excluded,
+        'form1[0].page1[0].body[0].p3[0].table5[0].total4[0].to[0].Cell2[0]': nfp_result,
+        # table6 — equalization
+        'form1[0].page1[0].body[0].p3[0].table6[0].total4[0].Row1[0].Cell2[0]': nfp_final,
+        'form1[0].page1[0].body[0].p3[0].table6[0].total4[0].Row1[1].Cell2[0]': fmt('equalization_payment_estimate'),
+        'form1[0].page1[0].body[0].p3[0].table6[0].total4[0].to[0].Cell2[0]': fmt('equalization_payment_estimate'),
+        # Signature
+        'form1[0].page1[0].body[0].p3[0].signature[0].Date[0]': sig_date,
     }
-    n = _write_pdf(input_path, output_path, fields)
+    n = _write_pdf_lc(input_path, output_path, fields)
     sys.stderr.write(f'[fill_form13b] Filled {n} fields\n')
     return n
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1583,22 +1805,47 @@ def fill_form25(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form25a(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    ca   = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    fnum = d.get('court_file_number', '')
+    ap   = d.get('applicant_full_name', '')
+    ap_a = d.get('applicant_address', '')
+    ap_law = d.get('applicant_lawyer_name', d.get('applicant_lawyer', ''))
+    ap_law_a = d.get('applicant_lawyer_address', '')
+    re_n = d.get('respondent_full_name', '')
+    re_a = d.get('respondent_address', '')
+    re_law = d.get('respondent_lawyer_name', d.get('respondent_lawyer', ''))
+    re_law_a = d.get('respondent_lawyer_address', '')
     fields = {
-        'form1[0].page1[0].p1[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', ''),
-        'form1[0].page1[0].p1[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].p1[0].courtDetails[0].courtFileNumber[0]': fnum,
+        'form1[0].page1[0].p1[0].courtDetails[0].court[0].courtOfficeAddress[0]': ca,
         'form1[0].page1[0].p1[0].appl[0].#subform[0].judge[0]': d.get('judge_name', ''),
         'form1[0].page1[0].p1[0].appl[0].#subform[0].dateofOrder[0]': d.get('order_date', ''),
-        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
-        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
-        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].applicantLawyer[0].textfield[0]': d.get('applicant_lawyer', ''),
-        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
-        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
-        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondantLawyer[0].textfield[0]': d.get('respondent_lawyer', ''),
+        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].appliant[0].textfield[0]': ap,
+        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].appliant[0].textfield[1]': ap_a,
+        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].applicantLawyer[0].textfield[0]': ap_law,
+        'form1[0].page1[0].p1[0].appl[0].start[0].applicants[0].applicantLawyer[0].textfield[1]': ap_law_a,
+        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondant[0].textfield[0]': re_n,
+        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondant[0].textfield[1]': re_a,
+        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondantLawyer[0].textfield[0]': re_law,
+        'form1[0].page1[0].p1[0].appl[0].start[0].respondents[0].respondantLawyer[0].textfield[1]': re_law_a,
         'form1[0].page1[0].p1[0].line1[0].application[0]': d.get('divorce_order_terms', ''),
+        'form1[0].page1[0].p1[0].onDate[0].textfield[0]': d.get('divorce_effective_date', ''),
+        'form1[0].page1[0].p1[0].line2[0].specify[0]': d.get('waive_waiting_period_reason', ''),
+        'form1[0].page1[0].p1[0].names[0].textfield[0]': d.get('children_names', ''),
+        'form1[0].page1[0].p1[0].orders[0].textfield[0]': d.get('child_support_term', ''),
+        'form1[0].page1[0].p1[0].orders[0].textfield[1]': d.get('spousal_support_term', ''),
+        'form1[0].page1[0].p1[0].orders[0].textfield[2]': d.get('custody_parenting_term', ''),
+        'form1[0].page1[0].p1[0].textfield[0]': d.get('applicant_former_name', ''),
+        # Page 2
+        'form1[0].page1[0].p2[0].#subform[0].courtFileNumber[0]': fnum,
+        'form1[0].page1[0].p2[0].textfield[0]': d.get('court_stamp_text', ''),
+        'form1[0].page1[0].p2[0].dateofSignature[0]': d.get('date_signed', ''),
     }
-    n = _write_pdf(input_path, output_path, fields)
+    n = _write_pdf_lc(input_path, output_path, fields)
     sys.stderr.write(f'[fill_form25a] Filled {n} fields\n')
     return n
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1606,20 +1853,55 @@ def fill_form25a(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form25f(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    ca   = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    fnum = d.get('court_file_number', '')
+    ap   = d.get('applicant_full_name', '')
+    ap_a = d.get('applicant_address', '')
+    ap_law = d.get('applicant_lawyer_name', d.get('applicant_lawyer', ''))
+    ap_law_a = d.get('applicant_lawyer_address', '')
+    re_n = d.get('respondent_full_name', '')
+    re_a = d.get('respondent_address', '')
+    re_law = d.get('respondent_lawyer_name', d.get('respondent_lawyer', ''))
+    re_law_a = d.get('respondent_lawyer_address', '')
+    payor = d.get('payor_full_name', re_n)
+    sig_date = d.get('signature_date', d.get('date_signed', ''))
     fields = {
-        'form1[0].page1[0].courtDetails[0].courtFileNo[0]': d.get('court_file_number', ''),
-        'form1[0].page1[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].courtDetails[0].courtFileNo[0]': fnum,
+        'form1[0].page1[0].courtDetails[0].court[0].courtOfficeAddress[0]': ca,
         'form1[0].page1[0].appl[0].#subform[0].judge[0]': d.get('judge_name', ''),
         'form1[0].page1[0].appl[0].#subform[0].dateofOrder[0]': d.get('order_date', ''),
-        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
-        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
-        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
-        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
-        'form1[0].page1[0].q1[0].legalname[0]': d.get('payor_full_name', d.get('respondent_full_name', '')),
+        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[0]': ap,
+        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[1]': ap_a,
+        'form1[0].page1[0].appl[0].start[0].applicants[0].applicantLawyer[0].textfield[0]': ap_law,
+        'form1[0].page1[0].appl[0].start[0].applicants[0].applicantLawyer[0].textfield[1]': ap_law_a,
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[0]': re_n,
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[1]': re_a,
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondantLawyer[0].textfield[0]': re_law,
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondantLawyer[0].textfield[1]': re_law_a,
+        # Support order body fields
+        'form1[0].page1[0].q1[0].legalname[0]': payor,
+        'form1[0].page1[0].q1[0].born[0]': d.get('payor_dob', d.get('respondent_dob', '')),
+        'form1[0].page1[0].q1[0].clauses[0]': d.get('support_order_clauses', ''),
+        'form1[0].page1[0].q2[0].order[0]': d.get('support_amount_monthly', ''),
+        'form1[0].page1[0].q3[0].order[0]': d.get('support_recipient_name', ap),
+        'form1[0].page1[0].#subform[6].heard[0]': d.get('court_date', ''),
+        'form1[0].page1[0].#subform[6].heard[1]': d.get('court_location', ''),
+        'form1[0].page1[0].#subform[6].legalname[0]': d.get('represented_by', ''),
+        'form1[0].page1[0].#subform[7].the[0]': d.get('service_on', ''),
+        'form1[0].page1[0].#subform[7].notice[0]': d.get('service_method', ''),
+        'form1[0].page1[0].line1[0].documents[0]': d.get('attached_doc_1', ''),
+        'form1[0].page1[0].line2[0].documents[0]': d.get('attached_doc_2', ''),
+        'form1[0].page1[0].line3[0].documents[0]': d.get('attached_doc_3', ''),
+        # Page 2 file number repeat
+        'form1[0].Master[0].Page2[0].courtFileNo[0]': fnum,
+        # Signature
+        'form1[0].signature[0].Date[0]': sig_date,
     }
-    n = _write_pdf(input_path, output_path, fields)
+    n = _write_pdf_lc(input_path, output_path, fields)
     sys.stderr.write(f'[fill_form25f] Filled {n} fields\n')
     return n
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1627,22 +1909,58 @@ def fill_form25f(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form25g(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    ca   = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    fnum = d.get('court_file_number', '')
+    ap   = d.get('applicant_full_name', '')
+    ap_a = d.get('applicant_address', '')
+    ap_law = d.get('applicant_lawyer_name', d.get('applicant_lawyer', ''))
+    ap_law_a = d.get('applicant_lawyer_address', '')
+    re_n = d.get('respondent_full_name', '')
+    re_a = d.get('respondent_address', '')
+    re_law = d.get('respondent_lawyer_name', d.get('respondent_lawyer', ''))
+    re_law_a = d.get('respondent_lawyer_address', '')
+    sig_date = d.get('signature_date', d.get('date_signed', ''))
     fields = {
-        'form1[0].page1[0].courtDetails[0].courtFileNo[0]': d.get('court_file_number', ''),
-        'form1[0].page1[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].courtDetails[0].courtFileNo[0]': fnum,
+        'form1[0].page1[0].courtDetails[0].court[0].courtOfficeAddress[0]': ca,
         'form1[0].page1[0].appl[0].#subform[0].judge[0]': d.get('judge_name', ''),
         'form1[0].page1[0].appl[0].#subform[0].dateofOrder[0]': d.get('order_date', ''),
-        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[0]': d.get('applicant_full_name', ''),
-        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[1]': d.get('applicant_address', ''),
-        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[0]': d.get('respondent_full_name', ''),
-        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[1]': d.get('respondent_address', ''),
-        'form1[0].page1[0].q1[0].legalname[0]': d.get('respondent_full_name', ''),
+        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[0]': ap,
+        'form1[0].page1[0].appl[0].start[0].applicants[0].appliant[0].textfield[1]': ap_a,
+        'form1[0].page1[0].appl[0].start[0].applicants[0].applicantLawyer[0].textfield[0]': ap_law,
+        'form1[0].page1[0].appl[0].start[0].applicants[0].applicantLawyer[0].textfield[1]': ap_law_a,
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[0]': re_n,
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondant[0].textfield[1]': re_a,
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondantLawyer[0].textfield[0]': re_law,
+        'form1[0].page1[0].appl[0].start[0].respondents[0].respondantLawyer[0].textfield[1]': re_law_a,
+        # Restraining order body
+        'form1[0].page1[0].q1[0].legalname[0]': re_n,
         'form1[0].page1[0].q1[0].born[0]': d.get('respondent_dob', ''),
         'form1[0].page1[0].q1[0].clauses[0]': d.get('restraining_order_terms', ''),
+        'form1[0].page1[0].q2[0].order[0]': d.get('restraining_address', ''),
+        'form1[0].page1[0].q3[0].order[0]': d.get('exclusion_zone', ''),
+        'form1[0].page1[0].q4[0].order[0]': d.get('review_date', ''),
+        'form1[0].page1[0].q5[0].dated[0]': d.get('affidavit_date', ''),
+        'form1[0].page1[0].q5[0].affidavit[0]': d.get('affidavit_person', ap),
+        'form1[0].page1[0].q5[0].sworn[0]': d.get('affidavit_sworn_before', ''),
+        'form1[0].page1[0].q5[0].legalName[0]': d.get('affidavit_legalname', ''),
+        'form1[0].page1[0].q5[0].service[0]': d.get('affidavit_service_method', ''),
+        'form1[0].page1[0].#subform[8].heard[0]': d.get('court_date', ''),
+        'form1[0].page1[0].#subform[8].restrain[0]': re_n,
+        'form1[0].page1[0].#subform[9].the[0]': d.get('service_on', ''),
+        'form1[0].page1[0].line1[0].documents[0]': d.get('attached_doc_1', ''),
+        'form1[0].page1[0].line2[0].documents[0]': d.get('attached_doc_2', ''),
+        'form1[0].page1[0].line3[0].documents[0]': d.get('attached_doc_3', ''),
+        'form1[0].page1[0].#subform[14].date[0]': d.get('order_effective_date', ''),
+        'form1[0].page1[0].#subform[14].dated[0]': d.get('order_expiry_date', ''),
+        'form1[0].Master[0].Page2[0].courtFileNo[0]': fnum,
+        'form1[0].page1[0].signature[0].Date[0]': sig_date,
     }
-    n = _write_pdf(input_path, output_path, fields)
+    n = _write_pdf_lc(input_path, output_path, fields)
     sys.stderr.write(f'[fill_form25g] Filled {n} fields\n')
     return n
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1707,22 +2025,41 @@ def fill_form36(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form36b(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    ca   = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    fnum = d.get('court_file_number', '')
+    ap   = d.get('applicant_full_name', '')
+    ap_a = d.get('applicant_address', '')
+    ap_law = d.get('applicant_lawyer_name', d.get('applicant_lawyer', ''))
+    re_n = d.get('respondent_full_name', '')
+    re_a = d.get('respondent_address', '')
+    re_law = d.get('respondent_lawyer_name', d.get('respondent_lawyer', ''))
+    spouses = f'{ap} and {re_n}' if ap and re_n else (ap or re_n)
     fields = {
-        'form1[0].page1[0].header[0].middle[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
-        'form1[0].page1[0].header[0].rigth[0].courtFileNumber[0]': d.get('court_file_number', ''),
-        'form1[0].page1[0].body[0].recipient[0].persons[0].person1[0]': d.get('applicant_full_name', ''),
-        'form1[0].page1[0].body[0].recipient[0].persons[0].person2[0]': d.get('applicant_address', ''),
-        'form1[0].page1[0].body[0].recipient[0].lawyers[0].laywer1[0]': d.get('applicant_lawyer', ''),
-        'form1[0].page1[0].body[0].payor[0].persons[0].person1[0]': d.get('respondent_full_name', ''),
-        'form1[0].page1[0].body[0].payor[0].persons[0].person2[0]': d.get('respondent_address', ''),
-        'form1[0].page1[0].body[0].payor[0].lawyers[0].laywer1[0]': d.get('respondent_lawyer', ''),
-        'form1[0].page1[0].body[0].#subform[2].spouses[0]': f"{d.get('applicant_full_name','')} and {d.get('respondent_full_name','')}",
-        'form1[0].page1[0].body[0].#subform[3].place[0]': d.get('divorce_granted_location', ''),
-        'form1[0].page1[0].body[0].#subform[4].place[1]': d.get('divorce_effective_date', ''),
+        'form1[0].page1[0].header[0].middle[0].courtOfficeAddress[0]': ca,
+        'form1[0].page1[0].header[0].rigth[0].courtFileNumber[0]': fnum,
+        # Recipient (applicant) side
+        'form1[0].page1[0].body[0].recipient[0].persons[0].person1[0]': ap,
+        'form1[0].page1[0].body[0].recipient[0].persons[0].person2[0]': ap_a,
+        'form1[0].page1[0].body[0].recipient[0].lawyers[0].laywer1[0]': ap_law,
+        'form1[0].page1[0].body[0].recipient[0].lawyers[0].laywer2[0]': d.get('applicant_lawyer_address', ''),
+        # Payor (respondent) side
+        'form1[0].page1[0].body[0].payor[0].persons[0].person1[0]': re_n,
+        'form1[0].page1[0].body[0].payor[0].persons[0].person2[0]': re_a,
+        'form1[0].page1[0].body[0].payor[0].lawyers[0].laywer1[0]': re_law,
+        'form1[0].page1[0].body[0].payor[0].lawyers[0].laywer2[0]': d.get('respondent_lawyer_address', ''),
+        # Body fields
+        'form1[0].page1[0].body[0].#subform[2].spouses[0]': spouses,
+        'form1[0].page1[0].body[0].#subform[3].place[0]': d.get('marriage_place', ''),
+        'form1[0].page1[0].body[0].#subform[4].place[1]': d.get('divorce_granted_location', ''),
+        'form1[0].page1[0].body[0].#subform[5].date[0]': d.get('divorce_order_date', d.get('divorce_order_date_confirm', '')),
+        'form1[0].page1[0].body[0].#subform[6].date[1]': d.get('divorce_effective_date', ''),
+        'form1[0].page1[0].body[0].#subform[7].dateSignature[0]': d.get('date_signed', ''),
     }
-    n = _write_pdf(input_path, output_path, fields)
+    n = _write_pdf_lc(input_path, output_path, fields)
     sys.stderr.write(f'[fill_form36b] Filled {n} fields\n')
     return n
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 4:
