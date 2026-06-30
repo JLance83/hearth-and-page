@@ -316,6 +316,217 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
   };
 })();
 
+// --- Export Panel (called by FormEngine when user hits "Review & Export") ----
+// window.__openExportPanel(caseId, formId) -- shows a modal with Download PDF
+// button for paid users, or an upsell prompt for free users.
+(function() {
+  var RAILWAY_EP = 'https://api-production-2334.up.railway.app';
+
+  // Map FormEngine formId to backend PDF file key (stored in /pdfs/)
+  // ON-F8 => form8, ON-F13_1 => form13_1, ON-F13B => form13b, etc.
+  function formIdToPdfKey(formId) {
+    if (!formId) return 'form8';
+    var m = formId.match(/^ON-F(\d+[A-Z_0-9]*)$/i);
+    if (!m) return formId.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    return 'form' + m[1].toLowerCase();
+  }
+
+  function formIdToLabel(formId) {
+    if (!formId) return 'Court Form';
+    var m = formId.match(/^ON-F(\d+[A-Z_0-9]*)$/i);
+    if (m) return 'Form ' + m[1].replace('_', '.');
+    return formId;
+  }
+
+  window.__openExportPanel = function(caseId, formId) {
+    if (document.getElementById('hp-export-panel')) return;
+
+    var pdfKey    = formIdToPdfKey(formId);
+    var label     = formIdToLabel(formId);
+    var isPaid    = false;
+    var userEmail = null;
+
+    // Store for email helper
+    window.__hp_currentFormKey   = pdfKey;
+    window.__hp_currentFormLabel = label;
+    window.__hp_currentCaseId    = caseId || '1';
+
+    // Determine paid status
+    if (window.__hp_sub_status === 'active' && window.__hp_plan !== 'free') {
+      isPaid = true;
+    } else if (window.__hp_currentUser) {
+      var u = window.__hp_currentUser;
+      isPaid    = (u.subscriptionStatus === 'active') && u.plan !== 'free';
+      userEmail = u.email || null;
+    }
+
+    var TEAL_D = '#1B4150';
+    var BURG   = '#7B2D3E';
+
+    var overlay = document.createElement('div');
+    overlay.id  = 'hp-export-panel';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+    var paidButtons = isPaid ? [
+      '<button id="hp-ep-download" data-testid="button-review-download" style="background:' + TEAL_D + ';color:#fff;border:none;border-radius:10px;padding:14px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">',
+        'Download Official Court PDF',
+      '</button>',
+      '<button id="hp-ep-email" data-testid="button-email-pdf" style="background:transparent;color:' + TEAL_D + ';border:1.5px solid ' + TEAL_D + ';border-radius:10px;padding:12px 20px;font-size:15px;font-weight:500;cursor:pointer;width:100%;">Email me this PDF</button>'
+    ].join('') : [
+      '<p style="color:#555;font-size:14px;line-height:1.5;margin:0 0 16px;">You\'ve completed <strong>' + label + '</strong> \u2014 great work!<br>Subscribe to download your court-ready PDF and unlock all 35 Ontario family court forms.</p>',
+      '<button id="hp-ep-std" style="background:' + TEAL_D + ';color:#fff;border:none;border-radius:10px;padding:14px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">Standard \u2014 $9.99/mo CAD</button>',
+      '<button id="hp-ep-plus" style="background:' + BURG + ';color:#fff;border:none;border-radius:10px;padding:14px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;margin-top:8px;">Plus \u2014 $19.99/mo CAD</button>'
+    ].join('');
+
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:32px 28px;max-width:460px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.25);">' +
+        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">' +
+          '<div style="width:44px;height:44px;border-radius:10px;background:' + TEAL_D + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+            '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+          '</div>' +
+          '<div>' +
+            '<div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.08em;">Hearth &amp; Page</div>' +
+            '<div style="font-size:18px;font-weight:700;color:' + TEAL_D + ';">' + label + ' Complete</div>' +
+          '</div>' +
+        '</div>' +
+        '<div id="hp-ep-status" style="display:none;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;"></div>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;">' +
+          paidButtons +
+          '<button id="hp-ep-close" style="background:transparent;color:#888;border:1px solid #e5e7eb;border-radius:10px;padding:11px 20px;font-size:14px;cursor:pointer;width:100%;margin-top:4px;">Close</button>' +
+        '</div>' +
+        '<p style="margin:14px 0 0;font-size:11px;color:#bbb;text-align:center;">Generated by Hearth &amp; Page &bull; hearthandpage.ca</p>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('hp-ep-close').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    if (!isPaid) {
+      document.getElementById('hp-ep-std').addEventListener('click', function() {
+        overlay.remove();
+        fetch(RAILWAY_EP + '/api/stripe/create-checkout', {
+          method: 'POST',
+          headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+          body: JSON.stringify({ priceId: 'price_1Tduf0DyokC7Tv7bDRAZBk57', successUrl: window.location.href + '?checkout=success', cancelUrl: window.location.href })
+        }).then(function(r){ return r.json(); }).then(function(d){ if (d && d.url) window.location.href = d.url; }).catch(function(){});
+      });
+      document.getElementById('hp-ep-plus').addEventListener('click', function() {
+        overlay.remove();
+        fetch(RAILWAY_EP + '/api/stripe/create-checkout', {
+          method: 'POST',
+          headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
+          body: JSON.stringify({ priceId: 'price_1TduyXDyokC7Tv7bKKoeeh1v', successUrl: window.location.href + '?checkout=success', cancelUrl: window.location.href })
+        }).then(function(r){ return r.json(); }).then(function(d){ if (d && d.url) window.location.href = d.url; }).catch(function(){});
+      });
+      return;
+    }
+
+    // ---- Paid user: wire up Download button ----
+    var dlBtn    = document.getElementById('hp-ep-download');
+    var statusEl = document.getElementById('hp-ep-status');
+
+    function showStatus(msg, type) {
+      statusEl.style.display    = 'block';
+      statusEl.style.background = type === 'error' ? '#fef2f2' : '#f0fdf4';
+      statusEl.style.border     = '1px solid ' + (type === 'error' ? '#fecaca' : '#bbf7d0');
+      statusEl.style.color      = type === 'error' ? '#dc2626' : '#15803d';
+      statusEl.textContent      = msg;
+    }
+
+    dlBtn.addEventListener('click', async function() {
+      if (dlBtn.disabled) return;
+      dlBtn.disabled  = true;
+      dlBtn.textContent = 'Generating PDF\u2026';
+      statusEl.style.display = 'none';
+
+      var resolvedCaseId = caseId;
+      if (!resolvedCaseId) {
+        var hm = window.location.hash.match(/case[s]?\/([0-9]+)/);
+        resolvedCaseId = hm ? hm[1] : '1';
+      }
+
+      try {
+        var resp = await fetch(RAILWAY_EP + '/api/cases/' + resolvedCaseId + '/official-pdf/' + pdfKey, {
+          method: 'POST',
+          headers: __authHdr()
+        });
+
+        if (resp.status === 403) {
+          overlay.remove();
+          if (typeof showUpgradeModal === 'function') showUpgradeModal('pdf');
+          return;
+        }
+
+        if (!resp.ok) {
+          showStatus('Could not generate PDF. Please try again.', 'error');
+          dlBtn.disabled    = false;
+          dlBtn.textContent = 'Download Official Court PDF';
+          return;
+        }
+
+        var blob = await resp.blob();
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'HearthAndPage-' + label.replace(/\s+/g, '-') + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 3000);
+
+        showStatus('\u2713 Your PDF has been downloaded!', 'success');
+        dlBtn.textContent = '\u2713 Downloaded';
+        setTimeout(function() {
+          dlBtn.disabled    = false;
+          dlBtn.textContent = 'Download Official Court PDF';
+        }, 4000);
+
+      } catch(err) {
+        console.warn('[hp-export] Download error:', err);
+        showStatus('Network error. Please try again.', 'error');
+        dlBtn.disabled    = false;
+        dlBtn.textContent = 'Download Official Court PDF';
+      }
+    });
+
+    // ---- Email button ----
+    var emailBtn2 = document.getElementById('hp-ep-email');
+    if (emailBtn2) {
+      emailBtn2.addEventListener('click', async function() {
+        if (emailBtn2.disabled) return;
+        emailBtn2.disabled    = true;
+        emailBtn2.textContent = 'Sending\u2026';
+        var resolvedCaseId2 = caseId;
+        if (!resolvedCaseId2) {
+          var hm2 = window.location.hash.match(/case[s]?\/([0-9]+)/);
+          resolvedCaseId2 = hm2 ? hm2[1] : '1';
+        }
+        window.__hp_currentCaseId = resolvedCaseId2;
+        if (!userEmail && window.__hp_currentUser) userEmail = window.__hp_currentUser.email;
+        if (!userEmail) {
+          var me = await fetch(RAILWAY_EP + '/api/auth/me', { headers: __authHdr() })
+            .then(function(r){ return r.json(); }).catch(function(){ return null; });
+          userEmail = (me && (me.user && me.user.email || me.email)) || null;
+        }
+        if (!userEmail) {
+          emailBtn2.textContent = 'No email on account';
+          emailBtn2.disabled    = false;
+          return;
+        }
+        var ok = await window.__emailPDF_real(null, pdfKey + '.pdf', userEmail, label);
+        if (ok) {
+          emailBtn2.textContent = '\u2713 Sent to ' + userEmail;
+          setTimeout(function() { emailBtn2.textContent = 'Email me this PDF'; emailBtn2.disabled = false; }, 5000);
+        } else {
+          emailBtn2.textContent = 'Failed \u2014 try again';
+          emailBtn2.disabled    = false;
+        }
+      });
+    }
+  };
+})();
+
+
 // ─── Phone number auto-format ─────────────────────────────────────────────────
 // Formats as (416) 555-0123 while user types
 (function() {
