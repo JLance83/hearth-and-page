@@ -1081,6 +1081,81 @@ app.post('/api/__admin/ensure-testuser', async (req, res) => {
   res.json({ action: 'created', id: newUser.id });
 });
 
+
+
+// ── PDF Review & Patch — field list endpoint ──────────────────────────────
+// GET /api/cases/:caseId/pdf-fields/:formType
+// Returns [{fieldId, label, currentValue, isBlank}] for the review screen
+// v2: uses row.fieldKey (camelCase from dbAll/toCamel) — build 1782819450
+app.get('/api/cases/:caseId/pdf-fields/:formType', requireAuth, requireSubscription, async (req, res) => {
+  try {
+    const c = await dbGet('cases', { id: `eq.${req.params.caseId}`, user_id: `eq.${req.user.id}` });
+    if (!c) return res.status(404).json({ message: 'Case not found' });
+
+    const formType = req.params.formType; // e.g. 'form13'
+    // Load schema from disk
+    const schemaPath = path.join(__dirname, '..', 'form-engine', 'ON', `${formType}-schema.json`);
+    let schemaFields = [];
+    if (fs.existsSync(schemaPath)) {
+      try {
+        const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+        for (const part of (schema.parts || [])) {
+          for (const field of (part.fields || [])) {
+            // Include all fillable fields (text, currency, numbers, dates, calculated)
+            if (field.type && !['checkbox','file','doc','header','separator','label'].includes(field.type)) {
+              schemaFields.push({ fieldId: field.fieldId, label: field.label || field.fieldId, partTitle: part.title || '' });
+            }
+          }
+        }
+      } catch(e) { /* schema parse error — proceed with empty */ }
+    }
+
+    // Fetch current saved values (dbAll returns camelCase rows via toCamel)
+    const saved = await dbAll('form_data', { case_id: `eq.${c.id}` });
+    const valueMap = {};
+    for (const row of saved) { valueMap[row.fieldKey] = row.fieldValue; }
+
+    // Build response
+    const fields = schemaFields.map(f => ({
+      fieldId: f.fieldId,
+      label: f.label,
+      partTitle: f.partTitle,
+      currentValue: valueMap[f.fieldId] || '',
+      isBlank: !valueMap[f.fieldId] || String(valueMap[f.fieldId]).trim() === '',
+    }));
+
+    // Sort: blanks first, then filled
+    fields.sort((a, b) => (b.isBlank ? 1 : 0) - (a.isBlank ? 1 : 0));
+
+    res.json({ fields, formType, caseId: c.id });
+  } catch(e) { res.status(500).json({ message: 'Failed to load field list' }); }
+});
+
+// PATCH /api/cases/:caseId/pdf-fields/:formType
+// Accepts [{fieldId, value}] — saves each back into form_data, then returns updated blank count
+app.patch('/api/cases/:caseId/pdf-fields/:formType', requireAuth, requireSubscription, async (req, res) => {
+  try {
+    const c = await dbGet('cases', { id: `eq.${req.params.caseId}`, user_id: `eq.${req.user.id}` });
+    if (!c) return res.status(404).json({ message: 'Case not found' });
+
+    const updates = Array.isArray(req.body) ? req.body : [];
+    for (const { fieldId, value, section } of updates) {
+      if (!fieldId) continue;
+      const val = String(value ?? '');
+      await dbUpsert('form_data', {
+        caseId: c.id,
+        section: section || '__patch__',
+        fieldKey: fieldId,
+        fieldValue: val,
+        updatedAt: Date.now(),
+      });
+    }
+    await dbUpdate('cases', { id: `eq.${c.id}` }, { updatedAt: Date.now() });
+    res.json({ ok: true, saved: updates.length });
+  } catch(e) { res.status(500).json({ message: 'Failed to save patches' }); }
+});
+
+
 // ──────────────────────────────────────────────
 // Static frontend
 // ──────────────────────────────────────────────
@@ -1116,5 +1191,4 @@ async function start() {
     console.log(`[HP] DB: Supabase @ ${SUPABASE_URL}`);
   });
 }
-
 start().catch(console.error);

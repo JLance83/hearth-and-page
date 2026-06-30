@@ -436,53 +436,92 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
 
     dlBtn.addEventListener('click', async function() {
       if (dlBtn.disabled) return;
-      dlBtn.disabled  = true;
-      dlBtn.textContent = 'Generating PDF\u2026';
-      statusEl.style.display = 'none';
 
+      // ---- Route through Review & Patch screen ----
       var resolvedCaseId = caseId;
       if (!resolvedCaseId) {
         var hm = window.location.hash.match(/case[s]?\/([0-9]+)/);
         resolvedCaseId = hm ? hm[1] : '1';
       }
 
+      // Close the export overlay so Review & Patch can take the screen
+      if (overlay && overlay.parentNode) overlay.remove();
+
+      if (typeof window.__hp_showReviewPatch === 'function') {
+        window.__hp_showReviewPatch({
+          caseId:    resolvedCaseId,
+          formType:  pdfKey,
+          pdfKey:    pdfKey,
+          formLabel: label,
+          onDownload: async function(patches) {
+            // After user saves patches, do the actual download
+            try {
+              var resp = await fetch(RAILWAY_EP + '/api/cases/' + resolvedCaseId + '/official-pdf/' + pdfKey, {
+                method: 'POST',
+                headers: __authHdr()
+              });
+              if (resp.status === 403) {
+                if (typeof showUpgradeModal === 'function') showUpgradeModal('pdf');
+                return;
+              }
+              if (!resp.ok) {
+                alert('Could not generate PDF. Please try again.');
+                return;
+              }
+              var blob = await resp.blob();
+              var url  = URL.createObjectURL(blob);
+              var a    = document.createElement('a');
+              a.href     = url;
+              a.download = 'HearthAndPage-' + label.replace(/\s+/g, '-') + '.pdf';
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 3000);
+            } catch(err) {
+              console.warn('[hp-export] Download error:', err);
+              alert('Network error. Please try again.');
+            }
+          }
+        });
+        return;
+      }
+
+      // ---- Fallback: direct download if Review & Patch not available ----
+      dlBtn.disabled    = true;
+      dlBtn.textContent = 'Generating PDF\u2026';
+      statusEl.style.display = 'none';
       try {
-        var resp = await fetch(RAILWAY_EP + '/api/cases/' + resolvedCaseId + '/official-pdf/' + pdfKey, {
+        var resp2 = await fetch(RAILWAY_EP + '/api/cases/' + resolvedCaseId + '/official-pdf/' + pdfKey, {
           method: 'POST',
           headers: __authHdr()
         });
-
-        if (resp.status === 403) {
-          overlay.remove();
+        if (resp2.status === 403) {
           if (typeof showUpgradeModal === 'function') showUpgradeModal('pdf');
+          dlBtn.disabled    = false;
+          dlBtn.textContent = 'Download Official Court PDF';
           return;
         }
-
-        if (!resp.ok) {
+        if (!resp2.ok) {
           showStatus('Could not generate PDF. Please try again.', 'error');
           dlBtn.disabled    = false;
           dlBtn.textContent = 'Download Official Court PDF';
           return;
         }
-
-        var blob = await resp.blob();
-        var url  = URL.createObjectURL(blob);
-        var a    = document.createElement('a');
-        a.href     = url;
-        a.download = 'HearthAndPage-' + label.replace(/\s+/g, '-') + '.pdf';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 3000);
-
+        var blob2 = await resp2.blob();
+        var url2  = URL.createObjectURL(blob2);
+        var a2    = document.createElement('a');
+        a2.href     = url2;
+        a2.download = 'HearthAndPage-' + label.replace(/\s+/g, '-') + '.pdf';
+        document.body.appendChild(a2);
+        a2.click();
+        setTimeout(function() { URL.revokeObjectURL(url2); a2.remove(); }, 3000);
         showStatus('\u2713 Your PDF has been downloaded!', 'success');
         dlBtn.textContent = '\u2713 Downloaded';
         setTimeout(function() {
           dlBtn.disabled    = false;
           dlBtn.textContent = 'Download Official Court PDF';
         }, 4000);
-
-      } catch(err) {
-        console.warn('[hp-export] Download error:', err);
+      } catch(err2) {
+        console.warn('[hp-export] Download error:', err2);
         showStatus('Network error. Please try again.', 'error');
         dlBtn.disabled    = false;
         dlBtn.textContent = 'Download Official Court PDF';
@@ -2988,3 +3027,390 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
   })();
 })();
 
+
+// ============================================================================
+// PDF REVIEW & PATCH SCREEN
+// ============================================================================
+(function() {
+  'use strict';
+
+  var RAILWAY_RP  = (typeof RAILWAY_EP !== 'undefined' ? RAILWAY_EP : 'https://api-production-2334.up.railway.app');
+  var TEAL_RP     = '#1B4150';
+  var AMBER_RP    = '#f59e0b';
+  var GREEN_RP    = '#16a34a';
+  var SURFACE_RP  = '#f0f4f7';
+  var BORDER_RP   = '#d1dce3';
+
+  function authHdr() {
+    var tok = localStorage.getItem('hp_token') || sessionStorage.getItem('hp_token') || '';
+    if (!tok) {
+      // try window.__hp_token
+      tok = (typeof window.__hp_token !== 'undefined') ? window.__hp_token : '';
+    }
+    return tok ? { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' }
+               : { 'Content-Type': 'application/json' };
+  }
+
+  // ── Main entry point ──────────────────────────────────────────────────────
+  window.__hp_showReviewPatch = async function(opts) {
+    // opts: { caseId, formType, pdfKey, formLabel, onDownload }
+    var caseId    = opts.caseId;
+    var formType  = opts.formType;   // e.g. 'form13'
+    var pdfKey    = opts.pdfKey || formType;
+    var formLabel = opts.formLabel || 'Court Form';
+    var onDownload = opts.onDownload; // callback once PDF is ready
+
+    // ── Remove any existing panel ──
+    var existing = document.getElementById('hp-review-patch');
+    if (existing) existing.remove();
+
+    // ── Fetch field list ──
+    var fields = [];
+    try {
+      var resp = await fetch(RAILWAY_RP + '/api/cases/' + caseId + '/pdf-fields/' + formType, {
+        headers: authHdr()
+      });
+      if (resp.ok) {
+        var data = await resp.json();
+        fields = data.fields || [];
+      }
+    } catch(e) { /* network error — show empty list */ }
+
+    var blanks = fields.filter(function(f) { return f.isBlank; });
+    var filled = fields.filter(function(f) { return !f.isBlank; });
+
+    // ── Build panel HTML ──
+    var panel = document.createElement('div');
+    panel.id = 'hp-review-patch';
+    panel.style.cssText = [
+      'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.55);',
+      'display:flex;align-items:center;justify-content:center;',
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;'
+    ].join('');
+
+    var card = document.createElement('div');
+    card.style.cssText = [
+      'background:#fff;border-radius:16px;width:min(680px,96vw);max-height:90vh;',
+      'display:flex;flex-direction:column;overflow:hidden;',
+      'box-shadow:0 24px 64px rgba(0,0,0,0.22);'
+    ].join('');
+
+    // Header
+    var header = document.createElement('div');
+    header.style.cssText = 'background:' + TEAL_RP + ';padding:20px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;';
+    header.innerHTML = [
+      '<div>',
+        '<div style="color:#fff;font-size:17px;font-weight:700;margin-bottom:2px;">Review Your Form</div>',
+        '<div style="color:#b0ccd8;font-size:13px;">' + formLabel + '</div>',
+      '</div>',
+      '<div style="display:flex;gap:10px;align-items:center;">',
+        '<button id="hp-rp-preview" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;">',
+          '&#128065; Preview PDF',
+        '</button>',
+        '<button id="hp-rp-close" style="background:transparent;border:none;color:#b0ccd8;font-size:22px;cursor:pointer;line-height:1;padding:4px 8px;">&times;</button>',
+      '</div>',
+    ].join('');
+    card.appendChild(header);
+
+    // Summary bar
+    var summary = document.createElement('div');
+    summary.style.cssText = 'padding:14px 24px;background:' + SURFACE_RP + ';border-bottom:1px solid ' + BORDER_RP + ';flex-shrink:0;';
+    var blankCount = blanks.length;
+    summary.innerHTML = blankCount > 0
+      ? '<span style="color:' + AMBER_RP + ';font-weight:700;font-size:14px;">&#9888; ' + blankCount + ' field' + (blankCount > 1 ? 's' : '') + ' need' + (blankCount === 1 ? 's' : '') + ' your attention</span>'
+        + '<span style="color:#6a8090;font-size:13px;margin-left:12px;">Fill them in below before downloading</span>'
+      : '<span style="color:' + GREEN_RP + ';font-weight:700;font-size:14px;">&#10003; All fields are filled</span>'
+        + '<span style="color:#6a8090;font-size:13px;margin-left:12px;">Review below and download when ready</span>';
+    card.appendChild(summary);
+
+    // Scrollable body
+    var body = document.createElement('div');
+    body.style.cssText = 'flex:1;overflow-y:auto;padding:20px 24px;';
+
+    // Patch tracking
+    var patches = {}; // fieldId → new value
+
+    function makeFieldRow(f, isBlank) {
+      var row = document.createElement('div');
+      row.style.cssText = [
+        'padding:12px 14px;border-radius:10px;margin-bottom:8px;',
+        'border:1px solid ' + (isBlank ? AMBER_RP : BORDER_RP) + ';',
+        'background:' + (isBlank ? '#fffbeb' : '#fff') + ';',
+      ].join('');
+
+      var labelEl = document.createElement('div');
+      labelEl.style.cssText = 'font-size:12px;font-weight:600;color:' + (isBlank ? '#92400e' : '#4a6070') + ';margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em;';
+      labelEl.textContent = f.label;
+      row.appendChild(labelEl);
+
+      if (f.partTitle) {
+        var partEl = document.createElement('div');
+        partEl.style.cssText = 'font-size:11px;color:#8a9baa;margin-bottom:6px;';
+        partEl.textContent = f.partTitle;
+        row.appendChild(partEl);
+      }
+
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = f.currentValue || '';
+      input.placeholder = isBlank ? 'Enter value\u2026' : '';
+      input.dataset.fieldId = f.fieldId;
+      input.style.cssText = [
+        'width:100%;box-sizing:border-box;padding:8px 10px;',
+        'border:1px solid ' + (isBlank ? AMBER_RP : BORDER_RP) + ';',
+        'border-radius:6px;font-size:14px;color:#1a2b35;',
+        'background:' + (isBlank ? '#fff' : SURFACE_RP) + ';',
+        'outline:none;transition:border-color 0.2s;',
+      ].join('');
+
+      input.addEventListener('focus', function() { this.style.borderColor = TEAL_RP; });
+      input.addEventListener('blur',  function() { this.style.borderColor = isBlank ? AMBER_RP : BORDER_RP; });
+      input.addEventListener('input', function() {
+        patches[f.fieldId] = this.value;
+        // If blank field now has value, update row style
+        if (this.value.trim()) {
+          row.style.borderColor = BORDER_RP;
+          row.style.background = '#fff';
+          labelEl.style.color = '#4a6070';
+          this.style.borderColor = BORDER_RP;
+          this.style.background = SURFACE_RP;
+        }
+        // Update blank count in summary
+        updateSummary();
+      });
+
+      row.appendChild(input);
+      return row;
+    }
+
+    function updateSummary() {
+      var stillBlank = 0;
+      body.querySelectorAll('input[data-field-id]').forEach(function(inp) {
+        var fid = inp.dataset.fieldId;
+        var originallyBlank = blanks.some(function(b) { return b.fieldId === fid; });
+        if (originallyBlank) {
+          var val = patches[fid] !== undefined ? patches[fid] : '';
+          if (!val.trim()) stillBlank++;
+        }
+      });
+      summary.innerHTML = stillBlank > 0
+        ? '<span style="color:' + AMBER_RP + ';font-weight:700;font-size:14px;">&#9888; ' + stillBlank + ' field' + (stillBlank > 1 ? 's' : '') + ' still need' + (stillBlank === 1 ? 's' : '') + ' attention</span>'
+          + '<span style="color:#6a8090;font-size:13px;margin-left:12px;">Fill them in below before downloading</span>'
+        : '<span style="color:' + GREEN_RP + ';font-weight:700;font-size:14px;">&#10003; All fields are filled</span>'
+          + '<span style="color:#6a8090;font-size:13px;margin-left:12px;">Review below and download when ready</span>';
+    }
+
+    // Blanks section
+    if (blanks.length > 0) {
+      var blankHeader = document.createElement('div');
+      blankHeader.style.cssText = 'font-size:13px;font-weight:700;color:#92400e;margin-bottom:10px;display:flex;align-items:center;gap:6px;';
+      blankHeader.innerHTML = '<span style="background:' + AMBER_RP + ';color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">' + blanks.length + '</span> Needs Attention';
+      body.appendChild(blankHeader);
+      blanks.forEach(function(f) { body.appendChild(makeFieldRow(f, true)); });
+    }
+
+    // Filled section
+    if (filled.length > 0) {
+      var filledHeader = document.createElement('div');
+      filledHeader.style.cssText = 'font-size:13px;font-weight:700;color:#4a6070;margin:' + (blanks.length > 0 ? '20px' : '0') + ' 0 10px;display:flex;align-items:center;gap:6px;';
+      filledHeader.innerHTML = '<span style="background:' + GREEN_RP + ';color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;">&#10003;</span> Filled (' + filled.length + ')';
+      body.appendChild(filledHeader);
+      filled.forEach(function(f) { body.appendChild(makeFieldRow(f, false)); });
+    }
+
+    if (fields.length === 0) {
+      var emptyMsg = document.createElement('div');
+      emptyMsg.style.cssText = 'text-align:center;color:#6a8090;padding:40px 20px;font-size:14px;';
+      emptyMsg.textContent = 'All fields are ready. Click "Save & Download PDF" to generate your form.';
+      body.appendChild(emptyMsg);
+    }
+
+    card.appendChild(body);
+
+    // Footer
+    var footer = document.createElement('div');
+    footer.style.cssText = 'padding:16px 24px;border-top:1px solid ' + BORDER_RP + ';display:flex;gap:12px;align-items:center;flex-shrink:0;background:#fff;';
+    footer.innerHTML = [
+      '<button id="hp-rp-back" style="flex:1;padding:12px;border:1px solid ' + BORDER_RP + ';background:#fff;border-radius:10px;font-size:14px;font-weight:600;color:#4a6070;cursor:pointer;">',
+        '&#8592; Back to Wizard',
+      '</button>',
+      '<button id="hp-rp-save" style="flex:2;padding:12px;background:' + TEAL_RP + ';color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">',
+        'Save &amp; Download PDF',
+      '</button>',
+    ].join('');
+    card.appendChild(footer);
+
+    panel.appendChild(card);
+    document.body.appendChild(panel);
+
+    // ── Status message helper ──
+    var statusMsg = null;
+    function showRPStatus(msg, type) {
+      if (!statusMsg) {
+        statusMsg = document.createElement('div');
+        statusMsg.style.cssText = 'padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;margin-top:10px;text-align:center;';
+        footer.appendChild(statusMsg);
+      }
+      statusMsg.textContent = msg;
+      statusMsg.style.background = type === 'error' ? '#fef2f2' : type === 'success' ? '#f0fdf4' : '#f0f4f7';
+      statusMsg.style.color = type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : '#1B4150';
+      statusMsg.style.display = 'block';
+    }
+
+    // ── Close button ──
+    document.getElementById('hp-rp-close').addEventListener('click', function() {
+      panel.remove();
+    });
+
+    // ── Back button ──
+    document.getElementById('hp-rp-back').addEventListener('click', function() {
+      panel.remove();
+    });
+
+    // ── Preview PDF modal ──
+    document.getElementById('hp-rp-preview').addEventListener('click', async function() {
+      var previewModal = document.getElementById('hp-rp-preview-modal');
+      if (previewModal) { previewModal.remove(); return; }
+
+      var resolvedCaseId = caseId;
+      var modal = document.createElement('div');
+      modal.id = 'hp-rp-preview-modal';
+      modal.style.cssText = [
+        'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.7);',
+        'display:flex;align-items:center;justify-content:center;',
+      ].join('');
+
+      var mcard = document.createElement('div');
+      mcard.style.cssText = 'background:#fff;border-radius:12px;width:min(800px,95vw);height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,0.3);';
+
+      var mheader = document.createElement('div');
+      mheader.style.cssText = 'padding:16px 20px;background:#f0f4f7;border-bottom:1px solid #d1dce3;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;';
+      mheader.innerHTML = [
+        '<span style="font-weight:700;font-size:15px;color:#1B4150;">' + formLabel + ' — Preview</span>',
+        '<div style="display:flex;gap:10px;align-items:center;">',
+          '<span style="font-size:12px;color:#6a8090;">This is the current saved state. Edits on the review screen will appear after Save &amp; Download.</span>',
+          '<button id="hp-rp-modal-close" style="background:#1B4150;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;">Close</button>',
+        '</div>',
+      ].join('');
+
+      var iframe = document.createElement('iframe');
+      iframe.style.cssText = 'flex:1;border:none;';
+      iframe.src = RAILWAY_RP + '/api/cases/' + resolvedCaseId + '/official-pdf/' + pdfKey + '?preview=1&t=' + Date.now();
+
+      // Use a POST-based URL via object URL trick if needed — for now use the inline endpoint
+      // We'll fetch the PDF and load it as a blob URL
+      (async function() {
+        try {
+          var previewResp = await fetch(RAILWAY_RP + '/api/cases/' + resolvedCaseId + '/official-pdf/' + pdfKey, {
+            method: 'POST',
+            headers: authHdr()
+          });
+          if (previewResp.ok) {
+            var blob = await previewResp.blob();
+            var blobUrl = URL.createObjectURL(blob);
+            iframe.src = blobUrl;
+          }
+        } catch(e) { iframe.src = 'about:blank'; }
+      })();
+
+      mcard.appendChild(mheader);
+      mcard.appendChild(iframe);
+      modal.appendChild(mcard);
+      document.body.appendChild(modal);
+
+      document.getElementById('hp-rp-modal-close').addEventListener('click', function() { modal.remove(); });
+      modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+    });
+
+    // ── Save & Download ──
+    var saveBtn = document.getElementById('hp-rp-save');
+    saveBtn.addEventListener('click', async function() {
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving\u2026';
+
+      try {
+        // 1. Save any patches back to case
+        var patchList = Object.keys(patches).map(function(fid) {
+          return { fieldId: fid, value: patches[fid], section: '__patch__' };
+        });
+
+        // Also collect all currently-visible inputs (in case user edited filled fields)
+        var allInputs = body.querySelectorAll('input[data-field-id]');
+        allInputs.forEach(function(inp) {
+          var fid = inp.dataset.fieldId;
+          if (patches[fid] === undefined) {
+            // Check if value changed from original
+            var orig = (fields.find(function(f) { return f.fieldId === fid; }) || {}).currentValue || '';
+            if (inp.value !== orig) {
+              patchList.push({ fieldId: fid, value: inp.value, section: '__patch__' });
+            }
+          }
+        });
+
+        if (patchList.length > 0) {
+          saveBtn.textContent = 'Saving ' + patchList.length + ' change' + (patchList.length > 1 ? 's' : '') + '\u2026';
+          var patchResp = await fetch(RAILWAY_RP + '/api/cases/' + caseId + '/pdf-fields/' + formType, {
+            method: 'PATCH',
+            headers: authHdr(),
+            body: JSON.stringify(patchList)
+          });
+          if (!patchResp.ok) {
+            showRPStatus('Failed to save changes. Please try again.', 'error');
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save & Download PDF';
+            return;
+          }
+        }
+
+        // 2. Generate and download PDF
+        saveBtn.textContent = 'Generating PDF\u2026';
+        var resolvedCaseId = caseId;
+        var dlResp = await fetch(RAILWAY_RP + '/api/cases/' + resolvedCaseId + '/official-pdf/' + pdfKey, {
+          method: 'POST',
+          headers: authHdr()
+        });
+
+        if (dlResp.status === 403) {
+          panel.remove();
+          if (typeof showUpgradeModal === 'function') showUpgradeModal('pdf');
+          return;
+        }
+
+        if (!dlResp.ok) {
+          showRPStatus('Could not generate PDF. Please try again.', 'error');
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save & Download PDF';
+          return;
+        }
+
+        var blob = await dlResp.blob();
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'HearthAndPage-' + formLabel.replace(/\s+/g, '-') + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 3000);
+
+        showRPStatus('\u2713 Your PDF has been downloaded!', 'success');
+        saveBtn.textContent = '\u2713 Downloaded';
+        setTimeout(function() {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save & Download PDF';
+        }, 4000);
+
+        if (typeof onDownload === 'function') onDownload();
+
+      } catch(err) {
+        showRPStatus('Network error. Please try again.', 'error');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save & Download PDF';
+      }
+    });
+
+    // Close on backdrop click
+    panel.addEventListener('click', function(e) { if (e.target === panel) panel.remove(); });
+  };
+
+})();
