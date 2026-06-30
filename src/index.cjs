@@ -870,9 +870,43 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       case 'customer.subscription.deleted':
         await dbUpdate('users', { stripe_customer_id: `eq.${obj.customer}` }, { plan: 'free', subscriptionStatus: 'canceled', stripeSubscriptionId: null });
         break;
-      case 'invoice.payment_succeeded':
-        if (obj.subscription) { const sub = await stripe.subscriptions.retrieve(obj.subscription); await syncSubToUser(obj.customer, sub); }
+      case 'invoice.payment_succeeded': {
+        if (obj.subscription) {
+          const sub = await stripe.subscriptions.retrieve(obj.subscription);
+          await syncSubToUser(obj.customer, sub);
+          // Send receipt email via Resend
+          try {
+            const custRow = await dbGet('users', { stripe_customer_id: `eq.${obj.customer}` });
+            if (custRow?.email) {
+              const priceId2 = sub.items?.data[0]?.price?.id;
+              const planName = priceId2 === process.env.STRIPE_PRICE_PLUS ? 'Plus' : 'Standard';
+              const amountCAD = (obj.amount_paid / 100).toFixed(2);
+              const periodEndDate = new Date(sub.current_period_end * 1000).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+              await sendViaResend({
+                from: 'Hearth & Page <support@hearthandpage.ca>',
+                to: [custRow.email],
+                subject: `Your Hearth & Page receipt — $${amountCAD} CAD`,
+                html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#28251D">
+  <h2 style="color:#01696F">Payment received — thank you!</h2>
+  <p>Hi ${custRow.name || 'there'},</p>
+  <p>We've received your payment for your <strong>Hearth &amp; Page ${planName} plan</strong>.</p>
+  <table style="width:100%;border-collapse:collapse;margin:16px 0">
+    <tr><td style="padding:8px 0;border-bottom:1px solid #D4D1CA">Plan</td><td style="padding:8px 0;border-bottom:1px solid #D4D1CA;text-align:right"><strong>${planName}</strong></td></tr>
+    <tr><td style="padding:8px 0;border-bottom:1px solid #D4D1CA">Amount charged</td><td style="padding:8px 0;border-bottom:1px solid #D4D1CA;text-align:right"><strong>$${amountCAD} CAD</strong></td></tr>
+    <tr><td style="padding:8px 0">Next renewal</td><td style="padding:8px 0;text-align:right">${periodEndDate}</td></tr>
+  </table>
+  <p>You can manage your subscription at any time from your <a href="${process.env.APP_URL || 'https://hearthandpage.ca'}" style="color:#01696F">Hearth &amp; Page account</a>.</p>
+  <p style="font-size:12px;color:#7A7974;margin-top:32px">Hearth &amp; Page &bull; heartandpage.ca &bull; support@heartandpage.ca<br>This is an automated receipt. Please do not reply to this email.</p>
+</div>`,
+              });
+              console.log(`[webhook] Receipt email sent to ${custRow.email}`);
+            }
+          } catch (emailErr) {
+            console.error('[webhook] Receipt email failed:', emailErr.message);
+          }
+        }
         break;
+      }
       case 'invoice.payment_failed':
         await dbUpdate('users', { stripe_customer_id: `eq.${obj.customer}` }, { subscriptionStatus: 'past_due' });
         break;
@@ -899,6 +933,8 @@ app.post('/api/stripe/create-checkout', requireAuth, async (req, res) => {
       success_url: successUrl || process.env.APP_URL + '/?checkout=success',
       cancel_url: cancelUrl || process.env.APP_URL + '/pricing',
       allow_promotion_codes: true,
+      automatic_tax: { enabled: true },
+      customer_update: { address: 'auto' },
     });
     res.json({ url: session.url });
   } catch (e) { console.error('[stripe/create-checkout] error:', e.message); res.status(500).json({ message: 'Failed to create checkout session' }); }
