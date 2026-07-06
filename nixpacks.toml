@@ -1,5 +1,8 @@
 [phases.setup]
-pkgs = ["nodejs_20", "python311", "python311Packages.pypdf"]
+pkgs = ["nodejs_20", "python311", "gcc", "gnumake"]
+
+[phases.install]
+cmds = ["pip3 install pypdf cryptography || python3 -m pip install pypdf cryptography || true"]
 
 [phases.build]
 cmds = ["npm install --production", "cp fill_pdf.py dist/fill_pdf.py || true", "which python3 > dist/python3_path.txt && echo OK || true"]
