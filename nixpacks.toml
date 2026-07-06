@@ -1,11 +1,8 @@
 [phases.setup]
-pkgs = ["nodejs_20", "python311", "gcc", "gnumake"]
-
-[phases.install]
-cmds = ["pip3 install pypdf cryptography || python3 -m pip install pypdf cryptography || true"]
+pkgs = ["nodejs_20", "python311"]
 
 [phases.build]
 cmds = ["npm install --production", "cp fill_pdf.py dist/fill_pdf.py || true", "which python3 > dist/python3_path.txt && echo OK || true"]
 
 [start]
-cmd = "PATH=$PATH:/nix/var/nix/profiles/default/bin NODE_ENV=production node dist/index.cjs"
+cmd = "NODE_ENV=production node dist/index.cjs"
