@@ -1,0 +1,565 @@
+{
+  "formCode": "form36b-certificate-divorce",
+  "formNumber": "Form 36B",
+  "title": "Certificate of Divorce",
+  "jurisdiction": "Ontario",
+  "act": "Divorce Act, R.S.C. 1985, c. 3 (2nd Supp.); Family Law Rules, O. Reg. 114/99",
+  "version": "Current",
+  "description": "The Certificate of Divorce is the official proof that your marriage has been legally dissolved. It is issued by the court clerk after your divorce order has taken effect — which is 31 days after the judge signed the order, provided no appeal was filed. You will need this certificate to remarry, change your last name, update government records (CRA, passport, SIN), and for other legal purposes. You cannot receive this certificate until the 31-day waiting period has passed.",
+  "clerkIssuedNotice": {
+    "enabled": true,
+    "message": "Important: Form 36B is ISSUED by the court clerk, not completed entirely by you. Your role is to submit a request with accurate case details and pay the court fee ($25). The clerk then certifies and signs the form. Hearth & Page will prepare your request with all required information pre-filled so the clerk can issue your certificate quickly.",
+    "fee": "$25 CAD (payable to the Minister of Finance)",
+    "processingTime": "Varies by courthouse — typically 2–6 weeks after request submission.",
+    "howToSubmit": [
+      "In person at the courthouse where your divorce was granted",
+      "By mail — include request, $25 cheque payable to Minister of Finance, and self-addressed stamped envelope",
+      "Online through Justice Services Online (where available)"
+    ]
+  },
+  "waitingPeriodFlag": {
+    "enabled": true,
+    "triggerField": "divorce_order_date",
+    "waitingDays": 31,
+    "message": "Your divorce order takes effect 31 days after the judge signed it (assuming no appeal). You cannot request your certificate until after this date.",
+    "warningMessages": {
+      "tooEarly": "⚠️ Your divorce order was signed on {divorce_order_date}. The 31-day waiting period ends on {effective_date}. You can submit your certificate request on or after that date.",
+      "readyToFile": "✅ Your divorce is final. Your certificate became available on {effective_date}. You may submit your request now.",
+      "appealNotice": "If you or the other party filed an appeal, the 31-day clock may be paused or extended. Check with the court if you are unsure."
+    }
+  },
+  "autoFillSources": [
+    "courthouse",
+    "court_file_number",
+    "applicant_full_name",
+    "respondent_full_name"
+  ],
+  "steps": [
+    {
+      "stepId": 1,
+      "title": "Understanding Your Certificate",
+      "description": "Before you request your Certificate of Divorce, let's make sure your divorce is final.",
+      "fields": [
+        {
+          "id": "intro_info",
+          "label": "What is the Certificate of Divorce?",
+          "type": "info",
+          "content": "The Certificate of Divorce (Form 36B) is the official legal document that proves your marriage has been dissolved. It is different from your Divorce Order.\n\n• Your Divorce ORDER is the judge's signed decision granting the divorce.\n• Your Certificate of Divorce is proof that the order has TAKEN EFFECT.\n\nYou need the Certificate (not just the Order) for:\n✓ Remarrying in Ontario or anywhere in Canada\n✓ Changing your name on government ID, passport, and CRA records\n✓ Updating your bank accounts and pension plans\n✓ Most official purposes that require proof of divorce\n\nThe certificate is issued by the court clerk. You request it — they sign and stamp it."
+        },
+        {
+          "id": "divorce_order_date",
+          "label": "What date did the judge sign your Divorce Order?",
+          "type": "date",
+          "required": true,
+          "waitingPeriodFlag": true,
+          "waitingDays": 31,
+          "hint": "This date is printed on your Divorce Order (Form 25A). It is the date the judge signed the order — not the date you received it in the mail.",
+          "validation": {
+            "maxDate": "today",
+            "message": "The divorce order date cannot be in the future."
+          }
+        },
+        {
+          "id": "early_effective_date_ordered",
+          "label": "Has the court ordered that your divorce takes effect before the 31-day waiting period?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "no",
+              "label": "No — the standard 31-day period applies"
+            },
+            {
+              "value": "yes",
+              "label": "Yes — the court ordered an earlier effective date"
+            }
+          ],
+          "hint": "Under the Divorce Act s.12(2), a court may order an earlier effective date if both spouses agree there will be no appeal and the court finds special circumstances. This is rare. Check your divorce order for any special effective date."
+        },
+        {
+          "id": "early_effective_date",
+          "label": "Court-ordered effective date of divorce:",
+          "type": "date",
+          "required": false,
+          "showIf": {
+            "field": "early_effective_date_ordered",
+            "value": "yes"
+          },
+          "hint": "Enter the date specified in the court order for when your divorce takes effect."
+        },
+        {
+          "id": "waiting_period_status",
+          "label": "Waiting Period Check",
+          "type": "computed_status",
+          "sourceField": "divorce_order_date",
+          "waitingDays": 31,
+          "statusMessages": {
+            "waiting": "⏳ Your 31-day waiting period ends on {effective_date}. You can submit your certificate request on or after that date. Come back then and we'll prepare your request.",
+            "ready": "✅ Your divorce took effect on {effective_date}. You are ready to request your Certificate of Divorce.",
+            "no_date": "Enter your divorce order date above to check your eligibility."
+          }
+        },
+        {
+          "id": "appeal_filed",
+          "label": "Has either party filed an appeal of the Divorce Order?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "no",
+              "label": "No — no appeal was filed"
+            },
+            {
+              "value": "yes",
+              "label": "Yes — an appeal was or may have been filed"
+            },
+            {
+              "value": "unsure",
+              "label": "I am not sure"
+            }
+          ],
+          "hint": "If an appeal has been filed, the divorce order does not take effect on day 31. Contact the court office or a lawyer before requesting your certificate."
+        },
+        {
+          "id": "appeal_warning",
+          "label": "Appeal Warning",
+          "type": "info",
+          "showIf": {
+            "field": "appeal_filed",
+            "operator": "in",
+            "values": [
+              "yes",
+              "unsure"
+            ]
+          },
+          "content": "⚠️ If an appeal has been filed:\n\nYour divorce will not take effect on day 31. Instead, under the Divorce Act s.12(3), it takes effect when the time for any further appeal expires after the final appeal decision.\n\nIf the appeal was later abandoned or dismissed, your divorce will eventually take effect — contact the court to confirm the current status and the effective date.\n\nIf you are unsure whether an appeal has been filed, contact the courthouse where your divorce was granted before requesting your certificate.\n\nFor legal advice on appeals: Legal Aid Ontario 1-800-668-8258."
+        }
+      ]
+    },
+    {
+      "stepId": 2,
+      "title": "Court & Case Information",
+      "description": "Enter the court details exactly as they appear on your Divorce Order.",
+      "fields": [
+        {
+          "id": "divorce_appealed",
+          "label": "Was your divorce order granted after an appeal (i.e., by the Court of Appeal for Ontario)?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "no",
+              "label": "No — my divorce was granted by the trial court (Superior Court of Justice)"
+            },
+            {
+              "value": "yes",
+              "label": "Yes — my divorce was granted on appeal by the Court of Appeal"
+            }
+          ],
+          "hint": "Under the Divorce Act s.12(7), if your divorce was granted on appeal, the certificate is issued by the appellate court — not the original trial court."
+        },
+        {
+          "id": "appellate_court_notice",
+          "label": "Appellate Court Certificate",
+          "type": "info",
+          "showIf": {
+            "field": "divorce_appealed",
+            "value": "yes"
+          },
+          "content": "Because your divorce was granted by the Court of Appeal for Ontario, your Certificate of Divorce must be requested from the Court of Appeal — not from the original trial court.\n\nCourt of Appeal for Ontario\n130 Queen Street West, Toronto, ON M5H 2N5\nTel: 416-327-5020\n\nContact them directly to request your certificate."
+        },
+        {
+          "id": "court_name",
+          "label": "Name of Court that Granted the Divorce",
+          "type": "select",
+          "required": true,
+          "autoFill": "courthouse",
+          "hint": "Select the courthouse where your divorce was granted. This must match your Divorce Order exactly.",
+          "options": [
+            "Superior Court of Justice — Toronto (393 University Ave.)",
+            "Superior Court of Justice — Toronto (47 Sheppard Ave.)",
+            "Superior Court of Justice — Ottawa",
+            "Superior Court of Justice — Brampton",
+            "Superior Court of Justice — Hamilton",
+            "Superior Court of Justice — London",
+            "Superior Court of Justice — Barrie",
+            "Superior Court of Justice — Kingston",
+            "Superior Court of Justice — Kitchener (Waterloo Region)",
+            "Superior Court of Justice — Milton (Halton Region)",
+            "Superior Court of Justice — Newmarket (York Region)",
+            "Superior Court of Justice — North Bay",
+            "Superior Court of Justice — Oshawa (Durham Region)",
+            "Superior Court of Justice — St. Catharines (Niagara Region)",
+            "Superior Court of Justice — Sudbury",
+            "Superior Court of Justice — Thunder Bay",
+            "Superior Court of Justice — Windsor"
+          ]
+        },
+        {
+          "id": "court_office_address",
+          "label": "Court Office Address",
+          "type": "text",
+          "required": true,
+          "autoFill": "court_office_address",
+          "placeholder": "e.g. 393 University Avenue, Toronto, ON M5G 1E6",
+          "hint": "Enter the full address of the court office. This appears on your divorce order."
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court File Number",
+          "type": "text",
+          "required": true,
+          "autoFill": "court_file_number",
+          "placeholder": "e.g. FC-12345-24",
+          "hint": "Copy this exactly from your Divorce Order or other court documents. Even a small error can delay your certificate.",
+          "validation": {
+            "pattern": "^[A-Za-z0-9\\-/\\s]+$",
+            "message": "Enter the file number exactly as it appears on your court documents."
+          }
+        }
+      ]
+    },
+    {
+      "stepId": 3,
+      "title": "Party Names",
+      "description": "Enter both parties' names exactly as they appear on the court record.",
+      "fields": [
+        {
+          "id": "name_accuracy_notice",
+          "label": "Name Accuracy — Important",
+          "type": "info",
+          "content": "Enter both parties' names exactly as they appear on your court documents (Application, Divorce Order). Even small differences in spelling — including middle names or initials — can cause the clerk to return your request for correction, which delays your certificate."
+        },
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant — Full Legal Name (as it appears on the court record)",
+          "type": "text",
+          "required": true,
+          "autoFill": "applicant_full_name",
+          "placeholder": "e.g. Jane Elizabeth Smith",
+          "hint": "Use the exact name from your Application (Form 8A) and Divorce Order (Form 25A)."
+        },
+        {
+          "id": "applicant_address",
+          "label": "Applicant — Current Address for Service",
+          "type": "text",
+          "required": true,
+          "autoFill": "applicant_address",
+          "placeholder": "e.g. 123 Main Street, Toronto, ON M1A 1A1"
+        },
+        {
+          "id": "applicant_lawyer_name",
+          "label": "Applicant's Lawyer — Name and Address (if applicable)",
+          "type": "text",
+          "required": false,
+          "placeholder": "Leave blank if self-represented",
+          "hint": "If you have a lawyer, the certificate may be sent to them. If self-represented, it will be sent to your address."
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent — Full Legal Name (as it appears on the court record)",
+          "type": "text",
+          "required": true,
+          "autoFill": "respondent_full_name",
+          "placeholder": "e.g. John Robert Smith",
+          "hint": "Use the exact name from your court documents."
+        },
+        {
+          "id": "respondent_address",
+          "label": "Respondent — Last Known Address",
+          "type": "text",
+          "required": false,
+          "autoFill": "respondent_address",
+          "placeholder": "e.g. 789 Queen Street, Toronto, ON M5H 2N2"
+        },
+        {
+          "id": "respondent_lawyer_name",
+          "label": "Respondent's Lawyer — Name and Address (if applicable)",
+          "type": "text",
+          "required": false,
+          "placeholder": "Leave blank if respondent was self-represented"
+        }
+      ]
+    },
+    {
+      "stepId": 4,
+      "title": "Marriage & Divorce Details",
+      "description": "Provide the details of the marriage and the divorce order — these appear on the certificate.",
+      "fields": [
+        {
+          "id": "marriage_date",
+          "label": "Date of Marriage",
+          "type": "date",
+          "required": true,
+          "autoFill": "marriage_date",
+          "hint": "⚠️ This date must match your court record EXACTLY — including the exact day, month, and year.\n\nCheck this date against:\n• Your original marriage certificate\n• Your Application for Divorce (Form 8A)\n• Your Divorce Order (Form 25A)\n\nEven a one-day error will cause the clerk to return your request for correction. Do not rely on memory or auto-fill — verify the date on your documents.",
+          "validation": {
+            "maxDate": "today",
+            "message": "Marriage date cannot be in the future."
+          }
+        },
+        {
+          "id": "marriage_place",
+          "label": "Place of Marriage (city/town and province/country)",
+          "type": "text",
+          "required": true,
+          "autoFill": "marriage_place",
+          "placeholder": "e.g. Toronto, Ontario, Canada",
+          "hint": "Enter the city and province (or country) where the marriage ceremony took place."
+        },
+        {
+          "id": "divorce_order_date_confirm",
+          "label": "Date the Divorce Order was Signed (by the judge)",
+          "type": "date",
+          "required": true,
+          "autoFill": "divorce_order_date",
+          "hint": "This is the date on your Divorce Order (Form 25A). The certificate will confirm that the divorce took effect 31 days after this date (or on the date specified in the order)."
+        },
+        {
+          "id": "divorce_effective_date",
+          "label": "Date the Divorce Took Effect (auto-calculated: order date + 31 days)",
+          "type": "computed",
+          "formula": "divorce_order_date_confirm + 31 days",
+          "required": false,
+          "displayAs": "Your divorce took effect on {computed_date}.",
+          "hint": "The court clerk will verify and certify this date. This is the date that will appear on your Certificate of Divorce."
+        },
+        {
+          "id": "court_that_granted",
+          "label": "This court that is confirming the certificate:",
+          "type": "info",
+          "content": "The court clerk will certify: 'I CERTIFY THAT the marriage of [Applicant] and [Respondent], that was solemnized at [marriage place] on [marriage date], was dissolved by an order of this court and the divorce took effect on [effective date].'\n\nThe clerk will also apply the court seal. You do not need to fill in the certification section — that is the clerk's role."
+        }
+      ]
+    },
+    {
+      "stepId": 5,
+      "title": "Number of Copies & Fee",
+      "description": "Indicate how many certified copies you need and understand the fee structure.",
+      "fields": [
+        {
+          "id": "copies_needed_info",
+          "label": "How Many Copies Do You Need?",
+          "type": "info",
+          "content": "You should request at least 2–3 certified copies of your Certificate of Divorce. Common reasons you may need multiple copies:\n\n• One for your personal records\n• One for remarriage (required by the officiant or the other person's country)\n• One for name change documentation\n• One for government agencies (CRA, passport office)\n• One for your bank or pension plan\n\nEach additional certified copy typically costs $25. Uncertified copies are cheaper but may not be accepted for official purposes."
+        },
+        {
+          "id": "copies_requested",
+          "label": "Number of certified copies requested:",
+          "type": "number",
+          "required": true,
+          "min": 1,
+          "max": 10,
+          "defaultValue": 2,
+          "hint": "We recommend requesting at least 2 copies. The court fee is typically $25 per certified copy.",
+          "validation": {
+            "min": 1,
+            "max": 10,
+            "message": "Request between 1 and 10 copies."
+          }
+        },
+        {
+          "id": "fee_reminder",
+          "label": "Court Fee",
+          "type": "computed",
+          "formula": "copies_requested * 25",
+          "displayAs": "Estimated fee: ${computed_total} CAD (${copies_requested} × $25 per certified copy). Make cheques payable to the Minister of Finance. Note: Court fees are set by regulation and subject to change — confirm the current amount with the court office.",
+          "required": false
+        },
+        {
+          "id": "submission_method",
+          "label": "How will you submit your request to the court?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "in_person",
+              "label": "In person at the courthouse"
+            },
+            {
+              "value": "by_mail",
+              "label": "By mail (include cheque + self-addressed stamped envelope)"
+            },
+            {
+              "value": "online",
+              "label": "Online through Justice Services Online"
+            }
+          ],
+          "hint": "Submit to the same courthouse where your divorce was granted."
+        },
+        {
+          "id": "mail_instructions",
+          "label": "Mailing Instructions",
+          "type": "info",
+          "showIf": {
+            "field": "submission_method",
+            "value": "by_mail"
+          },
+          "content": "When submitting by mail, include:\n1. Your completed Form 36B request (this document)\n2. A cheque payable to the Minister of Finance for the correct amount\n3. A self-addressed stamped envelope with sufficient postage for the number of copies\n\nAllow extra time for mail processing — typically 2–8 weeks total."
+        }
+      ]
+    },
+    {
+      "stepId": 6,
+      "title": "Review & Submit",
+      "description": "Review your request and confirm everything is accurate before printing.",
+      "fields": [
+        {
+          "id": "accuracy_confirmation",
+          "label": "I confirm that all information in this certificate request is accurate and matches my court records exactly.",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "id": "waiting_period_confirmation",
+          "label": "I confirm that the 31-day waiting period has passed and no appeal has been filed (or the appeal period has expired).",
+          "type": "checkbox",
+          "required": true,
+          "hint": "If you are unsure whether an appeal was filed, contact the court before submitting."
+        },
+        {
+          "id": "final_summary",
+          "label": "Your Certificate Request Summary",
+          "type": "info",
+          "content": "When you print this document:\n\n1. Take or mail it to the courthouse where your divorce was granted.\n2. Bring or include payment of $25 per certified copy (cheque payable to Minister of Finance).\n3. If going in person, bring photo ID.\n4. The clerk will verify your file and issue certified copies, usually within a few weeks.\n\nKeep your certified copies in a safe place — they are difficult to replace."
+        },
+        {
+          "id": "hearth_page_notice",
+          "label": "Hearth & Page Notice",
+          "type": "info",
+          "content": "This certificate request was prepared using Hearth & Page (hearthandpage.ca). Hearth & Page is not a law firm and does not provide legal advice. The Certificate of Divorce is issued by the court clerk — Hearth & Page prepares your request only. This document was prepared on or by Hearth & Page."
+        }
+      ]
+    }
+  ],
+  "pdfTemplate": {
+    "pageSize": "letter",
+    "margins": {
+      "top": 25,
+      "bottom": 20,
+      "left": 20,
+      "right": 20
+    },
+    "header": {
+      "courtName": "{{court_name}}",
+      "courtAddress": "{{court_office_address}}",
+      "formNumber": "Form 36B: Certificate of Divorce",
+      "courtFileNumber": "{{court_file_number}}"
+    },
+    "clerkSection": {
+      "label": "FOR COURT CLERK USE ONLY",
+      "certificationText": "I CERTIFY THAT the marriage of {{applicant_full_name}} and {{respondent_full_name}}, that was solemnized at {{marriage_place}} on {{marriage_date}}, was dissolved by an order of this court, and the divorce took effect on {{divorce_effective_date}}.",
+      "sealPlaceholder": "[COURT SEAL]",
+      "signatureLine": "Signature of clerk of the court",
+      "dateLineLabel": "Date of signature"
+    },
+    "sections": [
+      {
+        "label": "Applicant(s)",
+        "fields": [
+          "applicant_full_name",
+          "applicant_address",
+          "applicant_lawyer_name"
+        ]
+      },
+      {
+        "label": "Respondent(s)",
+        "fields": [
+          "respondent_full_name",
+          "respondent_address",
+          "respondent_lawyer_name"
+        ]
+      },
+      {
+        "label": "Marriage Details",
+        "fields": [
+          "marriage_date",
+          "marriage_place"
+        ]
+      },
+      {
+        "label": "Divorce Order Details",
+        "fields": [
+          "divorce_order_date_confirm",
+          "divorce_effective_date"
+        ]
+      },
+      {
+        "label": "Copies Requested",
+        "fields": [
+          "copies_requested"
+        ]
+      },
+      {
+        "label": "Submission Method",
+        "fields": [
+          "submission_method"
+        ]
+      }
+    ],
+    "footerText": "FLR 36B — Prepared using Hearth & Page (hearthandpage.ca). This document was prepared on or by Hearth & Page. The Certificate of Divorce is issued by the court clerk only.",
+    "clerkSignatureLine": true,
+    "courtSealBox": true
+  },
+  "validationRules": [
+    {
+      "ruleId": "WAITING_PERIOD_CHECK",
+      "type": "date_gate",
+      "field": "divorce_order_date",
+      "gateType": "min_days_in_past",
+      "days": 31,
+      "severity": "warning",
+      "blockOnFail": false,
+      "message": "Your divorce order was signed less than 31 days ago. The divorce may not yet be final. You can prepare your request now, but do not submit it to the court until {effective_date}."
+    },
+    {
+      "ruleId": "APPEAL_BLOCK",
+      "type": "conditional_block",
+      "condition": {
+        "field": "appeal_filed",
+        "operator": "in",
+        "values": [
+          "yes",
+          "unsure"
+        ]
+      },
+      "severity": "warning",
+      "message": "You indicated an appeal may have been filed. Please confirm the status of any appeal with the court before requesting your certificate."
+    },
+    {
+      "ruleId": "NAME_MATCH_REMINDER",
+      "type": "info_reminder",
+      "fields": [
+        "applicant_full_name",
+        "respondent_full_name"
+      ],
+      "message": "Ensure names match your court record exactly — including middle names and spelling."
+    },
+    {
+      "ruleId": "FILE_NUMBER_FORMAT",
+      "type": "field_format",
+      "field": "court_file_number",
+      "message": "Enter the court file number exactly as it appears on your court documents."
+    },
+    {
+      "ruleId": "COPIES_RANGE",
+      "type": "field_range",
+      "field": "copies_requested",
+      "min": 1,
+      "max": 10,
+      "message": "Request between 1 and 10 certified copies."
+    },
+    {
+      "ruleId": "ACCURACY_CONFIRM",
+      "type": "checkbox_required",
+      "field": "accuracy_confirmation",
+      "message": "You must confirm that all information in this certificate request is accurate."
+    },
+    {
+      "ruleId": "WAITING_CONFIRM",
+      "type": "checkbox_required",
+      "field": "waiting_period_confirmation",
+      "message": "You must confirm that the 31-day waiting period has passed and no appeal is pending."
+    }
+  ]
+}

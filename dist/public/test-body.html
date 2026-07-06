@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+<head></head>
+<body>
+<div id="root"></div>
+<script>
+window.__HP_ERRORS = [];
+window.addEventListener('error', function(e) {
+  window.__HP_ERRORS.push(e.message + ' at line ' + e.lineno + ' col ' + e.colno);
+});
+</script>
+<script type="module" src="./test-body.js"></script>
+</body>
+</html>

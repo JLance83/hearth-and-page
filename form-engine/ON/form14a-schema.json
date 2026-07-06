@@ -1,0 +1,351 @@
+{
+  "formId": "ON-F14A",
+  "jurisdiction": "ON",
+  "pdfFileName": "form14a.pdf",
+  "title": "Form 14A \u2014 Affidavit (General)",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules (FLR 14A)",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "helpIntro": "An Affidavit is a sworn statement of facts that supports your motion. You write out the facts \u2014 the who, what, when, and where \u2014 and then sign it in front of a commissioner of oaths (available at the courthouse or at most lawyers' offices, often for free). This is the document where you tell your story to the judge.",
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 7",
+      "intro": "This pulls from your existing case file. Confirm the court details.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Courthouse name",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse_name",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": false,
+          "placeholder": "e.g. FC-2024-12345",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "affidavitDate",
+          "label": "Date of this affidavit",
+          "type": "date",
+          "required": true,
+          "helpText": "The date you will sign this in front of the commissioner of oaths.",
+          "pdfFieldName": "Affidavit date"
+        }
+      ]
+    },
+    {
+      "partId": "parties",
+      "title": "The parties",
+      "subtitle": "Step 2 of 7",
+      "intro": "Confirm both parties' information. This auto-fills from your profile.",
+      "fields": [
+        {
+          "fieldId": "applicantFullName",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "pdfFieldName": "Applicant full name",
+          "id": "applicant_full_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "applicantAddress",
+          "label": "Applicant's address for service",
+          "type": "text",
+          "source": "profile.applicant.address",
+          "required": true,
+          "pdfFieldName": "Applicant address"
+        },
+        {
+          "fieldId": "applicantCity",
+          "label": "City",
+          "type": "text",
+          "source": "profile.applicant.city",
+          "required": true,
+          "pdfFieldName": "Applicant city"
+        },
+        {
+          "fieldId": "applicantPostalCode",
+          "label": "Postal code",
+          "type": "text",
+          "source": "profile.applicant.postalCode",
+          "required": true,
+          "pdfFieldName": "Applicant postal code"
+        },
+        {
+          "fieldId": "applicantPhone",
+          "label": "Phone number",
+          "type": "tel",
+          "source": "profile.applicant.phone",
+          "required": true,
+          "pdfFieldName": "Applicant phone"
+        },
+        {
+          "fieldId": "respondentFullName",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "pdfFieldName": "Respondent full name",
+          "id": "respondent_full_name",
+          "autoFill": "respondent_full_name"
+        },
+        {
+          "fieldId": "respondentAddress",
+          "label": "Respondent's address (if known)",
+          "type": "text",
+          "source": "profile.respondent.address",
+          "required": false,
+          "pdfFieldName": "Respondent address"
+        }
+      ]
+    },
+    {
+      "partId": "deponent",
+      "title": "About you (the deponent)",
+      "subtitle": "Step 3 of 7",
+      "intro": "The 'deponent' is the person swearing or affirming this affidavit \u2014 that's you. These details go at the top of the affidavit.",
+      "fields": [
+        {
+          "fieldId": "deponentFullName",
+          "label": "Your full legal name",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "helpText": "As it will appear on the sworn affidavit.",
+          "pdfFieldName": "Deponent full name",
+          "id": "deponent_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "deponentMunicipality",
+          "label": "Municipality and province where you live",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Toronto, Ontario",
+          "helpText": "The form reads: 'I live in [municipality & province]'.",
+          "pdfFieldName": "Deponent municipality"
+        },
+        {
+          "fieldId": "swearOrAffirm",
+          "label": "Will you swear (religious oath) or affirm (non-religious)?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Swear",
+            "Affirm"
+          ],
+          "helpText": "Both are legally equal. Choose whichever you are comfortable with.",
+          "pdfFieldName": "Swear or affirm"
+        }
+      ]
+    },
+    {
+      "partId": "background",
+      "title": "Background facts",
+      "subtitle": "Step 4 of 7",
+      "intro": "Provide the factual background of your situation. Write clearly and stick to facts \u2014 not opinions or emotions. Each paragraph should cover one fact.",
+      "fields": [
+        {
+          "fieldId": "relationshipBackground",
+          "label": "Describe your relationship with the other party",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. I was married to the Respondent Jane Doe on June 15, 2012. We lived together at 123 Main Street, Toronto, Ontario. We separated on March 1, 2024.",
+          "helpText": "Include: how you are related, when the relationship started, when and how it ended.",
+          "pdfFieldName": "Relationship background"
+        },
+        {
+          "fieldId": "childrenBackground",
+          "label": "Describe the children involved (if any)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. We have one child together: Alex Lance, born April 12, 2015. Alex currently lives with me at 123 Main Street, Toronto.",
+          "helpText": "Include: each child's name, date of birth, and where they are currently living. Leave blank if there are no children.",
+          "pdfFieldName": "Children background"
+        },
+        {
+          "fieldId": "currentArrangements",
+          "label": "What is happening right now? (current living/parenting arrangements)",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. Since our separation, Alex has been living with me. The Respondent sees Alex every other weekend. There is no formal court order in place.",
+          "helpText": "Describe the current situation \u2014 where everyone is living, what parenting time looks like, what support if any is being paid.",
+          "pdfFieldName": "Current arrangements"
+        }
+      ]
+    },
+    {
+      "partId": "motionFacts",
+      "title": "Facts supporting your motion",
+      "subtitle": "Step 5 of 7",
+      "intro": "This is the most important part. Explain the facts that make your motion necessary. Be specific \u2014 include dates, names, and what happened. Write in numbered paragraphs.",
+      "fields": [
+        {
+          "fieldId": "whyMotionNeeded",
+          "label": "Why are you bringing this motion? What has happened that makes a court order necessary?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. 1. On May 1, 2026, the Respondent informed me that she intended to move with Alex to Calgary, Alberta without my consent.\n2. I attempted to discuss this with the Respondent on May 5, 2026, but she refused to communicate.\n3. I am concerned that if the Respondent moves, I will be denied parenting time with Alex.",
+          "helpText": "Number each paragraph. Each paragraph = one fact. Include who did what, when, and where. Do not include opinions \u2014 only facts you personally know or witnessed.",
+          "pdfFieldName": "Why motion needed"
+        },
+        {
+          "fieldId": "ordersRequested",
+          "label": "What specific orders are you asking the court to make?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. 1. An order that the Applicant have temporary decision-making responsibility for Alex Lance.\n2. An order that the Respondent not relocate with Alex outside of Toronto without court permission.\n3. An order for child support of $X per month.",
+          "helpText": "These should match the orders listed on your Form 14. Be specific about what you want.",
+          "pdfFieldName": "Orders requested in affidavit"
+        },
+        {
+          "fieldId": "bestInterestsExplanation",
+          "label": "Why are these orders in the best interests of the children? (if children are involved)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Alex is enrolled in school in Toronto and has a strong support network of family and friends here. Relocating to Calgary would disrupt Alex's education and my ongoing relationship with Alex.",
+          "helpText": "The court's primary concern is always what is best for the children. Explain why your requested orders serve the children's needs.",
+          "pdfFieldName": "Best interests explanation"
+        },
+        {
+          "fieldId": "urgencyExplanation",
+          "label": "Is this urgent? If yes, explain why it cannot wait.",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. The Respondent has stated she plans to move on July 1, 2026. Without an emergency order, the move will happen before this matter can be heard in the normal course.",
+          "helpText": "Only fill this in if you need the court to hear this motion on an urgent basis.",
+          "pdfFieldName": "Urgency explanation"
+        }
+      ]
+    },
+    {
+      "partId": "exhibits",
+      "title": "Exhibits (attachments)",
+      "subtitle": "Step 6 of 7",
+      "intro": "List any documents you are attaching to this affidavit as exhibits. Label them Exhibit A, B, C, etc. in the order you mention them.",
+      "fields": [
+        {
+          "fieldId": "hasExhibits",
+          "label": "Are you attaching any documents to this affidavit?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Examples: text messages, emails, photos, prior court orders, letters.",
+          "pdfFieldName": "Has exhibits"
+        },
+        {
+          "fieldId": "exhibitsList",
+          "label": "List your exhibits",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasExhibits",
+            "showWhen": "yes"
+          },
+          "placeholder": "Exhibit A \u2014 Text messages between myself and the Respondent dated May 1\u201310, 2026\nExhibit B \u2014 Prior court order dated March 15, 2023\nExhibit C \u2014 Alex's school enrollment records",
+          "helpText": "For each exhibit: write the letter, then what it is and the date. Attach the actual document behind the affidavit when you file.",
+          "pdfFieldName": "Exhibits list"
+        },
+        {
+          "fieldId": "exhibitsReferenced",
+          "label": "Have you referenced each exhibit by letter in the facts section above?",
+          "type": "yesno",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasExhibits",
+            "showWhen": "yes"
+          },
+          "helpText": "e.g. 'Attached as Exhibit A is a copy of the text messages.' The form requires you to identify each exhibit where it is first mentioned.",
+          "pdfFieldName": "Exhibits referenced in body"
+        }
+      ]
+    },
+    {
+      "partId": "swearing",
+      "title": "Swearing / commissioning",
+      "subtitle": "Step 7 of 7",
+      "intro": "This section will be completed in front of a commissioner of oaths. You cannot sign this affidavit without a commissioner present \u2014 doing so makes it invalid.",
+      "fields": [
+        {
+          "fieldId": "commissionerLocation",
+          "label": "Where will you swear/affirm this affidavit?",
+          "type": "select",
+          "required": false,
+          "options": [
+            "At the courthouse",
+            "At a lawyer's office",
+            "At a notary public's office",
+            "At a Service Ontario location",
+            "Other"
+          ],
+          "helpText": "Commissioners of oaths are available free of charge at most Ontario courthouses.",
+          "pdfFieldName": "Commissioner location"
+        },
+        {
+          "fieldId": "commissionerMunicipality",
+          "label": "Municipality where it will be sworn",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. Toronto",
+          "pdfFieldName": "Commissioner municipality"
+        },
+        {
+          "fieldId": "commissionerProvince",
+          "label": "Province",
+          "type": "text",
+          "required": false,
+          "placeholder": "Ontario",
+          "pdfFieldName": "Commissioner province"
+        },
+        {
+          "fieldId": "commissioningDate",
+          "label": "Date to be commissioned (leave blank to fill at the courthouse)",
+          "type": "date",
+          "required": false,
+          "pdfFieldName": "Commissioning date"
+        },
+        {
+          "fieldId": "declarationConfirmed",
+          "label": "I understand I must sign this affidavit in front of a commissioner of oaths for it to be valid. I confirm the facts I have written are true.",
+          "type": "checkbox",
+          "required": true,
+          "helpText": "Swearing a false affidavit is perjury \u2014 a criminal offence. Only include facts you know to be true.",
+          "pdfFieldName": "Declaration confirmed"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,678 @@
+{
+  "formId": "ON-F15A",
+  "formCode": "form15a-change-info",
+  "title": "Form 15A — Change Information",
+  "jurisdiction": "Ontario",
+  "version": "2024",
+  "description": "Financial and personal disclosure companion to Form 15 (Motion to Change). Provides current income, expenses, reason for change, comparison of old vs proposed order terms, and children's current circumstances.",
+  "autoPopulateFrom": ["form8-general", "form13-financial", "form15-motion-to-change"],
+  "steps": [
+    {
+      "stepId": "ci-step1",
+      "title": "Party Information",
+      "description": "Confirm the names of the parties involved in the original order.",
+      "fields": [
+        {
+          "id": "applicant_full_name",
+          "label": "Your full legal name (Applicant/Moving Party)",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Jane Marie Smith",
+          "autoPopulate": "applicant_full_name",
+          "helpText": "Enter your name exactly as it appears on the existing court order."
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Other party's full legal name (Respondent)",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. John Robert Smith",
+          "autoPopulate": "respondent_full_name"
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court file number",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. FC-2022-12345",
+          "autoPopulate": "court_file_number",
+          "helpText": "Found on your existing order or any court documents for this case."
+        },
+        {
+          "id": "courthouse_name",
+          "label": "Name of courthouse",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Ontario Court of Justice – Toronto",
+          "autoPopulate": "courthouse_name"
+        },
+        {
+          "id": "original_order_date",
+          "label": "Date of the order you want to change",
+          "type": "date",
+          "required": true,
+          "helpText": "The date shown on the existing order or agreement being varied."
+        },
+        {
+          "id": "original_order_type",
+          "label": "Type of original order",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "court_order", "label": "Court order" },
+            { "value": "consent_order", "label": "Consent order" },
+            { "value": "separation_agreement", "label": "Separation agreement" },
+            { "value": "minutes_of_settlement", "label": "Minutes of settlement" },
+            { "value": "other", "label": "Other" }
+          ]
+        },
+        {
+          "id": "original_order_type_other",
+          "label": "Describe the type of original order",
+          "type": "text",
+          "required": false,
+          "conditionalOn": { "field": "original_order_type", "value": "other" },
+          "placeholder": "Describe the type of order or agreement"
+        }
+      ]
+    },
+    {
+      "stepId": "ci-step2",
+      "title": "Your Current Income",
+      "description": "Provide your current income details. This information is used to assess whether a change to support is warranted.",
+      "fields": [
+        {
+          "id": "applicant_employment_status",
+          "label": "Your current employment status",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "employed_full_time", "label": "Employed full-time" },
+            { "value": "employed_part_time", "label": "Employed part-time" },
+            { "value": "self_employed", "label": "Self-employed" },
+            { "value": "unemployed", "label": "Unemployed" },
+            { "value": "on_disability", "label": "On disability benefits" },
+            { "value": "on_employment_insurance", "label": "On employment insurance (EI)" },
+            { "value": "retired", "label": "Retired" },
+            { "value": "student", "label": "Full-time student" }
+          ]
+        },
+        {
+          "id": "applicant_employer_name",
+          "label": "Name of your employer",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. ABC Company Inc.",
+          "conditionalOn": { "field": "applicant_employment_status", "value": "employed_full_time", "orValues": ["employed_full_time", "employed_part_time"] }
+        },
+        {
+          "id": "applicant_annual_income",
+          "label": "Your current annual income (before taxes, in CAD)",
+          "type": "number",
+          "required": true,
+          "placeholder": "e.g. 55000",
+          "prefix": "$",
+          "helpText": "Include all sources: employment, self-employment, government benefits, investment income, etc."
+        },
+        {
+          "id": "applicant_income_sources",
+          "label": "Sources of your income",
+          "type": "checkbox-group",
+          "required": true,
+          "options": [
+            { "value": "employment", "label": "Employment wages or salary" },
+            { "value": "self_employment", "label": "Self-employment income" },
+            { "value": "ei", "label": "Employment insurance (EI)" },
+            { "value": "ontario_disability", "label": "Ontario Disability Support Program (ODSP)" },
+            { "value": "ontario_works", "label": "Ontario Works (OW)" },
+            { "value": "cpp", "label": "Canada Pension Plan (CPP)" },
+            { "value": "oas", "label": "Old Age Security (OAS)" },
+            { "value": "rental", "label": "Rental income" },
+            { "value": "investment", "label": "Investment or dividend income" },
+            { "value": "other", "label": "Other income" }
+          ]
+        },
+        {
+          "id": "applicant_income_change_since_order",
+          "label": "Has your income changed significantly since the original order?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "applicant_income_at_order",
+          "label": "What was your annual income at the time of the original order?",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "conditionalOn": { "field": "applicant_income_change_since_order", "value": "yes" },
+          "placeholder": "e.g. 70000"
+        },
+        {
+          "id": "applicant_income_change_explanation",
+          "label": "Briefly explain the change in your income",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "applicant_income_change_since_order", "value": "yes" },
+          "placeholder": "e.g. I was laid off in March 2024 and have been unable to find equivalent employment. My current income is from part-time work and EI benefits."
+        }
+      ]
+    },
+    {
+      "stepId": "ci-step3",
+      "title": "Other Party's Current Income",
+      "description": "Provide what you know about the other party's current income. If you don't have exact figures, provide your best estimate and explain.",
+      "fields": [
+        {
+          "id": "respondent_employment_status_known",
+          "label": "Do you know the other party's current employment status?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No — I don't have this information" }
+          ]
+        },
+        {
+          "id": "respondent_employment_status",
+          "label": "Other party's current employment status",
+          "type": "select",
+          "required": false,
+          "conditionalOn": { "field": "respondent_employment_status_known", "value": "yes" },
+          "options": [
+            { "value": "employed_full_time", "label": "Employed full-time" },
+            { "value": "employed_part_time", "label": "Employed part-time" },
+            { "value": "self_employed", "label": "Self-employed" },
+            { "value": "unemployed", "label": "Unemployed" },
+            { "value": "on_disability", "label": "On disability benefits" },
+            { "value": "on_employment_insurance", "label": "On employment insurance (EI)" },
+            { "value": "retired", "label": "Retired" },
+            { "value": "student", "label": "Full-time student" },
+            { "value": "unknown", "label": "Unknown / Not certain" }
+          ]
+        },
+        {
+          "id": "respondent_annual_income_estimate",
+          "label": "Other party's estimated current annual income (before taxes, in CAD)",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "e.g. 80000",
+          "helpText": "Provide your best estimate. You may request financial disclosure through the court if needed."
+        },
+        {
+          "id": "respondent_income_basis",
+          "label": "How do you know or estimate the other party's income?",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Based on their LinkedIn profile, they are still working as an engineer at the same company. I estimate their salary is approximately $80,000–$90,000 per year."
+        },
+        {
+          "id": "respondent_income_changed",
+          "label": "Do you believe the other party's income has changed significantly since the original order?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes — their income has increased or decreased significantly" },
+            { "value": "no", "label": "No — their income appears similar to what it was" },
+            { "value": "unknown", "label": "I don't know" }
+          ]
+        },
+        {
+          "id": "respondent_income_change_explanation",
+          "label": "Explain what you believe changed about the other party's income",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "respondent_income_changed", "value": "yes" },
+          "placeholder": "e.g. I understand they received a significant promotion and are now earning considerably more than at the time of our original order."
+        }
+      ]
+    },
+    {
+      "stepId": "ci-step4",
+      "title": "Your Current Monthly Expenses",
+      "description": "List your current monthly expenses. This helps the court understand your financial need and ability to pay.",
+      "fields": [
+        {
+          "id": "expense_rent_mortgage",
+          "label": "Rent or mortgage",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Monthly amount. Enter 0 if not applicable."
+        },
+        {
+          "id": "expense_utilities",
+          "label": "Utilities (hydro, gas, water, internet, phone)",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "expense_food_groceries",
+          "label": "Food and groceries",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "expense_transportation",
+          "label": "Transportation (car payment, insurance, gas, transit)",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "expense_childcare",
+          "label": "Childcare or daycare",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "expense_medical",
+          "label": "Medical, dental, prescriptions (not covered by insurance)",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "expense_children_activities",
+          "label": "Children's activities, school supplies, clothing",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "expense_insurance",
+          "label": "Life or health insurance premiums",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "expense_debt_payments",
+          "label": "Debt payments (credit card minimums, loans, lines of credit)",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "expense_other",
+          "label": "Other significant monthly expenses",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "expense_other_description",
+          "label": "Describe the other expenses",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. tutoring, therapy, union dues"
+        },
+        {
+          "id": "expense_total_monthly",
+          "label": "Total monthly expenses",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Add up all the monthly expenses listed above.",
+          "autoCalculate": {
+            "operation": "sum",
+            "fields": ["expense_rent_mortgage", "expense_utilities", "expense_food_groceries", "expense_transportation", "expense_childcare", "expense_medical", "expense_children_activities", "expense_insurance", "expense_debt_payments", "expense_other"]
+          }
+        }
+      ]
+    },
+    {
+      "stepId": "ci-step5",
+      "title": "Reason for Requested Change",
+      "description": "Explain why you are asking the court to change the existing order. There must be a material change in circumstances since the original order was made.",
+      "fields": [
+        {
+          "id": "material_change_categories",
+          "label": "What material changes have occurred? (select all that apply)",
+          "type": "checkbox-group",
+          "required": true,
+          "helpText": "A 'material change' means a significant change that was not anticipated when the original order was made.",
+          "options": [
+            { "value": "income_loss", "label": "My income has significantly decreased (e.g. job loss, reduced hours, illness)" },
+            { "value": "income_increase_other", "label": "The other party's income has significantly increased" },
+            { "value": "child_needs_changed", "label": "The children's needs have changed significantly" },
+            { "value": "parenting_arrangement_changed", "label": "Parenting time or custody arrangements have changed in practice" },
+            { "value": "child_relocation", "label": "A child has changed residence" },
+            { "value": "child_disability", "label": "A child has developed special needs or a disability" },
+            { "value": "child_adult", "label": "A child is approaching or has reached the age of majority" },
+            { "value": "remarriage_cohabitation", "label": "I or the other party has remarried or begun cohabiting" },
+            { "value": "health_change", "label": "A significant health change affecting ability to work or care for children" },
+            { "value": "new_child", "label": "A new child has been born" },
+            { "value": "other", "label": "Other material change" }
+          ]
+        },
+        {
+          "id": "material_change_details",
+          "label": "Describe the material change(s) in detail",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. In January 2025 I was laid off from my position as a logistics coordinator due to company downsizing. Despite actively seeking new employment, I have been unable to secure comparable work. My income has dropped from $72,000 per year to approximately $24,000 in EI benefits. This is a significant and unanticipated change that has made it impossible to continue paying the original support amount.",
+          "helpText": "Be specific. Include dates, amounts, and any supporting facts. This narrative is central to your motion."
+        },
+        {
+          "id": "change_in_custody_parenting",
+          "label": "Has the actual parenting or custody arrangement changed since the original order?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes — the arrangement has changed from what the order says" },
+            { "value": "no", "label": "No — the arrangement follows the order" }
+          ]
+        },
+        {
+          "id": "change_in_custody_parenting_details",
+          "label": "Describe how the parenting arrangement differs from the order",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "change_in_custody_parenting", "value": "yes" },
+          "placeholder": "e.g. The children have been living primarily with me for the past 8 months rather than following the 50/50 schedule in the order. The other party agreed to this informally but has not consented to changing the order."
+        },
+        {
+          "id": "arrears_owing",
+          "label": "Are there any outstanding arrears (unpaid support) under the current order?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes_i_owe", "label": "Yes — I owe arrears" },
+            { "value": "yes_they_owe", "label": "Yes — the other party owes me arrears" },
+            { "value": "no", "label": "No — payments are current" }
+          ]
+        },
+        {
+          "id": "arrears_amount",
+          "label": "Total amount of arrears",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "conditionalOn": { "field": "arrears_owing", "value": "yes_i_owe", "orValues": ["yes_i_owe", "yes_they_owe"] },
+          "placeholder": "e.g. 4500"
+        },
+        {
+          "id": "arrears_explanation",
+          "label": "Explain the arrears",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "arrears_owing", "value": "yes_i_owe", "orValues": ["yes_i_owe", "yes_they_owe"] },
+          "placeholder": "e.g. I fell behind on payments starting in February 2025 when I was laid off. I owe approximately $4,500 in arrears. I am requesting that the court consider suspending or reducing arrears enforcement while my income situation is resolved."
+        }
+      ]
+    },
+    {
+      "stepId": "ci-step6",
+      "title": "Comparison: Current Order vs. Proposed Change",
+      "description": "Provide the specific terms of the current order and what you are asking the court to change them to.",
+      "fields": [
+        {
+          "id": "current_child_support_amount",
+          "label": "Child support — current monthly amount under the order",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Enter 0 if the current order does not include child support."
+        },
+        {
+          "id": "proposed_child_support_amount",
+          "label": "Child support — proposed new monthly amount",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Enter the amount you are asking the court to set. Enter 0 if you are asking for child support to be terminated."
+        },
+        {
+          "id": "child_support_change_reason",
+          "label": "Briefly explain why you are asking for this child support change",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Based on my current income of $24,000 per year, the Federal Child Support Guidelines table amount for one child is $198/month, compared to the current order of $650/month which was based on my prior income of $72,000."
+        },
+        {
+          "id": "current_spousal_support_amount",
+          "label": "Spousal support — current monthly amount under the order",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Enter 0 if the current order does not include spousal support."
+        },
+        {
+          "id": "proposed_spousal_support_amount",
+          "label": "Spousal support — proposed new monthly amount",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "spousal_support_change_reason",
+          "label": "Briefly explain why you are asking for this spousal support change",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. My income has decreased significantly and I can no longer afford the existing spousal support payments. Alternatively, the other party's income has increased substantially since the order was made."
+        },
+        {
+          "id": "current_parenting_schedule",
+          "label": "Parenting time — current schedule as stated in the order",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Equal shared parenting — children reside with each parent on alternating weeks."
+        },
+        {
+          "id": "proposed_parenting_schedule",
+          "label": "Parenting time — proposed new schedule",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Children to reside primarily with me, with parenting time for the other parent every other weekend and Wednesday evenings."
+        },
+        {
+          "id": "other_order_terms_to_change",
+          "label": "Are there any other terms in the order you want changed?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "other_order_terms_details",
+          "label": "Describe the other terms you want changed and your proposed changes",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "other_order_terms_to_change", "value": "yes" },
+          "placeholder": "e.g. I am asking the court to change the section requiring both parents to attend family therapy together, as the relationship between the parties makes this unworkable."
+        },
+        {
+          "id": "proposed_effective_date",
+          "label": "From what date should the new order take effect?",
+          "type": "date",
+          "required": false,
+          "helpText": "Courts may backdate changes to the date you filed or the date the change in circumstances began. Leave blank if you want the court to decide."
+        }
+      ]
+    },
+    {
+      "stepId": "ci-step7",
+      "title": "Children's Current Circumstances",
+      "description": "Describe the current situation of the children affected by this motion.",
+      "fields": [
+        {
+          "id": "has_children",
+          "label": "Are there children affected by this motion?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No — this motion only affects spousal support or other terms" }
+          ]
+        },
+        {
+          "id": "number_of_children",
+          "label": "How many children are affected?",
+          "type": "number",
+          "required": false,
+          "conditionalOn": { "field": "has_children", "value": "yes" },
+          "placeholder": "e.g. 2"
+        },
+        {
+          "id": "children_details",
+          "label": "Children's names and ages",
+          "type": "repeatable-group",
+          "required": false,
+          "conditionalOn": { "field": "has_children", "value": "yes" },
+          "maxItems": 8,
+          "addLabel": "Add another child",
+          "fields": [
+            {
+              "id": "child_name",
+              "label": "Child's full name",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Emily Rose Smith"
+            },
+            {
+              "id": "child_dob",
+              "label": "Date of birth",
+              "type": "date",
+              "required": true
+            },
+            {
+              "id": "child_current_residence",
+              "label": "Currently living primarily with",
+              "type": "select",
+              "required": true,
+              "options": [
+                { "value": "applicant", "label": "Me (the applicant)" },
+                { "value": "respondent", "label": "The other party" },
+                { "value": "equal_shared", "label": "Equal shared — both parents equally" },
+                { "value": "other", "label": "Other arrangement" }
+              ]
+            },
+            {
+              "id": "child_special_needs",
+              "label": "Does this child have any special needs or circumstances to bring to the court's attention?",
+              "type": "text",
+              "required": false,
+              "placeholder": "e.g. diagnosed ADHD, requires weekly therapy; or 'None'"
+            }
+          ]
+        },
+        {
+          "id": "children_circumstances_narrative",
+          "label": "Describe the children's current circumstances and needs",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "has_children", "value": "yes" },
+          "placeholder": "e.g. Our two children, ages 7 and 10, are currently thriving in school. The older child has begun playing competitive hockey which involves significant equipment and travel costs. The younger child was recently assessed and requires speech-language therapy three times per week, which is not covered by our benefits plans.",
+          "helpText": "Include anything relevant to why the existing order no longer meets the children's needs or how your proposed change better serves them."
+        },
+        {
+          "id": "children_views",
+          "label": "Have the children expressed views or preferences about the proposed change? (if age-appropriate)",
+          "type": "radio",
+          "required": false,
+          "conditionalOn": { "field": "has_children", "value": "yes" },
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No — not applicable or they have not expressed views" }
+          ]
+        },
+        {
+          "id": "children_views_details",
+          "label": "Describe the children's views or preferences",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "children_views", "value": "yes" },
+          "placeholder": "e.g. My 13-year-old has expressed a clear preference to live primarily with me, which aligns with the arrangement that has existed in practice for the past year."
+        }
+      ]
+    },
+    {
+      "stepId": "ci-step8",
+      "title": "Review & Declaration",
+      "description": "Review your information and confirm its accuracy before generating your form.",
+      "fields": [
+        {
+          "id": "supporting_documents",
+          "label": "What supporting documents do you have? (select all that apply)",
+          "type": "checkbox-group",
+          "required": false,
+          "helpText": "You will need to attach relevant documents to your motion. Check what you have available.",
+          "options": [
+            { "value": "recent_tax_return", "label": "Recent income tax return (Notice of Assessment)" },
+            { "value": "pay_stubs", "label": "Recent pay stubs (last 3 months)" },
+            { "value": "ei_statement", "label": "EI or ODSP/OW benefit statement" },
+            { "value": "layoff_letter", "label": "Letter of termination / layoff" },
+            { "value": "medical_letter", "label": "Doctor's letter or medical documentation" },
+            { "value": "bank_statements", "label": "Bank statements showing income/expenses" },
+            { "value": "child_records", "label": "School records, medical records for children" },
+            { "value": "original_order_copy", "label": "Copy of the existing court order" },
+            { "value": "correspondence", "label": "Relevant emails or correspondence with other party" }
+          ]
+        },
+        {
+          "id": "previous_court_attempts",
+          "label": "Have you tried to resolve this matter with the other party before bringing this motion?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "previous_attempts_details",
+          "label": "Describe your attempts to resolve this without court",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "previous_court_attempts", "value": "yes" },
+          "placeholder": "e.g. I contacted the other party in March 2025 by email and again by phone to propose a temporary reduction in child support. They did not respond to my emails and refused to discuss the matter by phone. I also contacted a mediator but the other party declined to participate."
+        },
+        {
+          "id": "sworn_declaration",
+          "label": "Declaration",
+          "type": "declaration",
+          "required": true,
+          "text": "I declare that the information provided in this form is true and complete to the best of my knowledge and belief. I understand that providing false information to the court is a serious matter.",
+          "checkboxLabel": "I confirm this declaration is true and accurate."
+        }
+      ]
+    }
+  ],
+  "pdfMapping": {
+    "notes": "Form 15A Change Information — fields map to Ontario Court Services form fields. Courts may use various versions; consult the current form at ontario.ca/page/family-law-forms before filing.",
+    "party_court_header": ["applicant_full_name", "respondent_full_name", "court_file_number", "courthouse_name"],
+    "original_order_section": ["original_order_date", "original_order_type"],
+    "applicant_income_section": ["applicant_employment_status", "applicant_annual_income", "applicant_income_sources"],
+    "respondent_income_section": ["respondent_employment_status", "respondent_annual_income_estimate"],
+    "expenses_section": ["expense_rent_mortgage", "expense_utilities", "expense_food_groceries", "expense_transportation", "expense_childcare", "expense_medical", "expense_total_monthly"],
+    "material_change_section": ["material_change_categories", "material_change_details"],
+    "order_comparison_section": ["current_child_support_amount", "proposed_child_support_amount", "current_spousal_support_amount", "proposed_spousal_support_amount"],
+    "children_section": ["number_of_children", "children_details", "children_circumstances_narrative"],
+    "declaration_section": ["sworn_declaration"]
+  }
+}

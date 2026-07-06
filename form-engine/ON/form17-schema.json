@@ -1,0 +1,363 @@
+{
+  "formId": "ON-F17",
+  "formCode": "form17-conference-notice",
+  "title": "Form 17 — Notice of Case Conference, Settlement Conference, or Trial Management Conference",
+  "jurisdiction": "Ontario",
+  "version": "2024",
+  "description": "Used to schedule and give notice of a case conference, settlement conference, or trial management conference in an Ontario family law proceeding. Required under Family Law Rules Rule 17.",
+  "autoPopulateFrom": ["form8-general"],
+  "steps": [
+    {
+      "stepId": "cn-step1",
+      "title": "Court & Case Information",
+      "description": "Enter the court file details. This form tells the court and the other party when and where the conference is scheduled.",
+      "fields": [
+        {
+          "id": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "required": true,
+          "autoPopulate": "courthouse",
+          "options": [
+            "Barrie — Superior Court of Justice",
+            "Brampton — Superior Court of Justice",
+            "Brantford — Superior Court of Justice",
+            "Cornwall — Superior Court of Justice",
+            "Hamilton — Superior Court of Justice",
+            "Kingston — Superior Court of Justice",
+            "Kitchener — Superior Court of Justice",
+            "London — Superior Court of Justice",
+            "Milton — Superior Court of Justice",
+            "Newmarket — Superior Court of Justice",
+            "Oshawa — Superior Court of Justice",
+            "Ottawa — Superior Court of Justice",
+            "Peterborough — Superior Court of Justice",
+            "St. Catharines — Superior Court of Justice",
+            "Sudbury — Superior Court of Justice",
+            "Thunder Bay — Superior Court of Justice",
+            "Toronto — Superior Court of Justice",
+            "Windsor — Superior Court of Justice"
+          ],
+          "helpText": "Select the courthouse where your family law case is being heard."
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court file number",
+          "type": "text",
+          "required": false,
+          "autoPopulate": "court_file_number",
+          "placeholder": "e.g. FC-2024-12345",
+          "helpText": "Leave blank if you do not yet have one. It will be assigned when you file your application."
+        },
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "applicant_full_name",
+          "placeholder": "e.g. Jane Marie Smith"
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "respondent_full_name",
+          "placeholder": "e.g. John Robert Smith"
+        }
+      ]
+    },
+    {
+      "stepId": "cn-step2",
+      "title": "Type of Conference",
+      "description": "Select which type of conference you are scheduling. Each serves a different purpose in the family law process.",
+      "fields": [
+        {
+          "id": "conference_type",
+          "label": "What type of conference are you scheduling?",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "case_conference", "label": "Case Conference" },
+            { "value": "settlement_conference", "label": "Settlement Conference" },
+            { "value": "trial_management_conference", "label": "Trial Management Conference" }
+          ],
+          "helpText": "Not sure which type? See the descriptions below."
+        },
+        {
+          "id": "conference_type_explainer",
+          "label": "What does each type mean?",
+          "type": "info-box",
+          "content": "**Case Conference** — Usually the first meeting with a judge. The judge helps identify the issues, encourages settlement, and gives directions on next steps. Required before most motions can be brought.\n\n**Settlement Conference** — A more focused meeting where a judge actively helps both parties try to resolve the case. Usually held after a case conference. Both parties must come prepared with their best settlement offer.\n\n**Trial Management Conference** — Held just before trial to make sure both parties are ready. The judge reviews the issues going to trial, identifies witnesses, and makes procedural orders. Required before any trial."
+        },
+        {
+          "id": "first_conference",
+          "label": "Is this your first conference in this case?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes — this is the first conference" },
+            { "value": "no", "label": "No — there have been previous conferences" }
+          ]
+        },
+        {
+          "id": "previous_conference_summary",
+          "label": "Briefly describe what happened at the last conference",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "first_conference", "value": "no" },
+          "placeholder": "e.g. At the case conference on March 15, 2025, Justice Smith made a temporary order for child support of $800/month. The parties were directed to exchange financial disclosure and attend a settlement conference."
+        }
+      ]
+    },
+    {
+      "stepId": "cn-step3",
+      "title": "Conference Date & Details",
+      "description": "Enter the date, time, and location for the conference. Contact the court clerk to schedule the date before completing this form.",
+      "fields": [
+        {
+          "id": "conference_date",
+          "label": "Date of the conference",
+          "type": "date",
+          "required": true,
+          "helpText": "Contact the court clerk first to book a date. You must serve this notice on the other party at least 6 days before the conference."
+        },
+        {
+          "id": "conference_time",
+          "label": "Time of the conference",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 9:30 a.m.",
+          "helpText": "As confirmed by the court clerk."
+        },
+        {
+          "id": "conference_location",
+          "label": "Location (courtroom or room number, if known)",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. Room 4B, 393 University Ave, Toronto ON M5G 1E6",
+          "helpText": "Leave blank if the court clerk has not yet assigned a room. The courthouse address is enough."
+        },
+        {
+          "id": "conference_format",
+          "label": "Format of the conference",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "in_person", "label": "In person — at the courthouse" },
+            { "value": "video", "label": "By video (e.g. Zoom)" },
+            { "value": "telephone", "label": "By telephone" },
+            { "value": "hybrid", "label": "Hybrid — some in person, some remote" }
+          ],
+          "helpText": "Confirm the format with the court clerk. Many Ontario courts now offer video conferences."
+        },
+        {
+          "id": "video_link",
+          "label": "Video conference link or dial-in information",
+          "type": "text",
+          "required": false,
+          "conditionalOn": { "field": "conference_format", "value": "video", "orValues": ["video", "telephone", "hybrid"] },
+          "placeholder": "e.g. Zoom link: https://ontario.zoom.us/j/123456789 or call-in: 1-647-374-4685"
+        }
+      ]
+    },
+    {
+      "stepId": "cn-step4",
+      "title": "Issues for the Conference",
+      "description": "List the issues you want the conference to address. The judge will focus on what you identify here.",
+      "fields": [
+        {
+          "id": "issues_to_resolve",
+          "label": "What issues do you want to address at this conference? (select all that apply)",
+          "type": "checkbox-group",
+          "required": true,
+          "helpText": "Check everything that applies. You don't need to resolve all issues — just identify what is in dispute.",
+          "options": [
+            { "value": "decision_making", "label": "Decision-making responsibility (custody)" },
+            { "value": "parenting_time", "label": "Parenting time (access schedule)" },
+            { "value": "child_support", "label": "Child support" },
+            { "value": "spousal_support", "label": "Spousal support" },
+            { "value": "property_division", "label": "Property division / equalization" },
+            { "value": "family_home", "label": "Who stays in the family home" },
+            { "value": "restraining_order", "label": "Restraining order or non-harassment order" },
+            { "value": "relocation", "label": "Relocation of a child" },
+            { "value": "disclosure", "label": "Financial disclosure obligations" },
+            { "value": "procedural_matters", "label": "Procedural matters (timetable, next steps)" },
+            { "value": "enforcement", "label": "Enforcement of an existing order" },
+            { "value": "arrears", "label": "Child or spousal support arrears" },
+            { "value": "other", "label": "Other issue" }
+          ]
+        },
+        {
+          "id": "other_issue_description",
+          "label": "Describe the other issue",
+          "type": "text",
+          "required": false,
+          "conditionalOn": { "field": "issues_to_resolve", "value": "other" },
+          "placeholder": "e.g. Division of a specific pension, passport for child travel"
+        },
+        {
+          "id": "issues_agreed",
+          "label": "Are there any issues that are already agreed between the parties?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes — some issues are settled" },
+            { "value": "no", "label": "No — all listed issues are still in dispute" }
+          ]
+        },
+        {
+          "id": "agreed_issues_description",
+          "label": "Describe what has already been agreed",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "issues_agreed", "value": "yes" },
+          "placeholder": "e.g. The parties have agreed that the children will continue to attend the same school. Parenting time and child support amounts are still in dispute."
+        }
+      ]
+    },
+    {
+      "stepId": "cn-step5",
+      "title": "Orders You Are Seeking",
+      "description": "Tell the court what you want the judge to order or direct at this conference.",
+      "fields": [
+        {
+          "id": "seeking_temporary_order",
+          "label": "Are you asking the judge to make any temporary orders at this conference?",
+          "type": "radio",
+          "required": true,
+          "helpText": "At a case conference or settlement conference, a judge can make temporary orders on consent or on a motion. Identify if you need something in the short term.",
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No — just asking for directions and next steps" }
+          ]
+        },
+        {
+          "id": "temporary_orders_sought",
+          "label": "Describe the temporary order(s) you are asking for",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "seeking_temporary_order", "value": "yes" },
+          "placeholder": "e.g. A temporary order that the children reside primarily with me pending trial, and that the Respondent pay interim child support of $750/month."
+        },
+        {
+          "id": "directions_sought",
+          "label": "What procedural directions are you asking the judge to give?",
+          "type": "checkbox-group",
+          "required": false,
+          "helpText": "Directions are instructions from the judge about how the case should proceed.",
+          "options": [
+            { "value": "timetable", "label": "Set a timetable for exchanging documents and evidence" },
+            { "value": "financial_disclosure", "label": "Order the other party to provide financial disclosure" },
+            { "value": "valuations", "label": "Order property or business valuations" },
+            { "value": "expert_report", "label": "Order an expert report (e.g. parenting assessment)" },
+            { "value": "mediation", "label": "Refer to mediation" },
+            { "value": "trial_date", "label": "Set a trial date" },
+            { "value": "other_direction", "label": "Other procedural direction" }
+          ]
+        },
+        {
+          "id": "other_direction_description",
+          "label": "Describe the other direction you are seeking",
+          "type": "text",
+          "required": false,
+          "conditionalOn": { "field": "directions_sought", "value": "other_direction" },
+          "placeholder": "e.g. Order that both parties complete parenting education program before next conference"
+        }
+      ]
+    },
+    {
+      "stepId": "cn-step6",
+      "title": "Background Facts",
+      "description": "Provide a brief summary of the facts. The judge reads this before the conference to understand your situation.",
+      "fields": [
+        {
+          "id": "relationship_summary",
+          "label": "Brief history of the relationship and family",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. The parties were married on June 12, 2015 in Toronto and separated on February 1, 2024. There are two children: Alex (age 10) and Sam (age 7). The parties lived in the family home at 123 Main St, Toronto until separation. The Applicant remains in the family home with the children. The Respondent moved to an apartment nearby.",
+          "helpText": "Keep it factual and brief — 3 to 5 sentences. The judge uses this to understand the basics of your case before the conference."
+        },
+        {
+          "id": "current_arrangements",
+          "label": "What are the current arrangements for the children and finances?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. The children currently live primarily with the Applicant on a temporary basis. The Respondent has parenting time every other weekend. No support is currently being paid. There is no existing court order — these are informal arrangements only.",
+          "helpText": "Describe what is actually happening right now, even if there is no formal order."
+        },
+        {
+          "id": "main_concern",
+          "label": "What is your main concern going into this conference?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. My main concern is stabilizing the children's living situation and getting a temporary support order in place. The other party has been refusing to provide any financial disclosure, which is preventing us from resolving support amounts.",
+          "helpText": "Be honest and specific. This helps the judge understand what matters most to you."
+        }
+      ]
+    },
+    {
+      "stepId": "cn-step7",
+      "title": "Service & Confirmation",
+      "description": "You must serve this notice on the other party before the conference.",
+      "fields": [
+        {
+          "id": "service_method",
+          "label": "How will you serve this notice on the other party?",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "by_hand", "label": "By hand (personal service)" },
+            { "value": "by_mail", "label": "By mail" },
+            { "value": "by_email", "label": "By email (if agreed or court-ordered)" },
+            { "value": "via_lawyer", "label": "Through the other party's lawyer" },
+            { "value": "by_courier", "label": "By courier" }
+          ],
+          "helpText": "You must serve at least 6 days before the conference."
+        },
+        {
+          "id": "service_planned_date",
+          "label": "When do you plan to serve the other party?",
+          "type": "date",
+          "required": false,
+          "helpText": "Must be at least 6 days before the conference date."
+        },
+        {
+          "id": "conference_brief_reminder",
+          "label": "Conference brief reminder",
+          "type": "info-box",
+          "content": "**Important:** You must also prepare and serve a **conference brief** at least 7 days before the conference. The brief summarizes your position on each issue. Ask the court clerk which brief form is required for your type of conference (usually Form 17A for case conferences, Form 17C for settlement conferences, or Form 17E for trial management conferences)."
+        },
+        {
+          "id": "brief_prepared",
+          "label": "Have you prepared your conference brief?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes — my brief is ready" },
+            { "value": "in_progress", "label": "In progress — I am preparing it now" },
+            { "value": "no", "label": "Not yet — I will prepare it before the deadline" }
+          ]
+        },
+        {
+          "id": "declaration_confirmed",
+          "label": "Declaration",
+          "type": "checkbox",
+          "required": true,
+          "checkboxLabel": "I confirm the information in this Notice of Conference is accurate. I understand this form will be filed with the Ontario court and served on the other party."
+        }
+      ]
+    }
+  ],
+  "pdfMapping": {
+    "notes": "Form 17 — used for case conference, settlement conference, and trial management conference notices. Filed with the court and served on the other party. See ontario.ca/page/family-law-forms for current version.",
+    "court_header": ["courthouse", "court_file_number", "applicant_full_name", "respondent_full_name"],
+    "conference_section": ["conference_type", "conference_date", "conference_time", "conference_location", "conference_format"],
+    "issues_section": ["issues_to_resolve", "issues_agreed", "agreed_issues_description"],
+    "orders_section": ["seeking_temporary_order", "temporary_orders_sought", "directions_sought"],
+    "facts_section": ["relationship_summary", "current_arrangements", "main_concern"],
+    "service_section": ["service_method", "service_planned_date"],
+    "declaration_section": ["declaration_confirmed"]
+  }
+}

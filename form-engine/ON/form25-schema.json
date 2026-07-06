@@ -1,0 +1,361 @@
+{
+  "formCode": "form25-order-general",
+  "formNumber": "Form 25",
+  "title": "Order (General)",
+  "jurisdiction": "Ontario",
+  "act": "Family Law Rules",
+  "version": "December 2020",
+  "description": "Used to draft a proposed court order for the judge or clerk to sign. Can be temporary or final and may refer to the Divorce Act, Children's Law Reform Act, or Family Law Act.",
+  "steps": [
+    {
+      "step": 1,
+      "title": "Court & File Information",
+      "description": "Enter the court location and file details for this order.",
+      "fields": [
+        {
+          "id": "court_file_number",
+          "label": "Court File Number",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. FC-12345-24",
+          "hint": "This is the number the court assigned when the case was started. It appears on your Application."
+        },
+        {
+          "id": "court_name",
+          "label": "Name of Court",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Ontario Court of Justice",
+          "hint": "Write the full name of the court where your case is being heard."
+        },
+        {
+          "id": "court_location",
+          "label": "Court Location (City)",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Toronto",
+          "hint": "The city or municipality where the court office is located."
+        },
+        {
+          "id": "court_office_address",
+          "label": "Court Office Address",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 311 Jarvis Street, Toronto, ON M5B 2C4",
+          "hint": "Full street address of the courthouse."
+        },
+        {
+          "id": "order_type",
+          "label": "Type of Order",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "temporary",
+              "label": "Temporary — an order that lasts until a future court date or further order"
+            },
+            {
+              "value": "final",
+              "label": "Final — a permanent order that ends this issue in your case"
+            }
+          ],
+          "hint": "A temporary order is often made at a motion. A final order is made after a trial or on consent. If you are not sure, ask the court office."
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "title": "Applicant Information",
+      "description": "Enter the full name and contact details for the applicant.",
+      "fields": [
+        {
+          "id": "applicant_fullname",
+          "label": "Applicant — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Jane Elizabeth Smith",
+          "autoFill": "user_fullname",
+          "hint": "Use your full legal name exactly as it appears on your Application."
+        },
+        {
+          "id": "applicant_address",
+          "label": "Applicant — Address for Service",
+          "type": "text",
+          "required": true,
+          "placeholder": "Street & number, city, province, postal code",
+          "autoFill": "user_address",
+          "hint": "This is the address where court documents will be sent to you."
+        },
+        {
+          "id": "applicant_phone",
+          "label": "Applicant — Telephone Number",
+          "type": "tel",
+          "required": true,
+          "placeholder": "e.g. 416-555-0100",
+          "autoFill": "user_phone"
+        },
+        {
+          "id": "applicant_fax",
+          "label": "Applicant — Fax Number (if any)",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0101"
+        },
+        {
+          "id": "applicant_email",
+          "label": "Applicant — Email Address (if any)",
+          "type": "email",
+          "required": false,
+          "placeholder": "e.g. jane.smith@email.com",
+          "autoFill": "user_email"
+        },
+        {
+          "id": "applicant_lawyer_name",
+          "label": "Applicant's Lawyer — Full Name & Address",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "Lawyer's full name, firm, street & number, city, province, postal code, telephone, fax, email",
+          "hint": "Leave blank if the applicant is self-represented."
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "title": "Respondent Information",
+      "description": "Enter the full name and contact details for the respondent.",
+      "fields": [
+        {
+          "id": "respondent_fullname",
+          "label": "Respondent — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. John Robert Smith",
+          "autoFill": "spouse_fullname",
+          "hint": "Use the respondent's full legal name exactly as it appears on the Application."
+        },
+        {
+          "id": "respondent_address",
+          "label": "Respondent — Address for Service",
+          "type": "text",
+          "required": true,
+          "placeholder": "Street & number, city, province, postal code",
+          "autoFill": "spouse_address"
+        },
+        {
+          "id": "respondent_phone",
+          "label": "Respondent — Telephone Number",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0200"
+        },
+        {
+          "id": "respondent_fax",
+          "label": "Respondent — Fax Number (if any)",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0201"
+        },
+        {
+          "id": "respondent_email",
+          "label": "Respondent — Email Address (if any)",
+          "type": "email",
+          "required": false,
+          "placeholder": "e.g. john.smith@email.com"
+        },
+        {
+          "id": "respondent_lawyer_name",
+          "label": "Respondent's Lawyer — Full Name & Address",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "Lawyer's full name, firm, street & number, city, province, postal code, telephone, fax, email",
+          "hint": "Leave blank if the respondent is self-represented."
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "title": "Hearing Details",
+      "description": "Describe what happened at the court hearing that led to this order.",
+      "fields": [
+        {
+          "id": "judge_name",
+          "label": "Judge's Name (print or type)",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. The Honourable Justice A. Lee",
+          "hint": "The name of the judge who made or will sign the order. If you do not know this yet, leave blank and fill in at the courthouse."
+        },
+        {
+          "id": "hearing_date",
+          "label": "Date of Hearing / Date of Order",
+          "type": "date",
+          "required": true,
+          "hint": "The date the court hearing took place, or the date the order is to be signed."
+        },
+        {
+          "id": "motion_made_by",
+          "label": "Application / Motion Made By",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. the Applicant, Jane Smith",
+          "hint": "Write the name of the person or persons who brought the motion or application."
+        },
+        {
+          "id": "persons_in_court",
+          "label": "Persons Present in Court",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "e.g. Jane Smith (Applicant, self-represented); John Smith (Respondent, represented by A. Jones)",
+          "hint": "List the names of all parties and lawyers who were present at the hearing."
+        },
+        {
+          "id": "evidence_submissions_by",
+          "label": "Evidence and Submissions Received On Behalf Of",
+          "type": "textarea",
+          "required": false,
+          "rows": 2,
+          "placeholder": "e.g. the Applicant, Jane Smith",
+          "hint": "List the names of the persons on whose behalf the court received evidence or heard submissions."
+        }
+      ]
+    },
+    {
+      "step": 5,
+      "title": "Applicable Legislation",
+      "description": "Select the legislation under which the order is being made. Most family law orders are made under more than one Act — check all that apply.",
+      "fields": [
+        {
+          "id": "legislation_provincial_only",
+          "label": "This order is made pursuant to provincial legislation only",
+          "type": "checkbox",
+          "required": false,
+          "hint": "Check this if the order does NOT involve the Divorce Act (for example, you are not married, or this is a common-law matter)."
+        },
+        {
+          "id": "legislation_divorce_act",
+          "label": "Divorce Act (Canada)",
+          "type": "checkbox",
+          "required": false,
+          "hint": "Check if any part of the order relates to divorce, or to custody/access/support between married spouses under the federal Divorce Act."
+        },
+        {
+          "id": "legislation_clra",
+          "label": "Children's Law Reform Act (Ontario)",
+          "type": "checkbox",
+          "required": false,
+          "hint": "Check if the order involves parenting time, decision-making, or contact for children of unmarried parents, or for any child custody/access matter under provincial law."
+        },
+        {
+          "id": "legislation_fla",
+          "label": "Family Law Act (Ontario)",
+          "type": "checkbox",
+          "required": false,
+          "hint": "Check if the order involves spousal support, property division, net family property, or possession of the matrimonial home under Ontario's Family Law Act."
+        }
+      ]
+    },
+    {
+      "step": 6,
+      "title": "Order Terms — Divorce Act",
+      "description": "If the Divorce Act applies, type the exact terms of the order here.",
+      "showIf": {"field": "legislation_divorce_act", "value": true},
+      "fields": [
+        {
+          "id": "order_terms_divorce_act",
+          "label": "PURSUANT TO THE DIVORCE ACT (CANADA), THIS COURT ORDERS THAT:",
+          "type": "textarea",
+          "required": false,
+          "rows": 8,
+          "placeholder": "e.g.\n1. The parties shall have joint decision-making responsibility for the child, Emma Smith, born March 1, 2018.\n2. The child shall reside primarily with the Applicant.\n3. The Respondent shall have parenting time with the child every other weekend...",
+          "hint": "Write the exact terms of each order. Number each term. Be as specific as possible — include names, dates, amounts, and conditions. Leave blank if this legislation does not apply."
+        }
+      ]
+    },
+    {
+      "step": 7,
+      "title": "Order Terms — Children's Law Reform Act",
+      "description": "If the Children's Law Reform Act applies, type the exact terms of the order here.",
+      "showIf": {"field": "legislation_clra", "value": true},
+      "fields": [
+        {
+          "id": "order_terms_clra",
+          "label": "PURSUANT TO THE CHILDREN'S LAW REFORM ACT, THIS COURT ORDERS THAT:",
+          "type": "textarea",
+          "required": false,
+          "rows": 8,
+          "placeholder": "e.g.\n1. The Applicant shall have sole decision-making responsibility for the child, Liam Jones, born June 5, 2017.\n2. The Respondent shall have parenting time as agreed between the parties in writing...",
+          "hint": "Write the exact terms of each order. Number each term. Leave blank if this legislation does not apply."
+        }
+      ]
+    },
+    {
+      "step": 8,
+      "title": "Order Terms — Family Law Act",
+      "description": "If the Family Law Act applies, type the exact terms of the order here.",
+      "showIf": {"field": "legislation_fla", "value": true},
+      "fields": [
+        {
+          "id": "order_terms_fla",
+          "label": "PURSUANT TO THE FAMILY LAW ACT, THIS COURT ORDERS THAT:",
+          "type": "textarea",
+          "required": false,
+          "rows": 8,
+          "placeholder": "e.g.\n1. The Respondent shall pay to the Applicant spousal support in the amount of $1,500 per month commencing January 1, 2025.\n2. The equalization payment of $45,000 shall be paid by the Respondent to the Applicant within 60 days of this order...",
+          "hint": "Write the exact terms of each order. Number each term. Leave blank if this legislation does not apply."
+        }
+      ]
+    },
+    {
+      "step": 9,
+      "title": "Additional Order Terms",
+      "description": "Use this section for any order terms not covered by a specific Act, or for additional terms that continue from the previous sections.",
+      "fields": [
+        {
+          "id": "order_terms_additional",
+          "label": "THIS COURT ALSO ORDERS THAT (additional terms, specify legislation where applicable):",
+          "type": "textarea",
+          "required": false,
+          "rows": 8,
+          "placeholder": "e.g.\n1. The Respondent shall pay costs of this motion fixed at $2,500 payable within 30 days.\n2. Either party may apply to vary this order on notice.",
+          "hint": "Include costs awards, service directions, compliance timelines, or any other terms. Put a line through any blank space left on the printed form."
+        },
+        {
+          "id": "order_attach_sheets",
+          "label": "Additional sheets attached?",
+          "type": "checkbox",
+          "required": false,
+          "hint": "Check this if you have attached extra pages continuing the order terms. Make sure each page is clearly numbered and cross-referenced."
+        }
+      ]
+    },
+    {
+      "step": 10,
+      "title": "Signature & Declaration",
+      "description": "Review and confirm. The order is signed by the judge or clerk of the court — not by you. Your role is to present this draft to the court.",
+      "fields": [
+        {
+          "id": "signature_date",
+          "label": "Date of Signature (to be completed by court)",
+          "type": "date",
+          "required": false,
+          "hint": "This field is filled in by the judge or clerk at the courthouse when the order is signed. Leave blank or enter the expected hearing date."
+        },
+        {
+          "id": "preparer_confirmation",
+          "label": "I confirm that I have prepared this draft order accurately and that it reflects the order I am seeking from the court.",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "id": "hearth_page_notice",
+          "label": "Hearth & Page Notice",
+          "type": "info",
+          "content": "This draft order was prepared using Hearth & Page. It must be reviewed and signed by a judge or clerk of the court before it becomes a legally binding order. Bring this completed draft to your court hearing."
+        }
+      ]
+    }
+  ]
+}

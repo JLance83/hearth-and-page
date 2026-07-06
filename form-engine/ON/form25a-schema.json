@@ -1,0 +1,305 @@
+{
+  "formId": "ON-F25A",
+  "jurisdiction": "ON",
+  "pdfFileName": "form25a.pdf",
+  "title": "Form 25A \u2014 Order for Divorce",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules (FLR 25A)",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "helpIntro": "Form 25A is the actual divorce order that the judge signs. You prepare it in advance and submit it with your divorce application \u2014 if the judge approves your divorce, they sign this form and it becomes the legal divorce order. It is one of the most important documents in the process. Prepare it carefully.",
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 5",
+      "intro": "Enter the court file details. This must exactly match your application.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": true,
+          "placeholder": "e.g. FC-2024-12345",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "hearingDate",
+          "label": "Date of hearing (if known, otherwise leave blank)",
+          "type": "date",
+          "required": false,
+          "helpText": "The clerk will fill this in if left blank.",
+          "pdfFieldName": "Hearing date"
+        }
+      ]
+    },
+    {
+      "partId": "parties",
+      "title": "The parties",
+      "subtitle": "Step 2 of 5",
+      "intro": "Enter both parties' full legal names exactly as they appear on the marriage certificate.",
+      "fields": [
+        {
+          "fieldId": "applicantFullName",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "helpText": "Must match the marriage certificate exactly.",
+          "pdfFieldName": "Applicant full name",
+          "id": "applicant_full_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "respondentFullName",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "helpText": "Must match the marriage certificate exactly.",
+          "pdfFieldName": "Respondent full name",
+          "id": "respondent_full_name",
+          "autoFill": "respondent_full_name"
+        },
+        {
+          "fieldId": "applicantBirthDate",
+          "label": "Applicant's date of birth",
+          "type": "date",
+          "source": "profile.applicant.dateOfBirth",
+          "required": false,
+          "pdfFieldName": "Applicant birth date"
+        },
+        {
+          "fieldId": "respondentBirthDate",
+          "label": "Respondent's date of birth",
+          "type": "date",
+          "source": "profile.respondent.dateOfBirth",
+          "required": false,
+          "pdfFieldName": "Respondent birth date"
+        }
+      ]
+    },
+    {
+      "partId": "divorceOrder",
+      "title": "The divorce order",
+      "subtitle": "Step 3 of 5",
+      "intro": "This section sets out the terms of the divorce order itself \u2014 what the judge will be signing.",
+      "fields": [
+        {
+          "fieldId": "marriageDate",
+          "label": "Date of marriage",
+          "type": "date",
+          "source": "profile.case.marriageDate",
+          "required": true,
+          "helpText": "Must match the marriage certificate.",
+          "pdfFieldName": "Marriage date",
+          "id": "date_of_marriage",
+          "autoFill": "marriage_date"
+        },
+        {
+          "fieldId": "marriagePlace",
+          "label": "Place of marriage (city and province/country)",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Toronto, Ontario, Canada",
+          "pdfFieldName": "Marriage place"
+        },
+        {
+          "fieldId": "separationDate",
+          "label": "Date of separation",
+          "type": "date",
+          "source": "profile.case.separationDate",
+          "required": true,
+          "pdfFieldName": "Separation date",
+          "id": "date_of_separation",
+          "autoFill": "separation_date"
+        },
+        {
+          "fieldId": "divorceEffectiveDate",
+          "label": "When should the divorce take effect?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "31 days after the divorce order is made (standard \u2014 allows appeal period)",
+            "Immediately \u2014 I am asking the court to waive the 31-day waiting period"
+          ],
+          "helpText": "The standard is 31 days. The divorce becomes final 31 days after the judge signs the order, unless an appeal is filed. The 31-day period can only be waived in very limited circumstances (e.g. one party is remarrying imminently).",
+          "pdfFieldName": "Divorce effective date"
+        },
+        {
+          "fieldId": "waiveWaitingPeriodReason",
+          "label": "Reason for waiving the 31-day waiting period",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "divorceEffectiveDate",
+            "showWhen": "Immediately \u2014 I am asking the court to waive the 31-day waiting period"
+          },
+          "placeholder": "e.g. Both parties consent to the divorce being effective immediately as one party plans to remarry on [date].",
+          "pdfFieldName": "Waive waiting period reason"
+        }
+      ]
+    },
+    {
+      "partId": "corollaryRelief",
+      "title": "Additional orders (corollary relief)",
+      "subtitle": "Step 4 of 5",
+      "intro": "A divorce order can also include other orders \u2014 such as support or custody \u2014 if they are not already set out in a separate agreement or order. Only include items here that you need the divorce order itself to address.",
+      "fields": [
+        {
+          "fieldId": "includeChildSupport",
+          "label": "Should the divorce order include a child support term?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Select 'No' if child support is already covered by a separation agreement or a separate court order.",
+          "pdfFieldName": "Include child support"
+        },
+        {
+          "fieldId": "childSupportTerm",
+          "label": "Child support term to include in the order",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "includeChildSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. The Respondent shall pay to the Applicant child support for the children Alex Lance and Sam Lance in the amount of $1,200 per month commencing July 1, 2025, pursuant to the Child Support Guidelines.",
+          "helpText": "Write the exact wording you want the judge to sign. Be specific \u2014 include names, amounts, and start dates.",
+          "pdfFieldName": "Child support term"
+        },
+        {
+          "fieldId": "includeSpousalSupport",
+          "label": "Should the divorce order include a spousal support term?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Select 'No' if spousal support is already covered by a separation agreement or separate order.",
+          "pdfFieldName": "Include spousal support"
+        },
+        {
+          "fieldId": "spousalSupportTerm",
+          "label": "Spousal support term to include in the order",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "includeSpousalSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. The Respondent shall pay to the Applicant spousal support in the amount of $800 per month commencing July 1, 2025, for a period of 5 years.",
+          "pdfFieldName": "Spousal support term"
+        },
+        {
+          "fieldId": "includeCustodyParenting",
+          "label": "Should the divorce order include parenting / custody terms?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Select 'No' if parenting is already addressed in a separation agreement or a prior court order.",
+          "pdfFieldName": "Include custody parenting"
+        },
+        {
+          "fieldId": "custodyParentingTerm",
+          "label": "Parenting / custody term to include in the order",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "includeCustodyParenting",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. The children Alex Lance and Sam Lance shall reside primarily with the Applicant. The Respondent shall have parenting time as set out in the Separation Agreement dated March 15, 2025.",
+          "pdfFieldName": "Custody parenting term"
+        },
+        {
+          "fieldId": "noOrderCosts",
+          "label": "No order as to costs (each party pays their own legal costs)",
+          "type": "checkbox",
+          "required": false,
+          "helpText": "In uncontested divorces, courts typically make no order as to costs. Check this box if that is your intention.",
+          "pdfFieldName": "No order costs"
+        },
+        {
+          "fieldId": "costsTerm",
+          "label": "If a costs order is requested, describe it",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. The Respondent shall pay costs of this proceeding to the Applicant fixed at $X.",
+          "pdfFieldName": "Costs term"
+        }
+      ]
+    },
+    {
+      "partId": "review",
+      "title": "Review and confirmation",
+      "subtitle": "Step 5 of 5",
+      "intro": "Review the draft Order for Divorce carefully. The judge will sign exactly what you have prepared here. Once signed, it is a binding court order.",
+      "fields": [
+        {
+          "fieldId": "namChangeApplicant",
+          "label": "Is the applicant resuming a former surname after the divorce?",
+          "type": "yesno",
+          "required": false,
+          "helpText": "You can resume a name you used before the marriage. This can be included in the divorce order itself.",
+          "pdfFieldName": "Name change applicant"
+        },
+        {
+          "fieldId": "applicantFormerName",
+          "label": "Applicant's former surname to be resumed",
+          "type": "text",
+          "required": false,
+          "conditional": {
+            "dependsOn": "namChangeApplicant",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. Smith",
+          "helpText": "You will use the divorce order as proof of name change \u2014 no other process required.",
+          "pdfFieldName": "Applicant former name"
+        },
+        {
+          "fieldId": "bothPartiesConsent",
+          "label": "Is this an uncontested (joint or sole) divorce where both parties agree?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "If the other party is contesting the divorce, the order terms will be determined by the court at a hearing.",
+          "pdfFieldName": "Both parties consent"
+        },
+        {
+          "fieldId": "declarationConfirmed",
+          "label": "I confirm this Order for Divorce accurately reflects what I am asking the court to order.",
+          "type": "checkbox",
+          "required": true,
+          "pdfFieldName": "Declaration confirmed"
+        }
+      ]
+    }
+  ]
+}

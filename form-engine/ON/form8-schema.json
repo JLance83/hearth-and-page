@@ -1,0 +1,503 @@
+{
+  "formId": "ON-F8",
+  "jurisdiction": "ON",
+  "pdfFileName": "form8.pdf",
+  "title": "Form 8 \u2014 Application (General)",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules",
+  "requiredPlan": "free",
+  "freeForm": true,
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 7",
+      "intro": "Choose your local Ontario Family Court. All documents you generate will be addressed to that courthouse.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Which courthouse will you be filing at?",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "helpText": "Choose the Ontario courthouse closest to where you or your children live.",
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "hasFile",
+          "label": "Is there already a court file open for this matter?",
+          "type": "yesno",
+          "source": "profile.case.hasFile",
+          "required": true,
+          "pdfFieldName": "Has court file"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasFile",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. FC-2024-12345",
+          "helpText": "Found on any previous court documents or orders.",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "hasPriorOrders",
+          "label": "Have there been any previous court orders about this family?",
+          "type": "yesno",
+          "source": "profile.case.hasPriorOrders",
+          "required": true,
+          "pdfFieldName": "Has prior orders"
+        },
+        {
+          "fieldId": "priorOrdersDetails",
+          "label": "Briefly describe the previous orders",
+          "type": "textarea",
+          "source": "profile.case.priorOrdersDetails",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasPriorOrders",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. Temporary custody order dated January 2023 \u2014 child lives with mother",
+          "pdfFieldName": "Prior orders details"
+        }
+      ]
+    },
+    {
+      "partId": "applicant",
+      "title": "About you",
+      "subtitle": "Step 2 of 7",
+      "intro": "This is information about you \u2014 the person filling this out.",
+      "fields": [
+        {
+          "fieldId": "applicantFullName",
+          "label": "Your full legal name",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "placeholder": "First Middle Last",
+          "pdfFieldName": "Applicant full name",
+          "id": "applicant_full_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "applicantDob",
+          "label": "Your date of birth",
+          "type": "date",
+          "source": "profile.applicant.dob",
+          "required": true,
+          "pdfFieldName": "Applicant DOB",
+          "id": "applicant_dob",
+          "autoFill": "user_dob"
+        },
+        {
+          "fieldId": "applicantAddress",
+          "label": "Your street address",
+          "type": "text",
+          "source": "profile.applicant.address",
+          "required": true,
+          "pdfFieldName": "Applicant address",
+          "id": "applicant_street",
+          "autoFill": "user_address"
+        },
+        {
+          "fieldId": "applicantUnit",
+          "label": "Apartment / Unit number",
+          "type": "text",
+          "source": "profile.applicant.unit",
+          "required": false,
+          "pdfFieldName": "Applicant unit"
+        },
+        {
+          "fieldId": "applicantCity",
+          "label": "City or town",
+          "type": "text",
+          "source": "profile.applicant.city",
+          "required": true,
+          "pdfFieldName": "Applicant city"
+        },
+        {
+          "fieldId": "applicantPostalCode",
+          "label": "Postal code",
+          "type": "text",
+          "source": "profile.applicant.postalCode",
+          "required": true,
+          "placeholder": "A1A 1A1",
+          "pdfFieldName": "Applicant postal code"
+        },
+        {
+          "fieldId": "applicantPhone",
+          "label": "Phone number",
+          "type": "tel",
+          "source": "profile.applicant.phone",
+          "required": true,
+          "pdfFieldName": "Applicant phone",
+          "id": "applicant_phone",
+          "autoFill": "user_phone"
+        },
+        {
+          "fieldId": "applicantEmail",
+          "label": "Email address",
+          "type": "email",
+          "source": "profile.applicant.email",
+          "required": false,
+          "pdfFieldName": "Applicant email",
+          "id": "applicant_email",
+          "autoFill": "user_email"
+        }
+      ]
+    },
+    {
+      "partId": "respondent",
+      "title": "About the other person",
+      "subtitle": "Step 3 of 7",
+      "intro": "This is information about the other party \u2014 your spouse, partner, or co-parent.",
+      "fields": [
+        {
+          "fieldId": "respondentFullName",
+          "label": "Their full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "pdfFieldName": "Respondent full name",
+          "id": "respondent_full_name",
+          "autoFill": "respondent_full_name"
+        },
+        {
+          "fieldId": "respondentDob",
+          "label": "Their date of birth (if you know it)",
+          "type": "date",
+          "source": "profile.respondent.dob",
+          "required": false,
+          "pdfFieldName": "Respondent DOB"
+        },
+        {
+          "fieldId": "respondentAddress",
+          "label": "Their address (if you know it)",
+          "type": "text",
+          "source": "profile.respondent.address",
+          "required": false,
+          "pdfFieldName": "Respondent address"
+        },
+        {
+          "fieldId": "respondentPhone",
+          "label": "Their phone number (if you know it)",
+          "type": "tel",
+          "source": "profile.respondent.phone",
+          "required": false,
+          "pdfFieldName": "Respondent phone"
+        },
+        {
+          "fieldId": "respondentHasLawyer",
+          "label": "Do they have a lawyer?",
+          "type": "yesno",
+          "source": "profile.respondent.hasLawyer",
+          "required": true,
+          "pdfFieldName": "Respondent has lawyer"
+        },
+        {
+          "fieldId": "respondentLawyerName",
+          "label": "Lawyer's name",
+          "type": "text",
+          "source": "profile.respondent.lawyerName",
+          "required": false,
+          "conditional": {
+            "dependsOn": "respondentHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Respondent lawyer name"
+        },
+        {
+          "fieldId": "respondentLawyerFirm",
+          "label": "Law firm",
+          "type": "text",
+          "source": "profile.respondent.lawyerFirm",
+          "required": false,
+          "conditional": {
+            "dependsOn": "respondentHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Respondent lawyer firm"
+        },
+        {
+          "fieldId": "respondentLawyerPhone",
+          "label": "Lawyer's phone number",
+          "type": "tel",
+          "source": "profile.respondent.lawyerPhone",
+          "required": false,
+          "conditional": {
+            "dependsOn": "respondentHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Respondent lawyer phone"
+        }
+      ]
+    },
+    {
+      "partId": "children",
+      "title": "Your children",
+      "subtitle": "Step 4 of 7",
+      "intro": "Tell us about the children involved in this case.",
+      "fields": [
+        {
+          "fieldId": "childrenCount",
+          "label": "How many children are involved?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6+"
+          ],
+          "pdfFieldName": "Number of children"
+        },
+        {
+          "fieldId": "child1Name",
+          "label": "Child 1 \u2014 Full name",
+          "type": "text",
+          "required": true,
+          "pdfFieldName": "Child 1 name"
+        },
+        {
+          "fieldId": "child1Dob",
+          "label": "Child 1 \u2014 Date of birth",
+          "type": "date",
+          "required": true,
+          "pdfFieldName": "Child 1 DOB"
+        },
+        {
+          "fieldId": "child1Residence",
+          "label": "Child 1 \u2014 Currently lives with",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Me (the applicant)",
+            "The other party",
+            "Both of us (shared)",
+            "Other"
+          ],
+          "pdfFieldName": "Child 1 residence"
+        },
+        {
+          "fieldId": "child2Name",
+          "label": "Child 2 \u2014 Full name",
+          "type": "text",
+          "required": false,
+          "conditional": {
+            "dependsOn": "childrenCount",
+            "showWhen": [
+              "2",
+              "3",
+              "4",
+              "5",
+              "6+"
+            ]
+          },
+          "pdfFieldName": "Child 2 name"
+        },
+        {
+          "fieldId": "child2Dob",
+          "label": "Child 2 \u2014 Date of birth",
+          "type": "date",
+          "required": false,
+          "conditional": {
+            "dependsOn": "childrenCount",
+            "showWhen": [
+              "2",
+              "3",
+              "4",
+              "5",
+              "6+"
+            ]
+          },
+          "pdfFieldName": "Child 2 DOB"
+        },
+        {
+          "fieldId": "child2Residence",
+          "label": "Child 2 \u2014 Currently lives with",
+          "type": "select",
+          "required": false,
+          "conditional": {
+            "dependsOn": "childrenCount",
+            "showWhen": [
+              "2",
+              "3",
+              "4",
+              "5",
+              "6+"
+            ]
+          },
+          "options": [
+            "Me (the applicant)",
+            "The other party",
+            "Both of us (shared)",
+            "Other"
+          ],
+          "pdfFieldName": "Child 2 residence"
+        }
+      ]
+    },
+    {
+      "partId": "claims",
+      "title": "What you're asking for",
+      "subtitle": "Step 5 of 7",
+      "intro": "Select everything you want the court to decide. You can ask for more than one thing.",
+      "fields": [
+        {
+          "fieldId": "claimCustody",
+          "label": "Decision-making responsibility (custody) for the children",
+          "type": "checkbox",
+          "pdfFieldName": "Claim custody"
+        },
+        {
+          "fieldId": "claimAccess",
+          "label": "Parenting time (access) with the children",
+          "type": "checkbox",
+          "pdfFieldName": "Claim access"
+        },
+        {
+          "fieldId": "claimChildSupport",
+          "label": "Child support",
+          "type": "checkbox",
+          "pdfFieldName": "Claim child support"
+        },
+        {
+          "fieldId": "claimSpousalSupport",
+          "label": "Spousal support",
+          "type": "checkbox",
+          "pdfFieldName": "Claim spousal support"
+        },
+        {
+          "fieldId": "claimPropertyDivision",
+          "label": "Division of property",
+          "type": "checkbox",
+          "pdfFieldName": "Claim property division"
+        },
+        {
+          "fieldId": "claimRestrainingOrder",
+          "label": "Restraining or non-harassment order",
+          "type": "checkbox",
+          "pdfFieldName": "Claim restraining order"
+        },
+        {
+          "fieldId": "claimOther",
+          "label": "Other (describe below)",
+          "type": "checkbox",
+          "pdfFieldName": "Claim other"
+        },
+        {
+          "fieldId": "claimOtherDetails",
+          "label": "Describe what else you are asking for",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "claimOther",
+            "showWhen": true
+          },
+          "pdfFieldName": "Claim other details"
+        }
+      ]
+    },
+    {
+      "partId": "situation",
+      "title": "Your situation",
+      "subtitle": "Step 6 of 7",
+      "intro": "Tell the court the key facts about your situation. Be factual and brief \u2014 you'll have affidavits to go into more detail.",
+      "fields": [
+        {
+          "fieldId": "relationshipType",
+          "label": "What was your relationship with the other party?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Married",
+            "Common-law / Cohabiting",
+            "Never lived together"
+          ],
+          "pdfFieldName": "Relationship type"
+        },
+        {
+          "fieldId": "marriageDate",
+          "label": "Date of marriage",
+          "type": "date",
+          "source": "profile.case.marriageDate",
+          "required": false,
+          "conditional": {
+            "dependsOn": "relationshipType",
+            "showWhen": "Married"
+          },
+          "pdfFieldName": "Marriage date",
+          "id": "date_of_marriage",
+          "autoFill": "marriage_date"
+        },
+        {
+          "fieldId": "separationDate",
+          "label": "Date of separation",
+          "type": "date",
+          "source": "profile.case.separationDate",
+          "required": true,
+          "helpText": "The date you and the other party stopped living together as a couple.",
+          "pdfFieldName": "Separation date",
+          "id": "date_of_separation",
+          "autoFill": "separation_date"
+        },
+        {
+          "fieldId": "situationSummary",
+          "label": "Briefly describe your situation and why you are coming to court",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. We separated in March 2024. We have two children. We cannot agree on parenting arrangements. I am seeking a court order for...",
+          "helpText": "2\u20135 sentences is enough here. Focus on facts, not feelings.",
+          "pdfFieldName": "Situation summary"
+        }
+      ]
+    },
+    {
+      "partId": "review",
+      "title": "Review and confirm",
+      "subtitle": "Step 7 of 7",
+      "intro": "Review your answers before generating your documents. You can go back to any step to make changes.",
+      "fields": [
+        {
+          "fieldId": "declarationConfirmed",
+          "label": "I confirm that the information I have provided is true and accurate to the best of my knowledge.",
+          "type": "checkbox",
+          "required": true,
+          "helpText": "This form will be sworn or affirmed before a commissioner of oaths before it is filed with the court.",
+          "pdfFieldName": "Declaration confirmed"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,678 @@
+{
+  "formId": "ON-F13_1",
+  "jurisdiction": "ON",
+  "pdfFileName": "form13_1.pdf",
+  "title": "Form 13.1 \u2014 Financial Statement (Property and Support Claims)",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules (FLR 13.1)",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "helpIntro": "Form 13.1 is a detailed financial statement required when your case involves property claims (like dividing the family home or other assets), equalization of net family property, or both support AND property. It is more detailed than Form 13 because it includes a full list of your assets, debts, and a calculation of your net family property. Both parties must file this form.",
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 9",
+      "intro": "Confirm the court file details.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": false,
+          "placeholder": "e.g. FC-2024-12345",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "applicantFullName",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "pdfFieldName": "Applicant full name",
+          "id": "applicant_full_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "respondentFullName",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "pdfFieldName": "Respondent full name",
+          "id": "respondent_full_name",
+          "autoFill": "respondent_full_name"
+        },
+        {
+          "fieldId": "statementDate",
+          "label": "Date of this financial statement",
+          "type": "date",
+          "required": true,
+          "helpText": "Use today's date or the date your situation is accurate as of.",
+          "pdfFieldName": "Statement date"
+        },
+        {
+          "fieldId": "marriageDate",
+          "label": "Date of marriage",
+          "type": "date",
+          "required": false,
+          "helpText": "Required for equalization calculations.",
+          "pdfFieldName": "Marriage date",
+          "id": "date_of_marriage",
+          "autoFill": "marriage_date"
+        },
+        {
+          "fieldId": "separationDate",
+          "label": "Date of separation",
+          "type": "date",
+          "required": true,
+          "helpText": "The valuation date for net family property is usually the date of separation.",
+          "pdfFieldName": "Separation date",
+          "id": "date_of_separation",
+          "autoFill": "separation_date"
+        }
+      ]
+    },
+    {
+      "partId": "employment",
+      "title": "Your employment and income",
+      "subtitle": "Step 2 of 9",
+      "intro": "Describe your current employment situation and sources of income.",
+      "fields": [
+        {
+          "fieldId": "employmentStatus",
+          "label": "What is your current employment status?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Employed full-time",
+            "Employed part-time",
+            "Self-employed",
+            "Unemployed",
+            "On disability",
+            "Retired",
+            "Student",
+            "Other"
+          ],
+          "pdfFieldName": "Employment status"
+        },
+        {
+          "fieldId": "employerName",
+          "label": "Employer's name (if employed)",
+          "type": "text",
+          "required": false,
+          "pdfFieldName": "Employer name"
+        },
+        {
+          "fieldId": "employerAddress",
+          "label": "Employer's address",
+          "type": "text",
+          "required": false,
+          "pdfFieldName": "Employer address"
+        },
+        {
+          "fieldId": "occupation",
+          "label": "Your occupation or job title",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. Registered Nurse, Truck Driver, Project Manager",
+          "pdfFieldName": "Occupation"
+        },
+        {
+          "fieldId": "annualEmploymentIncome",
+          "label": "Annual employment income (gross, before taxes)",
+          "type": "currency",
+          "required": true,
+          "placeholder": "0.00",
+          "helpText": "Enter your yearly gross income from employment. Found on your T4 or pay stub.",
+          "pdfFieldName": "Annual employment income"
+        },
+        {
+          "fieldId": "selfEmploymentIncome",
+          "label": "Annual self-employment income (net after business expenses)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Self employment income"
+        },
+        {
+          "fieldId": "rentalIncome",
+          "label": "Annual rental income",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Rental income"
+        },
+        {
+          "fieldId": "investmentIncome",
+          "label": "Annual investment / dividend income",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Investment income"
+        },
+        {
+          "fieldId": "governmentBenefits",
+          "label": "Annual government benefits (EI, CPP, OAS, ODSP, Ontario Works, etc.)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Government benefits"
+        },
+        {
+          "fieldId": "otherIncomeSources",
+          "label": "Other income sources (describe and amount)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Child tax benefit: $3,600/yr\nSpouse's support payments received: $12,000/yr",
+          "pdfFieldName": "Other income sources"
+        },
+        {
+          "fieldId": "totalAnnualIncome",
+          "label": "Total annual income from ALL sources",
+          "type": "currency",
+          "required": true,
+          "placeholder": "0.00",
+          "helpText": "Add up all the income amounts above.",
+          "pdfFieldName": "Total annual income"
+        }
+      ]
+    },
+    {
+      "partId": "monthlyExpenses",
+      "title": "Monthly expenses",
+      "subtitle": "Step 3 of 9",
+      "intro": "List your monthly living expenses. Include only what you actually pay \u2014 not expenses shared with the other party.",
+      "fields": [
+        {
+          "fieldId": "expenseRent",
+          "label": "Rent or mortgage payment",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense rent mortgage"
+        },
+        {
+          "fieldId": "expensePropertyTax",
+          "label": "Property taxes (monthly)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense property tax"
+        },
+        {
+          "fieldId": "expenseUtilities",
+          "label": "Utilities (hydro, gas, water, internet, phone)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense utilities"
+        },
+        {
+          "fieldId": "expenseFood",
+          "label": "Food and groceries",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense food"
+        },
+        {
+          "fieldId": "expenseTransportation",
+          "label": "Transportation (car payment, gas, insurance, transit)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense transportation"
+        },
+        {
+          "fieldId": "expenseChildcare",
+          "label": "Childcare / daycare",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense childcare"
+        },
+        {
+          "fieldId": "expenseHealthInsurance",
+          "label": "Health and dental insurance premiums",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense health insurance"
+        },
+        {
+          "fieldId": "expenseMedical",
+          "label": "Medical and dental expenses not covered by insurance",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense medical"
+        },
+        {
+          "fieldId": "expenseChildren",
+          "label": "Children's expenses (school, activities, clothing)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense children"
+        },
+        {
+          "fieldId": "expenseDebtPayments",
+          "label": "Debt payments (credit cards, loans \u2014 minimum payments)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Expense debt payments"
+        },
+        {
+          "fieldId": "expenseOther",
+          "label": "Other monthly expenses (describe)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Life insurance: $80/mo\nGym membership: $45/mo",
+          "pdfFieldName": "Expense other"
+        },
+        {
+          "fieldId": "totalMonthlyExpenses",
+          "label": "Total monthly expenses",
+          "type": "currency",
+          "required": true,
+          "placeholder": "0.00",
+          "helpText": "Add up all monthly expenses above.",
+          "pdfFieldName": "Total monthly expenses"
+        }
+      ]
+    },
+    {
+      "partId": "assetsAtSeparation",
+      "title": "Assets on the date of separation (valuation date)",
+      "subtitle": "Step 4 of 9",
+      "intro": "List every asset you owned on the date of separation. These values are used to calculate your net family property (NFP). Be as accurate as possible \u2014 you may need appraisals for real estate and businesses.",
+      "fields": [
+        {
+          "fieldId": "realEstateAtSeparation",
+          "label": "Real estate owned on separation date (address and estimated value)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "123 Main Street, Toronto ON \u2014 Family home \u2014 Value: $850,000\n456 Oak Avenue, Barrie ON \u2014 Rental property \u2014 Value: $420,000",
+          "helpText": "Include the matrimonial home and any other real estate. Use the fair market value on the date of separation.",
+          "pdfFieldName": "Real estate at separation"
+        },
+        {
+          "fieldId": "bankAccountsAtSeparation",
+          "label": "Bank accounts on separation date (bank, account type, balance)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "TD Bank \u2014 Chequing \u2014 $4,200\nRBC \u2014 Savings \u2014 $12,500\nTD Bank \u2014 Joint savings \u2014 $8,000 (my 50% share: $4,000)",
+          "pdfFieldName": "Bank accounts at separation"
+        },
+        {
+          "fieldId": "investmentsAtSeparation",
+          "label": "Investments on separation date (RRSPs, TFSAs, stocks, GICs, etc.)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "RBC RRSP \u2014 $45,000\nTD TFSA \u2014 $22,000\nFidelity stock portfolio \u2014 $15,000",
+          "pdfFieldName": "Investments at separation"
+        },
+        {
+          "fieldId": "pensionAtSeparation",
+          "label": "Pension value on separation date",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Get the commuted value from your pension administrator as of the separation date.",
+          "pdfFieldName": "Pension at separation"
+        },
+        {
+          "fieldId": "vehiclesAtSeparation",
+          "label": "Vehicles on separation date (make, year, estimated value)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "2019 Toyota Camry \u2014 $18,000\n2021 Honda Civic \u2014 $22,500",
+          "pdfFieldName": "Vehicles at separation"
+        },
+        {
+          "fieldId": "businessInterestAtSeparation",
+          "label": "Business interests on separation date (name, your share, estimated value)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Lance Contracting Ltd. \u2014 100% owner \u2014 Value: $75,000",
+          "helpText": "Businesses should be professionally valuated. Use a reasonable estimate if a valuation has not been done.",
+          "pdfFieldName": "Business interest at separation"
+        },
+        {
+          "fieldId": "otherAssetsAtSeparation",
+          "label": "Other assets on separation date (jewellery, art, furniture, life insurance cash value, etc.)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Life insurance (cash surrender value): $8,500\nBoat and trailer: $12,000\nFurniture and household goods: $5,000",
+          "pdfFieldName": "Other assets at separation"
+        },
+        {
+          "fieldId": "totalAssetsAtSeparation",
+          "label": "TOTAL value of all assets on date of separation",
+          "type": "currency",
+          "required": true,
+          "placeholder": "0.00",
+          "helpText": "Add up all the asset values listed above.",
+          "pdfFieldName": "Total assets at separation"
+        }
+      ]
+    },
+    {
+      "partId": "debtsAtSeparation",
+      "title": "Debts on the date of separation",
+      "subtitle": "Step 5 of 9",
+      "intro": "List every debt you owed on the date of separation. Debts are subtracted from your assets to calculate your net family property.",
+      "fields": [
+        {
+          "fieldId": "mortgagesAtSeparation",
+          "label": "Mortgages on separation date (property, lender, balance owing)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "123 Main Street \u2014 TD Bank mortgage \u2014 Balance: $420,000\n456 Oak Avenue \u2014 RBC mortgage \u2014 Balance: $210,000",
+          "pdfFieldName": "Mortgages at separation"
+        },
+        {
+          "fieldId": "carLoansAtSeparation",
+          "label": "Car loans on separation date",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "2021 Honda Civic \u2014 TD Auto Finance \u2014 Balance: $14,500",
+          "pdfFieldName": "Car loans at separation"
+        },
+        {
+          "fieldId": "creditCardsAtSeparation",
+          "label": "Credit card balances on separation date",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "TD Visa \u2014 $3,200\nRBC Mastercard \u2014 $1,800",
+          "pdfFieldName": "Credit cards at separation"
+        },
+        {
+          "fieldId": "studentLoansAtSeparation",
+          "label": "Student loans on separation date",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Student loans at separation"
+        },
+        {
+          "fieldId": "otherDebtsAtSeparation",
+          "label": "Other debts on separation date (lines of credit, personal loans, taxes owing, etc.)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "HELOC \u2014 RBC \u2014 Balance: $25,000\nPersonal loan \u2014 BMO \u2014 Balance: $8,000",
+          "pdfFieldName": "Other debts at separation"
+        },
+        {
+          "fieldId": "totalDebtsAtSeparation",
+          "label": "TOTAL debts on date of separation",
+          "type": "currency",
+          "required": true,
+          "placeholder": "0.00",
+          "helpText": "Add up all debt balances listed above.",
+          "pdfFieldName": "Total debts at separation"
+        }
+      ]
+    },
+    {
+      "partId": "propertyAtMarriage",
+      "title": "Property owned on date of marriage",
+      "subtitle": "Step 6 of 9",
+      "intro": "List assets and debts you had on the date of marriage. This amount is excluded from your net family property calculation (it was yours before the marriage).",
+      "fields": [
+        {
+          "fieldId": "assetsAtMarriage",
+          "label": "Assets you owned on the date of marriage (describe and value)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "RBC savings account \u2014 $8,000\n2015 Dodge Ram \u2014 $25,000\nRRSP balance \u2014 $12,000",
+          "helpText": "These amounts will be deducted from your NFP calculation. Include only assets you personally owned on the wedding day.",
+          "pdfFieldName": "Assets at marriage"
+        },
+        {
+          "fieldId": "debtsAtMarriage",
+          "label": "Debts you owed on the date of marriage",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Student loan \u2014 $22,000\nVisa credit card \u2014 $1,500",
+          "helpText": "Debts at marriage are also excluded \u2014 they reduce your deduction from assets at marriage.",
+          "pdfFieldName": "Debts at marriage"
+        },
+        {
+          "fieldId": "netPropertyAtMarriage",
+          "label": "Net value of property owned on date of marriage (assets minus debts)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Assets at marriage minus debts at marriage = this number. If negative, enter 0.",
+          "pdfFieldName": "Net property at marriage"
+        }
+      ]
+    },
+    {
+      "partId": "excludedProperty",
+      "title": "Excluded property",
+      "subtitle": "Step 7 of 9",
+      "intro": "Certain property received during the marriage is excluded from net family property under the Family Law Act. List any excluded property you have.",
+      "fields": [
+        {
+          "fieldId": "hasExcludedProperty",
+          "label": "Do you have any excluded property?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Excluded property includes: gifts or inheritances received during marriage, damages from a personal injury lawsuit, life insurance proceeds, and property traced to any of the above.",
+          "pdfFieldName": "Has excluded property"
+        },
+        {
+          "fieldId": "inheritances",
+          "label": "Inheritances received during marriage (amount and description)",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasExcludedProperty",
+            "showWhen": "yes"
+          },
+          "placeholder": "Received from estate of John Smith (father) in 2019 \u2014 $45,000 cash\nInherited cottage in Muskoka \u2014 Value on date received: $180,000",
+          "pdfFieldName": "Inheritances"
+        },
+        {
+          "fieldId": "giftsReceived",
+          "label": "Gifts received from third parties during marriage (not from spouse)",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasExcludedProperty",
+            "showWhen": "yes"
+          },
+          "placeholder": "Gift from parents \u2014 $25,000 used as down payment \u2014 2018",
+          "pdfFieldName": "Gifts received"
+        },
+        {
+          "fieldId": "personalInjuryDamages",
+          "label": "Damages for personal injuries received during marriage",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasExcludedProperty",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "helpText": "General damages for pain and suffering only \u2014 not for lost income.",
+          "pdfFieldName": "Personal injury damages"
+        },
+        {
+          "fieldId": "totalExcludedProperty",
+          "label": "Total value of excluded property",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasExcludedProperty",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "pdfFieldName": "Total excluded property"
+        }
+      ]
+    },
+    {
+      "partId": "netFamilyProperty",
+      "title": "Net Family Property calculation",
+      "subtitle": "Step 8 of 9",
+      "intro": "Net Family Property (NFP) is what the court uses to determine equalization. It is calculated as: Assets at separation \u2212 Debts at separation \u2212 Property owned at marriage \u2212 Excluded property = NFP. The spouse with the higher NFP pays the other half the difference.",
+      "fields": [
+        {
+          "fieldId": "nfpAssetsAtSeparation",
+          "label": "Total assets on date of separation (from Step 4)",
+          "type": "currency",
+          "source": "form.assetsAtSeparation.totalAssetsAtSeparation",
+          "required": true,
+          "placeholder": "0.00",
+          "pdfFieldName": "NFP assets at separation"
+        },
+        {
+          "fieldId": "nfpDebtsAtSeparation",
+          "label": "Total debts on date of separation (from Step 5)",
+          "type": "currency",
+          "source": "form.debtsAtSeparation.totalDebtsAtSeparation",
+          "required": true,
+          "placeholder": "0.00",
+          "pdfFieldName": "NFP debts at separation"
+        },
+        {
+          "fieldId": "nfpPropertyAtMarriage",
+          "label": "Net property owned on date of marriage (from Step 6)",
+          "type": "currency",
+          "source": "form.propertyAtMarriage.netPropertyAtMarriage",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "NFP property at marriage"
+        },
+        {
+          "fieldId": "nfpExcludedProperty",
+          "label": "Total excluded property (from Step 7)",
+          "type": "currency",
+          "source": "form.excludedProperty.totalExcludedProperty",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "NFP excluded property"
+        },
+        {
+          "fieldId": "nfpMatrimonialHomeDeduction",
+          "label": "Matrimonial home exclusion deduction (enter 0 if home is being claimed as part of equalization)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "The matrimonial home cannot be excluded from NFP even if owned before marriage \u2014 enter 0 unless a special exception applies.",
+          "pdfFieldName": "NFP matrimonial home deduction"
+        },
+        {
+          "fieldId": "netFamilyPropertyTotal",
+          "label": "YOUR Net Family Property total",
+          "type": "currency",
+          "required": true,
+          "placeholder": "0.00",
+          "helpText": "Formula: Assets at Separation \u2212 Debts at Separation \u2212 Property at Marriage \u2212 Excluded Property = NFP. If the result is negative, enter 0.",
+          "pdfFieldName": "Net family property total"
+        },
+        {
+          "fieldId": "equalizationPaymentClaimed",
+          "label": "Equalization payment you are claiming (if any)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "If your NFP is lower than the other party's, you may claim half the difference. Leave blank if you are the party with the higher NFP.",
+          "pdfFieldName": "Equalization payment claimed"
+        }
+      ]
+    },
+    {
+      "partId": "currentAssets",
+      "title": "Current assets and debts (today)",
+      "subtitle": "Step 9 of 9",
+      "intro": "In addition to the valuation-date figures, the court also needs your current financial picture. This section covers where things stand today.",
+      "fields": [
+        {
+          "fieldId": "currentRealEstate",
+          "label": "Real estate you own today (address and current estimated value)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "123 Main Street, Toronto ON \u2014 Current value: $920,000",
+          "pdfFieldName": "Current real estate"
+        },
+        {
+          "fieldId": "currentBankAccounts",
+          "label": "Bank accounts today (bank, type, balance)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "TD Bank \u2014 Chequing \u2014 $2,100\nRBC \u2014 Savings \u2014 $9,800",
+          "pdfFieldName": "Current bank accounts"
+        },
+        {
+          "fieldId": "currentInvestments",
+          "label": "Investments today (RRSPs, TFSAs, stocks, etc.)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "RBC RRSP \u2014 $52,000\nTD TFSA \u2014 $24,500",
+          "pdfFieldName": "Current investments"
+        },
+        {
+          "fieldId": "currentDebts",
+          "label": "Debts you owe today (type, lender, balance)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "TD Bank mortgage \u2014 $398,000\nRBC Mastercard \u2014 $2,100",
+          "pdfFieldName": "Current debts"
+        },
+        {
+          "fieldId": "declarationConfirmed",
+          "label": "I swear or affirm that the information in this financial statement is accurate and complete to the best of my knowledge.",
+          "type": "checkbox",
+          "required": true,
+          "helpText": "This form must be sworn or affirmed before a commissioner of oaths. Providing false information is contempt of court.",
+          "pdfFieldName": "Declaration confirmed"
+        },
+        {
+          "fieldId": "signatureDate",
+          "label": "Date of signature",
+          "type": "date",
+          "required": true,
+          "pdfFieldName": "Signature date"
+        }
+      ]
+    }
+  ]
+}

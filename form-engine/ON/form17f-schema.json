@@ -1,0 +1,710 @@
+{
+  "formCode": "form17f-confirmation-conference",
+  "formNumber": "Form 17F",
+  "title": "Confirmation of Conference",
+  "jurisdiction": "Ontario",
+  "act": "Family Law Rules, O. Reg. 114/99, Rule 17(14)",
+  "version": "September 24, 2024",
+  "urgencyFlag": {
+    "enabled": true,
+    "deadlineRule": "2:00 PM, 3 business days before conference date (weekends and statutory holidays excluded)",
+    "deadlineHours": null,
+    "triggerField": "conference_date",
+    "messages": {
+      "critical": "⚠️ URGENT — Your conference confirmation is due TODAY by 2:00 PM. File immediately at the courthouse or through Justice Services Online. If missed, your conference will be cancelled.",
+      "warning": "Your conference is coming up. This confirmation must be filed by 2:00 PM, 3 business days before the conference date. File it now to avoid cancellation.",
+      "reminder": "Reminder: You need to file this confirmation at least 3 business days before your conference. Give the other party a copy first."
+    },
+    "cancellationWarning": "Under Rule 17(14.1), the court SHALL cancel your conference if this form is not filed on time — unless the court orders otherwise. There is no grace period.",
+    "bannerThresholds": {
+      "note": "Thresholds are hours remaining until the CALCULATED deadline (not until conference). FormEngine must compute deadline = conferenceDate - 3 business days at 14:00, then compare datetime.now() to deadline.",
+      "critical": {
+        "hours_to_deadline": 24,
+        "message": "⚠️ URGENT — Your filing deadline is TODAY by 2:00 PM. File immediately or your conference will be automatically cancelled."
+      },
+      "warning": {
+        "hours_to_deadline": 72,
+        "message": "Your filing deadline is {deadline_date} at 2:00 PM. File soon — missing this deadline cancels your conference automatically."
+      },
+      "info": {
+        "hours_to_deadline": 120,
+        "message": "Reminder: File by 2:00 PM on {deadline_date} — 3 business days before your conference."
+      },
+      "ok": {
+        "hours_to_deadline": 9999,
+        "message": "Your filing deadline is {deadline_date}. You have time — don't forget."
+      }
+    },
+    "deadlineNote": "Rule 17(14)(c) says 'three days' — courts consistently interpret this as three business days (excluding weekends and Ontario statutory holidays), confirmed by the Ontario Courts website, Steps to Justice, and all regional Practice Directions."
+  },
+  "description": "Filed to confirm that you will attend an upcoming case conference, settlement conference, or trial management conference. Must be filed by 2:00 PM at least 3 business days before the conference date. Give the other party a copy BEFORE filing with the court. If you miss this deadline, your conference will be cancelled automatically.",
+  "autoFillSources": [
+    "courthouse",
+    "court_file_number",
+    "applicant_full_name",
+    "respondent_full_name"
+  ],
+  "steps": [
+    {
+      "stepId": 1,
+      "title": "Court & File Information",
+      "description": "Enter the court location, file number, and conference details.",
+      "fields": [
+        {
+          "id": "courthouse",
+          "label": "Name of Court",
+          "type": "select",
+          "required": true,
+          "autoFill": "courthouse",
+          "hint": "Select the courthouse where your conference is scheduled.",
+          "options": [
+            "Ontario Court of Justice — Barrie",
+            "Ontario Court of Justice — Belleville",
+            "Ontario Court of Justice — Brampton",
+            "Ontario Court of Justice — Brantford",
+            "Ontario Court of Justice — Brockville",
+            "Ontario Court of Justice — Chatham",
+            "Ontario Court of Justice — Cobourg",
+            "Ontario Court of Justice — Cornwall",
+            "Ontario Court of Justice — Guelph",
+            "Ontario Court of Justice — Hamilton",
+            "Ontario Court of Justice — Kingston",
+            "Ontario Court of Justice — Kitchener",
+            "Ontario Court of Justice — Lindsay",
+            "Ontario Court of Justice — London",
+            "Ontario Court of Justice — Milton",
+            "Ontario Court of Justice — Newmarket",
+            "Ontario Court of Justice — North Bay",
+            "Ontario Court of Justice — Oshawa",
+            "Ontario Court of Justice — Ottawa",
+            "Ontario Court of Justice — Owen Sound",
+            "Ontario Court of Justice — Pembroke",
+            "Ontario Court of Justice — Perth",
+            "Ontario Court of Justice — Peterborough",
+            "Ontario Court of Justice — Sarnia",
+            "Ontario Court of Justice — Sault Ste. Marie",
+            "Ontario Court of Justice — Simcoe",
+            "Ontario Court of Justice — St. Catharines",
+            "Ontario Court of Justice — St. Thomas",
+            "Ontario Court of Justice — Sudbury",
+            "Ontario Court of Justice — Thunder Bay",
+            "Ontario Court of Justice — Timmins",
+            "Ontario Court of Justice — Toronto",
+            "Ontario Court of Justice — Welland",
+            "Ontario Court of Justice — Windsor",
+            "Ontario Court of Justice — Woodstock",
+            "Superior Court of Justice — Barrie",
+            "Superior Court of Justice — Brampton",
+            "Superior Court of Justice — Hamilton",
+            "Superior Court of Justice — Kingston",
+            "Superior Court of Justice — London",
+            "Superior Court of Justice — Milton",
+            "Superior Court of Justice — Newmarket",
+            "Superior Court of Justice — North Bay",
+            "Superior Court of Justice — Oshawa",
+            "Superior Court of Justice — Ottawa",
+            "Superior Court of Justice — St. Catharines",
+            "Superior Court of Justice — Sudbury",
+            "Superior Court of Justice — Thunder Bay",
+            "Superior Court of Justice — Toronto (393 University Ave.)",
+            "Superior Court of Justice — Toronto (47 Sheppard Ave.)",
+            "Superior Court of Justice — Windsor"
+          ]
+        },
+        {
+          "id": "court_office_address",
+          "label": "Court Office Address",
+          "type": "text",
+          "required": true,
+          "autoFill": "court_office_address",
+          "placeholder": "e.g. 393 University Avenue, Toronto, ON M5G 1E6"
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court File Number",
+          "type": "text",
+          "required": true,
+          "autoFill": "court_file_number",
+          "placeholder": "e.g. FC-12345-24",
+          "validation": {
+            "pattern": "^[A-Za-z0-9\\-/]+$",
+            "message": "Enter the file number exactly as it appears on your court documents."
+          }
+        }
+      ]
+    },
+    {
+      "stepId": 2,
+      "title": "Applicant & Respondent",
+      "description": "Enter the full legal names and contact details for both parties.",
+      "fields": [
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "autoFill": "applicant_full_name",
+          "placeholder": "e.g. Jane Elizabeth Smith"
+        },
+        {
+          "id": "applicant_address",
+          "label": "Applicant — Address for Service (street, city, postal code)",
+          "type": "text",
+          "required": true,
+          "autoFill": "applicant_address",
+          "placeholder": "e.g. 123 Main Street, Toronto, ON M1A 1A1"
+        },
+        {
+          "id": "applicant_phone",
+          "label": "Applicant — Telephone Number",
+          "type": "tel",
+          "required": true,
+          "autoFill": "applicant_phone",
+          "placeholder": "e.g. 416-555-0100",
+          "validation": {
+            "pattern": "^[\\d\\s\\-\\(\\)\\+]+$",
+            "minLength": 10,
+            "message": "Enter a valid telephone number including area code."
+          }
+        },
+        {
+          "id": "applicant_fax",
+          "label": "Applicant — Fax Number (if any)",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0101"
+        },
+        {
+          "id": "applicant_email",
+          "label": "Applicant — Email Address (if any)",
+          "type": "email",
+          "required": false,
+          "autoFill": "applicant_email",
+          "placeholder": "e.g. jane.smith@email.com"
+        },
+        {
+          "id": "applicant_lawyer",
+          "label": "Applicant's Lawyer (name, address, phone) — if applicable",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "e.g. A. Jones, 456 Bay Street, Toronto, ON M5H 1A1, 416-555-0200\nLeave blank if self-represented."
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "autoFill": "respondent_full_name",
+          "placeholder": "e.g. John Robert Smith"
+        },
+        {
+          "id": "respondent_address",
+          "label": "Respondent — Address for Service (street, city, postal code)",
+          "type": "text",
+          "required": true,
+          "autoFill": "respondent_address",
+          "placeholder": "e.g. 789 Queen Street, Toronto, ON M5H 2N2"
+        },
+        {
+          "id": "respondent_phone",
+          "label": "Respondent — Telephone Number",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0300"
+        },
+        {
+          "id": "respondent_email",
+          "label": "Respondent — Email Address (if any)",
+          "type": "email",
+          "required": false,
+          "placeholder": "e.g. john.smith@email.com"
+        },
+        {
+          "id": "respondent_lawyer",
+          "label": "Respondent's Lawyer (name, address, phone) — if applicable",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "Leave blank if respondent is self-represented or if unknown."
+        }
+      ]
+    },
+    {
+      "stepId": 3,
+      "title": "Who Is Filing + Conferring",
+      "description": "Identify yourself and confirm whether you conferred with the other party as required.",
+      "fields": [
+        {
+          "id": "filer_name",
+          "label": "My full legal name is:",
+          "type": "text",
+          "required": true,
+          "autoFill": "applicant_full_name",
+          "placeholder": "e.g. Jane Elizabeth Smith"
+        },
+        {
+          "id": "filer_role",
+          "label": "I am:",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "lawyer_applicant",
+              "label": "The lawyer for the applicant"
+            },
+            {
+              "value": "lawyer_respondent",
+              "label": "The lawyer for the respondent"
+            },
+            {
+              "value": "self_applicant",
+              "label": "The applicant (self-represented)"
+            },
+            {
+              "value": "self_respondent",
+              "label": "The respondent (self-represented)"
+            }
+          ]
+        },
+        {
+          "id": "conferred_info",
+          "label": "Filing Requirement — Conferring",
+          "type": "info",
+          "content": "The Family Law Rules (Rule 17(3.1)) require you to discuss the following with the other party (or their lawyer) before filing this form:\n\na) Requests for financial disclosure\nb) A temporary resolution of the outstanding issues in dispute\nc) For a settlement conference or trial management conference: a final resolution of the issues in dispute\n\nThis can be done by phone, email, or in writing.\n\nExceptions — you do NOT have to confer if:\n• A court order prohibits you from communicating with the other party, OR\n• There is a risk of domestic violence and the other party does not have a lawyer\n\n(Rule 17(3.2))"
+        },
+        {
+          "id": "conferred_yn",
+          "label": "Have you conferred (or made best efforts to confer) with the other party about: (a) financial disclosure requests, (b) temporary resolution of issues, and (c) for settlement/TMC: final resolution of issues?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes — we have conferred (or attempted to confer) on all required matters"
+            },
+            {
+              "value": "no",
+              "label": "No — I was unable to confer (explain below)"
+            }
+          ]
+        },
+        {
+          "id": "confer_reason_not",
+          "label": "Reason for not conferring:",
+          "type": "textarea",
+          "required": false,
+          "rows": 4,
+          "showIf": {
+            "field": "conferred_yn",
+            "value": "no"
+          },
+          "placeholder": "e.g. A restraining order prohibits direct communication between the parties.\ne.g. There is a risk of domestic violence and the other party does not have a lawyer (Rule 17(3.2)(b)).\ne.g. I attempted to contact the respondent by email on [date] and by phone on [date] but received no response.",
+          "hint": "Be specific. The court may make a cost order against a party who fails to confer without good reason."
+        },
+        {
+          "id": "costs_discussed",
+          "label": "I confirm that the parties have discussed costs.",
+          "type": "checkbox",
+          "required": true,
+          "hint": "Field 9 on Form 17F requires confirmation that costs have been discussed. This is mandatory."
+        }
+      ]
+    },
+    {
+      "stepId": 4,
+      "title": "Conference Date & Type",
+      "description": "Enter the date, time, and type of conference. This triggers the deadline urgency check.",
+      "urgencyTrigger": true,
+      "fields": [
+        {
+          "id": "conference_type",
+          "label": "This is a:",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "case_conference",
+              "label": "Case Conference"
+            },
+            {
+              "value": "settlement_conference",
+              "label": "Settlement Conference"
+            },
+            {
+              "value": "trial_management_conference",
+              "label": "Trial Management Conference"
+            }
+          ],
+          "hint": "Select the type of conference exactly as it appears in your court notice or order."
+        },
+        {
+          "id": "conference_date",
+          "label": "Scheduled Date of Conference",
+          "type": "date",
+          "required": true,
+          "urgencyFlag": true,
+          "deadlineBusinessDaysBefore": 3,
+          "deadlineTime": "14:00",
+          "hint": "Enter the date your conference is scheduled. We will automatically calculate your filing deadline (2:00 PM, 3 business days before this date) and alert you if you are running short on time.",
+          "validation": {
+            "minDate": "today",
+            "message": "Conference date must be in the future."
+          }
+        },
+        {
+          "id": "conference_time",
+          "label": "Scheduled Time of Conference",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 9:30 AM",
+          "hint": "Enter the time the conference is scheduled to begin."
+        },
+        {
+          "id": "case_management_judge",
+          "label": "Case Management Judge (if any)",
+          "type": "text",
+          "required": false,
+          "autoFill": "case_management_judge",
+          "placeholder": "e.g. The Honourable Justice A. Lee",
+          "hint": "If a case management judge is assigned to your case, enter their name. Leave blank if none."
+        },
+        {
+          "id": "deadline_urgency_banner",
+          "label": "Your Filing Deadline",
+          "type": "computed_deadline",
+          "sourceField": "conference_date",
+          "businessDaysBefore": 3,
+          "cutoffTime": "14:00",
+          "displayFormat": "Your confirmation must be filed by 2:00 PM on {deadline_date}.",
+          "required": false
+        }
+      ]
+    },
+    {
+      "stepId": 5,
+      "title": "Issues & Conference Brief",
+      "description": "List the issues for the conference and identify the documents the judge should read.",
+      "fields": [
+        {
+          "id": "issues_for_conference",
+          "label": "Issues to be discussed at this conference (list each one separately):",
+          "type": "textarea",
+          "required": true,
+          "rows": 7,
+          "placeholder": "e.g.\na) Decision-making responsibility for Emma (age 6) and Liam (age 4)\nb) Parenting time schedule — week-on, week-off proposal\nc) Child support — table amount under Federal Child Support Guidelines\nd) Equalization of net family property\ne) Disclosure of financial documents",
+          "hint": "Be specific. List each issue separately with a letter (a, b, c...). Courts may refuse to discuss issues not listed here.",
+          "validation": {
+            "minLength": 20,
+            "message": "You must list at least one issue for the conference."
+          }
+        },
+        {
+          "id": "conference_brief_filed",
+          "label": "Have you filed your Conference Brief (Form 17A for case conference / Form 17C for settlement conference / Form 17E for trial management conference)?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes — brief already filed"
+            },
+            {
+              "value": "filing_with_this",
+              "label": "No — I am filing the brief at the same time as this confirmation"
+            },
+            {
+              "value": "no_tmc",
+              "label": "No brief required for this type of conference"
+            }
+          ],
+          "hint": "Conference briefs must be served and filed:\n• At least 6 days before (if you requested the conference, or are the applicant)\n• At least 4 days before (if the other party requested it, or you are the respondent)\n\nNote for Trial Management Conference in Superior Court of Justice: The required documents may not be Form 17E. Instead, the court may require a trial scheduling endorsement form, an offer to settle, and an opening statement outline. Check with the court office before filing. Form 17E applies to OCJ trial management conferences."
+        },
+        {
+          "id": "materials_for_judge",
+          "label": "In addition to the conference brief, the presiding judge will be referred to the following pages/tabs (list with volume, tab, and page numbers):",
+          "type": "textarea",
+          "required": false,
+          "rows": 6,
+          "placeholder": "e.g.\na) Financial Statement of Jane Smith (Form 13) — Volume 2, Tab C, page 45\nb) Affidavit of Jane Smith sworn June 10, 2025 — Volume 1, Tab B, page 12\nc) Applicant's Offer to Settle dated May 1, 2025 — Volume 3, Tab F",
+          "hint": "Use exact volume, tab, and page numbers from the Continuing Record. This helps the judge navigate your materials quickly."
+        }
+      ]
+    },
+    {
+      "stepId": 6,
+      "title": "Time Estimates",
+      "description": "Estimate how much time each party needs at the conference.",
+      "fields": [
+        {
+          "id": "time_estimate_applicant",
+          "label": "Time estimate — Applicant (minutes):",
+          "type": "number",
+          "required": true,
+          "placeholder": "e.g. 30",
+          "min": 5,
+          "max": 480,
+          "hint": "How many minutes does the applicant (or their lawyer) need to present their position at the conference?",
+          "validation": {
+            "min": 5,
+            "max": 480,
+            "message": "Enter a time between 5 and 480 minutes."
+          }
+        },
+        {
+          "id": "time_estimate_respondent",
+          "label": "Time estimate — Respondent (minutes):",
+          "type": "number",
+          "required": true,
+          "placeholder": "e.g. 30",
+          "min": 5,
+          "max": 480,
+          "hint": "How many minutes does the respondent (or their lawyer) need?"
+        },
+        {
+          "id": "time_estimate_total",
+          "label": "Total time estimate (auto-calculated)",
+          "type": "computed",
+          "formula": "time_estimate_applicant + time_estimate_respondent",
+          "required": false,
+          "displayAs": "{total} minutes total",
+          "hint": "This is the combined estimate that will appear on the form. Confirm it is realistic — courts cancel conferences that run over time."
+        },
+        {
+          "id": "time_estimate_note",
+          "label": "Any note about time estimates (optional):",
+          "type": "textarea",
+          "required": false,
+          "rows": 2,
+          "placeholder": "e.g. Both parties are self-represented and may need additional guidance from the judge."
+        }
+      ]
+    },
+    {
+      "stepId": 7,
+      "title": "Delivery, Deadline & Signature",
+      "description": "Confirm delivery to the other party, acknowledge the deadline, and sign.",
+      "fields": [
+        {
+          "id": "deadline_final_warning",
+          "label": "Deadline Reminder",
+          "type": "info",
+          "content": "⏰ FILING DEADLINE: You must file this Confirmation with the court by 2:00 PM, at least 3 business days before your conference date.\n\nBusiness days exclude weekends and Ontario statutory holidays.\n\nExamples:\n• Conference on Monday → file by 2:00 PM the previous Wednesday\n• Conference on Thursday → file by 2:00 PM Monday of the same week\n• Conference on Friday → file by 2:00 PM Tuesday of the same week\n\nYou can file by:\n1. In person at the courthouse\n2. By email to the court office\n3. Through Justice Services Online (justice.gov.on.ca)\n4. Through the Ontario Courts Public Portal (ontariocourts.ca/apply) — whichever is available at your courthouse\n\nNote: Fax is no longer accepted for this form.\n\n(Rule 17(14)(c) as amended by O.Reg. 228/25)"
+        },
+        {
+          "id": "copy_delivered_to_other_party",
+          "label": "I confirm that I have given (or will give before filing) a copy of this Confirmation to the other party or their lawyer.",
+          "type": "checkbox",
+          "required": true,
+          "hint": "Under Rule 17(14)(b), you must deliver a copy to the other party before filing with the clerk. You do NOT need to file a Form 6B (Affidavit of Service) for this step.\n\nException: If your case is a child protection case under the Child, Youth and Family Services Act, 2017, you do NOT need to give the other party a copy before filing."
+        },
+        {
+          "id": "accuracy_acknowledgment",
+          "label": "I confirm that all information in this Confirmation of Conference is accurate.",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "id": "update_if_incorrect",
+          "label": "I understand that if any information in this form becomes incorrect before the conference is held, I must immediately update the form and deliver the corrected version to the other party and the court clerk (as required by Rule 17(14.1.1)).",
+          "type": "checkbox",
+          "required": true,
+          "hint": "This is a legal obligation under the Family Law Rules. If circumstances change — for example, a settlement conference settles some issues — you must file a corrected Form 17F right away."
+        },
+        {
+          "id": "signature_date",
+          "label": "Date of Signature",
+          "type": "date",
+          "required": true,
+          "hint": "Enter today's date."
+        },
+        {
+          "id": "hearth_page_notice",
+          "label": "Hearth & Page Notice",
+          "type": "info",
+          "content": "This form was prepared using Hearth & Page (hearthandpage.ca). File it with the court by 2:00 PM, 3 business days before your conference date. Deliver a copy to the other party first. Hearth & Page is not a law firm and does not provide legal advice. This document was prepared on or by Hearth & Page."
+        }
+      ]
+    }
+  ],
+  "pdfTemplate": {
+    "pageSize": "letter",
+    "margins": {
+      "top": 25,
+      "bottom": 20,
+      "left": 20,
+      "right": 20
+    },
+    "header": {
+      "courtName": "{{courthouse}}",
+      "courtAddress": "{{court_office_address}}",
+      "formNumber": "Form 17F: Confirmation of Conference",
+      "courtFileNumber": "{{court_file_number}}"
+    },
+    "sections": [
+      {
+        "label": "Applicant(s)",
+        "fields": [
+          "applicant_full_name",
+          "applicant_address",
+          "applicant_phone",
+          "applicant_fax",
+          "applicant_email",
+          "applicant_lawyer"
+        ]
+      },
+      {
+        "label": "Respondent(s)",
+        "fields": [
+          "respondent_full_name",
+          "respondent_address",
+          "respondent_phone",
+          "respondent_email",
+          "respondent_lawyer"
+        ]
+      },
+      {
+        "label": "1. My name is, and I am the",
+        "fields": [
+          "filer_name",
+          "filer_role"
+        ]
+      },
+      {
+        "label": "2. I have conferred (or attempted to confer) with the other party on: (a) outstanding issues; (b) resolution; (c) conference materials; (d) time estimates",
+        "fields": [
+          "conferred_yn",
+          "confer_reason_not"
+        ]
+      },
+      {
+        "label": "3. The scheduled conference type and date",
+        "fields": [
+          "conference_type",
+          "conference_date",
+          "conference_time",
+          "case_management_judge"
+        ]
+      },
+      {
+        "label": "4–6. Issues for this conference",
+        "fields": [
+          "issues_for_conference"
+        ]
+      },
+      {
+        "label": "7. Documents for the judge (in addition to the conference brief)",
+        "fields": [
+          "materials_for_judge"
+        ]
+      },
+      {
+        "label": "8. Time estimates",
+        "fields": [
+          "time_estimate_applicant",
+          "time_estimate_respondent",
+          "time_estimate_total"
+        ]
+      },
+      {
+        "label": "9. Costs discussed",
+        "fields": [
+          "costs_discussed"
+        ]
+      },
+      {
+        "label": "10. I will update this form if the information changes",
+        "fields": [
+          "update_if_incorrect"
+        ]
+      },
+      {
+        "label": "Signature",
+        "fields": [
+          "signature_date"
+        ]
+      }
+    ],
+    "footerText": "FLR 17F (September 24, 2024) — Prepared using Hearth & Page (hearthandpage.ca). This document was prepared on or by Hearth & Page.",
+    "signatureLine": true,
+    "dateLineLabel": "Date of signature"
+  },
+  "validationRules": [
+    {
+      "ruleId": "DEADLINE_CHECK",
+      "type": "urgency_flag",
+      "triggerField": "conference_date",
+      "check": "conference_date minus 3 business days at 14:00",
+      "levels": [
+        {
+          "threshold_hours": 72,
+          "severity": "critical",
+          "banner": true,
+          "blockSubmit": false
+        },
+        {
+          "threshold_hours": 120,
+          "severity": "warning",
+          "banner": true,
+          "blockSubmit": false
+        },
+        {
+          "threshold_hours": 168,
+          "severity": "info",
+          "banner": false,
+          "blockSubmit": false
+        }
+      ]
+    },
+    {
+      "ruleId": "ISSUES_NOT_EMPTY",
+      "type": "field_required",
+      "field": "issues_for_conference",
+      "message": "You must list at least one issue for the conference."
+    },
+    {
+      "ruleId": "TIME_ESTIMATES_POSITIVE",
+      "type": "field_range",
+      "fields": [
+        "time_estimate_applicant",
+        "time_estimate_respondent"
+      ],
+      "min": 5,
+      "message": "Time estimates must be at least 5 minutes each."
+    },
+    {
+      "ruleId": "COPY_DELIVERY_REQUIRED",
+      "type": "checkbox_required",
+      "field": "copy_delivered_to_other_party",
+      "message": "You must confirm that you have given the other party a copy of this form before filing."
+    },
+    {
+      "ruleId": "CONFER_REASON_IF_NO",
+      "type": "conditional_required",
+      "condition": {
+        "field": "conferred_yn",
+        "value": "no"
+      },
+      "requiredField": "confer_reason_not",
+      "message": "You must explain why you were unable to confer with the other party."
+    },
+    {
+      "ruleId": "COSTS_DISCUSSED",
+      "type": "checkbox_required",
+      "field": "costs_discussed",
+      "message": "You must confirm that the parties have discussed costs (Field 9 on Form 17F — required by Rule 17)."
+    },
+    {
+      "ruleId": "ACCURACY_ACKNOWLEDGMENT",
+      "type": "checkbox_required",
+      "field": "accuracy_acknowledgment",
+      "message": "You must confirm that all information in this Confirmation is accurate."
+    },
+    {
+      "ruleId": "UPDATE_ACKNOWLEDGMENT",
+      "type": "checkbox_required",
+      "field": "update_if_incorrect",
+      "message": "You must acknowledge your obligation to update this form if any information changes before the conference (Rule 17(14.1.1))."
+    }
+  ]
+}

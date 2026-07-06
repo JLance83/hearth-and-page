@@ -1,0 +1,403 @@
+{
+  "formId": "ON-F14",
+  "jurisdiction": "ON",
+  "pdfFileName": "form14.pdf",
+  "title": "Form 14 \u2014 Notice of Motion",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules (FLR 14)",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "helpIntro": "A Notice of Motion tells the court and the other party that you want to ask for a temporary order \u2014 for example, temporary custody, support, or a restraining order \u2014 before your main case is decided. You must serve this form on the other party at least 6 business days before the motion date.",
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 6",
+      "intro": "We'll use your court information from your existing case file. Confirm or update the details below.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Which courthouse will hear this motion?",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "helpText": "This should be the same courthouse as your main case.",
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": false,
+          "placeholder": "e.g. FC-2024-12345",
+          "helpText": "Found on any documents already filed in your case. Leave blank if you don't have one yet.",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "motionDate",
+          "label": "Date of the motion hearing",
+          "type": "date",
+          "required": true,
+          "helpText": "Contact the court clerk to schedule a date before filling this in. You must serve this form at least 6 business days before this date.",
+          "pdfFieldName": "Motion date"
+        },
+        {
+          "fieldId": "motionTime",
+          "label": "Time of the motion hearing",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 9:30 a.m.",
+          "pdfFieldName": "Motion time"
+        },
+        {
+          "fieldId": "hearingLocation",
+          "label": "Place of the hearing (courthouse address)",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 393 University Ave, Toronto ON M5G 1E6",
+          "helpText": "Usually the same as the courthouse above. Your clerk can confirm the exact courtroom.",
+          "pdfFieldName": "Hearing location"
+        }
+      ]
+    },
+    {
+      "partId": "parties",
+      "title": "The parties",
+      "subtitle": "Step 2 of 6",
+      "intro": "Confirm your information and the other party's information. This auto-fills from your case profile.",
+      "fields": [
+        {
+          "fieldId": "applicantFullName",
+          "label": "Your full legal name (person making this motion)",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "pdfFieldName": "Applicant full name",
+          "id": "moving_party_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "applicantAddress",
+          "label": "Your address for service",
+          "type": "text",
+          "source": "profile.applicant.address",
+          "required": true,
+          "helpText": "This is the address where court documents can be delivered to you.",
+          "pdfFieldName": "Applicant address",
+          "id": "moving_party_address",
+          "autoFill": "user_address"
+        },
+        {
+          "fieldId": "applicantCity",
+          "label": "City",
+          "type": "text",
+          "source": "profile.applicant.city",
+          "required": true,
+          "pdfFieldName": "Applicant city"
+        },
+        {
+          "fieldId": "applicantPostalCode",
+          "label": "Postal code",
+          "type": "text",
+          "source": "profile.applicant.postalCode",
+          "required": true,
+          "placeholder": "A1A 1A1",
+          "pdfFieldName": "Applicant postal code"
+        },
+        {
+          "fieldId": "applicantPhone",
+          "label": "Your phone number",
+          "type": "tel",
+          "source": "profile.applicant.phone",
+          "required": true,
+          "pdfFieldName": "Applicant phone",
+          "id": "moving_party_phone",
+          "autoFill": "user_phone"
+        },
+        {
+          "fieldId": "applicantEmail",
+          "label": "Your email address",
+          "type": "email",
+          "source": "profile.applicant.email",
+          "required": false,
+          "pdfFieldName": "Applicant email",
+          "id": "moving_party_email",
+          "autoFill": "user_email"
+        },
+        {
+          "fieldId": "respondentFullName",
+          "label": "Other party's full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "pdfFieldName": "Respondent full name",
+          "id": "other_party_name",
+          "autoFill": "respondent_full_name"
+        },
+        {
+          "fieldId": "respondentAddress",
+          "label": "Other party's address for service",
+          "type": "text",
+          "source": "profile.respondent.address",
+          "required": false,
+          "pdfFieldName": "Respondent address"
+        },
+        {
+          "fieldId": "respondentPhone",
+          "label": "Other party's phone number",
+          "type": "tel",
+          "source": "profile.respondent.phone",
+          "required": false,
+          "pdfFieldName": "Respondent phone"
+        },
+        {
+          "fieldId": "respondentHasLawyer",
+          "label": "Does the other party have a lawyer?",
+          "type": "yesno",
+          "source": "profile.respondent.hasLawyer",
+          "required": true,
+          "pdfFieldName": "Respondent has lawyer"
+        },
+        {
+          "fieldId": "respondentLawyerName",
+          "label": "Other party's lawyer name",
+          "type": "text",
+          "source": "profile.respondent.lawyerName",
+          "required": false,
+          "conditional": {
+            "dependsOn": "respondentHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Respondent lawyer name"
+        },
+        {
+          "fieldId": "respondentLawyerAddress",
+          "label": "Lawyer's address",
+          "type": "text",
+          "required": false,
+          "conditional": {
+            "dependsOn": "respondentHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Respondent lawyer address"
+        },
+        {
+          "fieldId": "respondentLawyerPhone",
+          "label": "Lawyer's phone number",
+          "type": "tel",
+          "source": "profile.respondent.lawyerPhone",
+          "required": false,
+          "conditional": {
+            "dependsOn": "respondentHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Respondent lawyer phone"
+        }
+      ]
+    },
+    {
+      "partId": "orders",
+      "title": "Orders you are asking for",
+      "subtitle": "Step 3 of 6",
+      "intro": "Select all the temporary orders you want the court to make at this motion. These are temporary \u2014 they last until your case is resolved or the court changes them.",
+      "fields": [
+        {
+          "fieldId": "orderTempCustody",
+          "label": "Temporary decision-making responsibility (custody)",
+          "type": "checkbox",
+          "pdfFieldName": "Order temp custody"
+        },
+        {
+          "fieldId": "orderTempParentingTime",
+          "label": "Temporary parenting time (access) schedule",
+          "type": "checkbox",
+          "pdfFieldName": "Order temp parenting time"
+        },
+        {
+          "fieldId": "orderTempChildSupport",
+          "label": "Temporary child support",
+          "type": "checkbox",
+          "pdfFieldName": "Order temp child support"
+        },
+        {
+          "fieldId": "orderTempSpousalSupport",
+          "label": "Temporary spousal support",
+          "type": "checkbox",
+          "pdfFieldName": "Order temp spousal support"
+        },
+        {
+          "fieldId": "orderRestrainingOrder",
+          "label": "Restraining or non-harassment order",
+          "type": "checkbox",
+          "pdfFieldName": "Order restraining order"
+        },
+        {
+          "fieldId": "orderExclusivePossession",
+          "label": "Exclusive possession of the family home",
+          "type": "checkbox",
+          "pdfFieldName": "Order exclusive possession"
+        },
+        {
+          "fieldId": "orderChangeExisting",
+          "label": "Change or set aside an existing order",
+          "type": "checkbox",
+          "pdfFieldName": "Order change existing"
+        },
+        {
+          "fieldId": "orderOther",
+          "label": "Other order (describe below)",
+          "type": "checkbox",
+          "pdfFieldName": "Order other"
+        },
+        {
+          "fieldId": "orderOtherDetails",
+          "label": "Describe the other order you are asking for",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "orderOther",
+            "showWhen": true
+          },
+          "placeholder": "Describe clearly what you want the court to order.",
+          "pdfFieldName": "Order other details"
+        },
+        {
+          "fieldId": "ordersDetailedDescription",
+          "label": "In your own words, describe the specific orders you are asking for (Page 2 of Form 14)",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. 1. That the Applicant have temporary decision-making responsibility for the child Alex Lance, born April 12, 2015.\n2. That the Respondent pay child support of $X per month commencing [date].\n3. That the Respondent be restrained from attending at [address].",
+          "helpText": "Write each order you want as a numbered sentence. Be specific \u2014 include names, amounts, and dates where possible. A judge will read exactly what you write here.",
+          "pdfFieldName": "Orders detailed description"
+        }
+      ]
+    },
+    {
+      "partId": "evidence",
+      "title": "Supporting evidence",
+      "subtitle": "Step 4 of 6",
+      "intro": "Tell the court what documents you are attaching to support this motion.",
+      "fields": [
+        {
+          "fieldId": "hasAffidavit",
+          "label": "Are you filing a Form 14A Affidavit with this motion?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Almost always yes. The affidavit is where you explain the facts behind your motion in detail.",
+          "pdfFieldName": "Has affidavit"
+        },
+        {
+          "fieldId": "hasCaseConferenceNotice",
+          "label": "Are you also serving a Notice of Case Conference with this motion?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Required if you are asking to change an existing order.",
+          "pdfFieldName": "Has case conference notice"
+        },
+        {
+          "fieldId": "continuingRecordDocuments",
+          "label": "List any other documents in the Continuing Record you are relying on",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Volume 1, Tab 3 \u2014 Financial Statement dated January 2024\nVolume 1, Tab 5 \u2014 Prior Order dated March 2023",
+          "helpText": "Leave blank if this is your first court document. The Continuing Record is the binder of all documents filed in your case.",
+          "pdfFieldName": "Continuing record documents"
+        },
+        {
+          "fieldId": "urgencyReason",
+          "label": "Is this an urgent motion? If yes, briefly explain why.",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. The child is at risk of harm. I am asking for an emergency order without notice because...",
+          "helpText": "Only fill this in if you are asking the court to hear this motion on an urgent basis or without notifying the other party first (ex parte).",
+          "pdfFieldName": "Urgency reason"
+        }
+      ]
+    },
+    {
+      "partId": "service",
+      "title": "Serving the other party",
+      "subtitle": "Step 5 of 6",
+      "intro": "You must give the other party a copy of this Notice of Motion and all supporting documents at least 6 business days before the motion date. After you serve them you must fill out Form 6B (Affidavit of Service).",
+      "fields": [
+        {
+          "fieldId": "serviceMethod",
+          "label": "How will you serve the other party?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "By hand (personal service)",
+            "By mail",
+            "By email (if they have agreed or if the court has ordered it)",
+            "Through their lawyer",
+            "By courier"
+          ],
+          "helpText": "If the other party has a lawyer, serve the lawyer \u2014 not the person directly.",
+          "pdfFieldName": "Service method"
+        },
+        {
+          "fieldId": "servicePlannedDate",
+          "label": "When do you plan to serve the other party?",
+          "type": "date",
+          "required": false,
+          "helpText": "Must be at least 6 business days before your motion date.",
+          "pdfFieldName": "Service planned date"
+        },
+        {
+          "fieldId": "form14cReminder",
+          "label": "I understand I must file Form 14C (Confirmation of Motion) no later than 2:00 p.m., 3 business days before the motion date.",
+          "type": "checkbox",
+          "required": true,
+          "helpText": "If you do not file Form 14C on time, your motion may be removed from the list and you will have to reschedule.",
+          "pdfFieldName": "Form 14C reminder acknowledged"
+        }
+      ]
+    },
+    {
+      "partId": "review",
+      "title": "Review and sign",
+      "subtitle": "Step 6 of 6",
+      "intro": "Review your Notice of Motion below. When you are ready, confirm and generate your form.",
+      "fields": [
+        {
+          "fieldId": "signatureDate",
+          "label": "Date you are signing this form",
+          "type": "date",
+          "required": true,
+          "pdfFieldName": "Signature date"
+        },
+        {
+          "fieldId": "declarationConfirmed",
+          "label": "I confirm the information in this Notice of Motion is accurate. I understand this document will be filed with the Ontario court.",
+          "type": "checkbox",
+          "required": true,
+          "pdfFieldName": "Declaration confirmed"
+        }
+      ]
+    }
+  ]
+}

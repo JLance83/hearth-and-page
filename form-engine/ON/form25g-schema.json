@@ -1,0 +1,398 @@
+{
+  "formId": "ON-F25G",
+  "formCode": "form25g-restraining-order-clra",
+  "formNumber": "Form 25G",
+  "jurisdiction": "Ontario",
+  "act": "Children's Law Reform Act, R.S.O. 1990, c. C.12, s. 35; Family Law Act, R.S.O. 1990, c. F.3, s. 46; Family Law Rules, O. Reg. 114/99, Rules 25(11)(b)(i.1), 25(11.1)",
+  "version": "September 1, 2009",
+  "title": "Form 25G \u2014 Restraining Order on Motion Without Notice",
+  "subtitle": "Ontario Family Court \u2014 Emergency Restraining Order (CLRA and/or FLA)",
+  "description": "An emergency restraining order granted by a judge on a motion made WITHOUT notice to the respondent. Used in urgent situations where giving notice could put the applicant or children at risk. Can be made under s. 35 of the Children's Law Reform Act (CLRA), s. 46 of the Family Law Act (FLA), or both. The order is temporary and the matter returns to court on a review date. Registered on the CPIC database. Disobeying is a criminal offence.",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "safetyFlag": {
+    "enabled": true,
+    "criticalWarning": true,
+    "message": "If you or your children are in immediate danger RIGHT NOW, call 911. Form 25G is for urgent situations but still requires a court hearing before a judge.",
+    "reviewDateNote": "After a motion without notice, the court MUST set a review date (usually within a few days to 2 weeks). Both parties attend the review. The respondent will be served with a copy of the order and told about the review date."
+  },
+  "steps": [
+    {
+      "stepId": "safety-check",
+      "stepNumber": 1,
+      "title": "Emergency Safety Information",
+      "subtitle": "Read carefully before proceeding",
+      "fields": [
+        {
+          "fieldId": "emergency_info",
+          "type": "info",
+          "label": "When to Use Form 25G",
+          "content": "Form 25G is for emergency restraining orders made WITHOUT telling the other person first. Use this when: (1) You or your children are in danger and cannot wait for a regular hearing, or (2) Telling the respondent about your motion could put you at greater risk. A judge will review the order within days. The respondent will be served after the order is granted."
+        },
+        {
+          "fieldId": "legislation_choice_info",
+          "type": "info",
+          "label": "Which Law Applies — CLRA vs FLA",
+          "content": "Form 25G can be made under either or both laws. Use CLRA (s. 35) when your children are at risk and parenting/custody is involved. Use FLA (s. 46) when the harassment or threats are directed at you as a former spouse or partner. Your lawyer or duty counsel can advise which applies to your situation."
+        },
+        {
+          "fieldId": "clra_or_fla",
+          "type": "radio",
+          "label": "Which law is this order being sought under?",
+          "required": true,
+          "options": [
+            { "value": "clra", "label": "Section 35 of the Children's Law Reform Act (CLRA) — children are at risk" },
+            { "value": "fla", "label": "Section 46 of the Family Law Act (FLA) — I am being harassed or threatened" },
+            { "value": "both", "label": "Both CLRA s. 35 and FLA s. 46" }
+          ],
+          "helpText": "If unsure, speak to duty counsel at the courthouse before filing. Duty counsel is a free service."
+        },
+        {
+          "fieldId": "cpic_info",
+          "type": "info",
+          "label": "CPIC Registration & Criminal Consequences",
+          "content": "This order is immediately registered on the Canadian Police Information Centre (CPIC) database. Any police officer in Canada can enforce it. Disobeying this order is a criminal offence punishable by fine or imprisonment under the Criminal Code."
+        }
+      ]
+    },
+    {
+      "stepId": "court-info",
+      "stepNumber": 2,
+      "title": "Court Information",
+      "subtitle": "Where the case is or will be filed",
+      "fields": [
+        {
+          "fieldId": "court_name",
+          "type": "select",
+          "label": "Name of Court",
+          "required": true,
+          "options": [
+            "Ontario Court of Justice",
+            "Superior Court of Justice",
+            "Superior Court of Justice (Family Court Branch)"
+          ]
+        },
+        {
+          "fieldId": "court_office_address",
+          "type": "text",
+          "label": "Court Office Address",
+          "required": true,
+          "placeholder": "393 University Ave, Toronto, ON M5G 1E6",
+          "source": "profile.case.courthouse"
+        },
+        {
+          "fieldId": "court_file_number",
+          "type": "text",
+          "label": "Court File Number (if you already have one)",
+          "required": false,
+          "source": "profile.case.fileNumber"
+        }
+      ]
+    },
+    {
+      "stepId": "parties",
+      "stepNumber": 3,
+      "title": "Applicant & Respondent",
+      "subtitle": "Who is applying and who is being restrained",
+      "groups": [
+        {
+          "label": "Applicant (You)",
+          "fields": [
+            {
+              "fieldId": "applicant_full_name",
+              "type": "text",
+              "label": "Your Full Legal Name",
+              "required": true,
+              "source": "profile.applicant.fullName"
+            },
+            {
+              "fieldId": "applicant_address",
+              "type": "text",
+              "label": "Address for Service",
+              "required": true,
+              "source": "profile.applicant.address",
+              "helpText": "You may use a lawyer's address or safe address if you are concerned about safety."
+            },
+            {
+              "fieldId": "applicant_phone",
+              "type": "tel",
+              "label": "Phone Number",
+              "required": true,
+              "source": "profile.applicant.phone"
+            },
+            {
+              "fieldId": "applicant_has_lawyer",
+              "type": "yesno",
+              "label": "Do you have a lawyer?",
+              "required": true,
+              "default": "no"
+            },
+            {
+              "fieldId": "applicant_lawyer_name",
+              "type": "text",
+              "label": "Lawyer's Full Name",
+              "required": false,
+              "showIf": { "field": "applicant_has_lawyer", "value": "yes" }
+            },
+            {
+              "fieldId": "applicant_lawyer_address",
+              "type": "text",
+              "label": "Lawyer's Address",
+              "required": false,
+              "showIf": { "field": "applicant_has_lawyer", "value": "yes" }
+            }
+          ]
+        },
+        {
+          "label": "Respondent (Person to be restrained)",
+          "fields": [
+            {
+              "fieldId": "respondent_full_name",
+              "type": "text",
+              "label": "Respondent Full Legal Name",
+              "required": true,
+              "source": "profile.respondent.fullName"
+            },
+            {
+              "fieldId": "respondent_dob",
+              "type": "date",
+              "label": "Respondent Date of Birth",
+              "required": true,
+              "helpText": "Required for CPIC registration. If unknown, contact police or duty counsel."
+            },
+            {
+              "fieldId": "respondent_address",
+              "type": "text",
+              "label": "Respondent's Last Known Address",
+              "required": false,
+              "source": "profile.respondent.address"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "children",
+      "stepNumber": 4,
+      "title": "Children Involved",
+      "subtitle": "Children named in the order",
+      "intro": "If the restraining order is under the CLRA (s. 35), the children must be named in the order.",
+      "fields": [
+        {
+          "fieldId": "children_involved",
+          "type": "yesno",
+          "label": "Are there children involved in this restraining order?",
+          "required": true,
+          "default": "yes",
+          "showIf": { "field": "clra_or_fla", "operator": "in", "values": ["clra", "both"] }
+        },
+        {
+          "fieldId": "child_1_name",
+          "type": "text",
+          "label": "Child 1 — Full Name",
+          "required": false,
+          "showIf": { "field": "children_involved", "value": "yes" }
+        },
+        {
+          "fieldId": "child_1_dob",
+          "type": "date",
+          "label": "Child 1 — Date of Birth",
+          "required": false,
+          "showIf": { "field": "children_involved", "value": "yes" }
+        },
+        {
+          "fieldId": "child_2_name",
+          "type": "text",
+          "label": "Child 2 — Full Name (if applicable)",
+          "required": false,
+          "showIf": { "field": "children_involved", "value": "yes" }
+        },
+        {
+          "fieldId": "child_2_dob",
+          "type": "date",
+          "label": "Child 2 — Date of Birth",
+          "required": false,
+          "showIf": { "field": "children_involved", "value": "yes" }
+        },
+        {
+          "fieldId": "child_3_name",
+          "type": "text",
+          "label": "Child 3 — Full Name (if applicable)",
+          "required": false,
+          "showIf": { "field": "children_involved", "value": "yes" }
+        },
+        {
+          "fieldId": "additional_children_note",
+          "type": "textarea",
+          "label": "Additional children (name and date of birth)",
+          "required": false,
+          "showIf": { "field": "children_involved", "value": "yes" },
+          "helpText": "If more than 3 children, list the remaining children here."
+        }
+      ]
+    },
+    {
+      "stepId": "order-terms",
+      "stepNumber": 5,
+      "title": "Order Terms",
+      "subtitle": "What the judge will order the respondent not to do",
+      "intro": "Describe exactly what you are asking the court to order. The more specific, the easier it is for police to enforce.",
+      "fields": [
+        {
+          "fieldId": "restrained_person_clause",
+          "type": "info",
+          "label": "Order Format",
+          "content": "The order will read: '[Respondent's name], born [date of birth], SHALL NOT...' followed by the specific terms you request below."
+        },
+        {
+          "fieldId": "conduct_attend_home",
+          "type": "checkbox",
+          "label": "Come to or near my home or residence"
+        },
+        {
+          "fieldId": "conduct_attend_workplace",
+          "type": "checkbox",
+          "label": "Come to or near my workplace"
+        },
+        {
+          "fieldId": "conduct_attend_school",
+          "type": "checkbox",
+          "label": "Come to or near the children's school or daycare"
+        },
+        {
+          "fieldId": "conduct_contact_applicant",
+          "type": "checkbox",
+          "label": "Contact or communicate with me (by any means)"
+        },
+        {
+          "fieldId": "conduct_contact_children",
+          "type": "checkbox",
+          "label": "Contact the children except as permitted by a parenting order"
+        },
+        {
+          "fieldId": "conduct_harass",
+          "type": "checkbox",
+          "label": "Follow, watch, or surveil me or the children"
+        },
+        {
+          "fieldId": "conduct_other",
+          "type": "checkbox",
+          "label": "Other (describe below)"
+        },
+        {
+          "fieldId": "conduct_other_description",
+          "type": "textarea",
+          "label": "Other conduct to be restrained",
+          "required": false,
+          "showIf": { "field": "conduct_other", "value": true }
+        },
+        {
+          "fieldId": "protected_addresses",
+          "type": "textarea",
+          "label": "Addresses / locations covered by this order",
+          "required": false,
+          "placeholder": "123 Main Street, Toronto, ON — my home\n789 School Lane, Toronto, ON — children's school"
+        },
+        {
+          "fieldId": "exclusion_distance",
+          "type": "number",
+          "label": "Exclusion distance (metres)",
+          "required": false,
+          "min": 10,
+          "max": 1000,
+          "placeholder": "100"
+        },
+        {
+          "fieldId": "review_date_info",
+          "type": "info",
+          "label": "Review Date — Required for Without-Notice Orders",
+          "content": "Because this is a motion WITHOUT notice, the court must set a review date so the respondent can come to court and respond. The clerk will set this date. The order will include the review date. The respondent must be served with a copy of the order and told about the review date immediately after the order is granted."
+        },
+        {
+          "fieldId": "review_date",
+          "type": "date",
+          "label": "Review Date (set by the court — leave blank if unknown)",
+          "required": false,
+          "helpText": "The court clerk will set this date. It is usually within a few days to 2 weeks of the order being granted."
+        },
+        {
+          "fieldId": "service_method",
+          "type": "select",
+          "label": "How will the respondent be served with a copy of this order?",
+          "required": true,
+          "options": [
+            "Personal service (handed directly to the respondent)",
+            "Substituted service (with court permission, another method)",
+            "By a process server",
+            "By police (if approved by the court)"
+          ],
+          "helpText": "Form 25G requires immediate service on the respondent after the order is granted. The notice of motion and supporting affidavit must also be served at the same time."
+        }
+      ]
+    },
+    {
+      "stepId": "urgency-affidavit",
+      "stepNumber": 6,
+      "title": "Urgency & Affidavit Details",
+      "subtitle": "Why you need this order without notice",
+      "intro": "You must explain to the judge why you cannot give the respondent notice of this motion. This information will go into your Form 14A (Affidavit).",
+      "fields": [
+        {
+          "fieldId": "affidavit_info",
+          "type": "info",
+          "label": "Form 14A (Affidavit) Required",
+          "content": "You must file a Form 14A (Affidavit) explaining the incidents of harassment or danger and why you need this order without notice. Hearth & Page will help you prepare Form 14A. The more specific and detailed your affidavit, the stronger your case."
+        },
+        {
+          "fieldId": "urgency_reason",
+          "type": "textarea",
+          "label": "Why do you need this order immediately, without notifying the respondent first?",
+          "required": true,
+          "placeholder": "Describe the specific danger or risk if the respondent were notified in advance...",
+          "helpText": "Be specific. Examples: 'The respondent threatened to harm me if I took legal action'; 'I fear the respondent will flee with the children if notified'; 'The respondent has a history of violence.'"
+        },
+        {
+          "fieldId": "recent_incidents",
+          "type": "textarea",
+          "label": "Describe the most recent incidents (include dates and details)",
+          "required": true,
+          "placeholder": "Date: [date]\nWhat happened: [describe incident]\n\nDate: [date]\nWhat happened: [describe incident]"
+        },
+        {
+          "fieldId": "injuries_or_threats",
+          "type": "yesno",
+          "label": "Have you been physically harmed or directly threatened with physical harm?",
+          "required": true,
+          "default": "no"
+        },
+        {
+          "fieldId": "injury_details",
+          "type": "textarea",
+          "label": "Describe the physical harm or threats",
+          "required": false,
+          "showIf": { "field": "injuries_or_threats", "value": "yes" }
+        },
+        {
+          "fieldId": "police_called",
+          "type": "yesno",
+          "label": "Have you called the police?",
+          "required": true,
+          "default": "no"
+        },
+        {
+          "fieldId": "police_report_number",
+          "type": "text",
+          "label": "Police report number and detachment",
+          "required": false,
+          "showIf": { "field": "police_called", "value": "yes" }
+        },
+        {
+          "fieldId": "signature_date",
+          "type": "date",
+          "label": "Date Prepared",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

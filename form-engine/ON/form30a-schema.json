@@ -1,0 +1,55 @@
+{
+  "formCode": "form30a-default-hearing",
+  "formNumber": "Form 30A",
+  "title": "Request for Default Hearing",
+  "jurisdiction": "Ontario",
+  "act": "Family Law Rules, O. Reg. 114/99, Rule 30(1); Family Responsibility and Support Arrears Enforcement Act, 1996, s. 41",
+  "version": "Current",
+  "description": "Filed by a support recipient when the payor has missed support payments.",
+  "pdfTemplate": "form30a.pdf",
+  "steps": [
+    {
+      "stepId": "court-info",
+      "stepNumber": 1,
+      "title": "Court Information",
+      "fields": [
+        { "fieldId": "court_file_number",   "type": "text",   "label": "Court File Number",      "pdfFieldName": "form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]" },
+        { "fieldId": "court_name",          "type": "select", "label": "Name of Court",          "pdfFieldName": "form1[0].page1[0].body[0].courtDetails[0].court[0].nameOfCourt[0]" },
+        { "fieldId": "court_office_address","type": "text",   "label": "Court Office Address",   "pdfFieldName": "form1[0].page1[0].body[0].courtDetails[0].court[0].courtOfficeAddress[0]" }
+      ]
+    },
+    {
+      "stepId": "parties",
+      "stepNumber": 2,
+      "title": "Recipient & Payor",
+      "fields": [
+        { "fieldId": "recipient_full_name",     "type": "text", "label": "Recipient Full Name",        "pdfFieldName": "form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[0]" },
+        { "fieldId": "recipient_address",       "type": "text", "label": "Recipient Address",          "pdfFieldName": "form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[1]" },
+        { "fieldId": "recipient_lawyer_name",   "type": "text", "label": "Recipient Lawyer Name",      "pdfFieldName": "form1[0].page1[0].body[0].applicants[0].Lawyer[0].textfield[0]" },
+        { "fieldId": "recipient_lawyer_address","type": "text", "label": "Recipient Lawyer Address",   "pdfFieldName": "form1[0].page1[0].body[0].applicants[0].Lawyer[0].textfield[1]" },
+        { "fieldId": "payor_full_name",         "type": "text", "label": "Payor Full Name",            "pdfFieldName": "form1[0].page1[0].body[0].Payor[0].Payor[0].textfield[0]" },
+        { "fieldId": "payor_address",           "type": "text", "label": "Payor Address",              "pdfFieldName": "form1[0].page1[0].body[0].Payor[0].Payor[0].textfield[1]" },
+        { "fieldId": "payor_lawyer_name",       "type": "text", "label": "Payor Lawyer Name",          "pdfFieldName": "form1[0].page1[0].body[0].Payor[0].PayorLawyer[0].textfield[0]" },
+        { "fieldId": "payor_lawyer_address",    "type": "text", "label": "Payor Lawyer Address",       "pdfFieldName": "form1[0].page1[0].body[0].Payor[0].PayorLawyer[0].textfield[1]" }
+      ]
+    },
+    {
+      "stepId": "arrears",
+      "stepNumber": 3,
+      "title": "Missed Payments",
+      "fields": [
+        { "fieldId": "payor_dob",       "type": "date",     "label": "Payor Date of Birth",        "pdfFieldName": "form1[0].page1[0].body[0].allParties[0].conditions[0].#subform[0].BornDate[0]" },
+        { "fieldId": "arrears_amount",  "type": "currency", "label": "Total Arrears Amount ($)",   "pdfFieldName": "form1[0].page1[0].body[0].allParties[0].conditions[0].Amount[0]" }
+      ]
+    },
+    {
+      "stepId": "delivery",
+      "stepNumber": 4,
+      "title": "Signature",
+      "fields": [
+        { "fieldId": "filer_name",      "type": "text", "label": "Name of Person Filing",  "pdfFieldName": "form1[0].page1[0].body[0].signature[0].sig[0]" },
+        { "fieldId": "signature_date",  "type": "date", "label": "Date of Signature",      "pdfFieldName": "form1[0].page1[0].body[0].signature[0].Date[0]" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,728 @@
+{
+  "formId": "ON-F35_1",
+  "formCode": "form35_1-custody-affidavit",
+  "title": "Form 35.1 — Affidavit in Support of Claim for Custody or Access",
+  "jurisdiction": "Ontario",
+  "version": "2024",
+  "description": "Required in every Ontario family law case where a party claims decision-making responsibility (custody) or parenting time (access). Must be sworn and filed with your application or motion. Requires full disclosure of past involvement with child protection services, criminal history, and domestic violence history.",
+  "autoPopulateFrom": ["form8-general"],
+  "sensitiveForm": true,
+  "steps": [
+    {
+      "stepId": "f351-step1",
+      "title": "About This Affidavit",
+      "description": "This affidavit is required by law whenever you ask for decision-making responsibility (custody) or parenting time (access) in Ontario.",
+      "fields": [
+        {
+          "id": "important_notice",
+          "label": "Important notice before you begin",
+          "type": "info-box",
+          "content": "**This form requires you to disclose sensitive personal information.** Ontario law requires anyone asking for custody or access to disclose:\n\n- Any involvement with a Children's Aid Society (CAS) in Ontario or elsewhere\n- Any criminal charges or convictions\n- Any history of domestic violence or abuse\n\nThis information is kept in the court file and shared with the other party. **You must answer all questions honestly.** Providing false information in an affidavit is perjury, which is a criminal offence.\n\nThis affidavit must be sworn before a commissioner of oaths — do not sign it until you are in front of the commissioner."
+        },
+        {
+          "id": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "required": true,
+          "autoPopulate": "courthouse",
+          "options": [
+            "Barrie — Superior Court of Justice",
+            "Brampton — Superior Court of Justice",
+            "Brantford — Superior Court of Justice",
+            "Cornwall — Superior Court of Justice",
+            "Hamilton — Superior Court of Justice",
+            "Kingston — Superior Court of Justice",
+            "Kitchener — Superior Court of Justice",
+            "London — Superior Court of Justice",
+            "Milton — Superior Court of Justice",
+            "Newmarket — Superior Court of Justice",
+            "Oshawa — Superior Court of Justice",
+            "Ottawa — Superior Court of Justice",
+            "Peterborough — Superior Court of Justice",
+            "St. Catharines — Superior Court of Justice",
+            "Sudbury — Superior Court of Justice",
+            "Thunder Bay — Superior Court of Justice",
+            "Toronto — Superior Court of Justice",
+            "Windsor — Superior Court of Justice"
+          ]
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court file number",
+          "type": "text",
+          "required": false,
+          "autoPopulate": "court_file_number",
+          "placeholder": "e.g. FC-2024-12345"
+        },
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "applicant_full_name"
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "respondent_full_name"
+        },
+        {
+          "id": "deponent_name",
+          "label": "Your full legal name (person swearing this affidavit)",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "applicant_full_name",
+          "helpText": "This is the person making the sworn statement — usually the applicant or respondent filing this form."
+        },
+        {
+          "id": "deponent_role",
+          "label": "You are",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "applicant", "label": "The Applicant" },
+            { "value": "respondent", "label": "The Respondent" },
+            { "value": "other", "label": "Other party" }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "f351-step2",
+      "title": "The Children",
+      "description": "List each child for whom you are claiming decision-making responsibility or parenting time.",
+      "fields": [
+        {
+          "id": "children",
+          "label": "Children involved in this claim",
+          "type": "repeatable-group",
+          "required": true,
+          "maxItems": 10,
+          "addLabel": "Add another child",
+          "helpText": "List every child for whom you are asking for custody or access.",
+          "fields": [
+            {
+              "id": "child_full_name",
+              "label": "Child's full legal name",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Alex Jordan Smith"
+            },
+            {
+              "id": "child_dob",
+              "label": "Date of birth",
+              "type": "date",
+              "required": true
+            },
+            {
+              "id": "child_current_address",
+              "label": "Child's current address",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. 123 Main St, Toronto ON M5V 1A1",
+              "helpText": "Where the child lives right now."
+            },
+            {
+              "id": "child_current_resident",
+              "label": "Child currently lives with",
+              "type": "select",
+              "required": true,
+              "options": [
+                { "value": "me", "label": "Me" },
+                { "value": "other_party", "label": "The other party" },
+                { "value": "both_equally", "label": "Both parties equally (shared)" },
+                { "value": "other_person", "label": "Another person" }
+              ]
+            },
+            {
+              "id": "child_other_resident_name",
+              "label": "Name of the other person the child lives with",
+              "type": "text",
+              "required": false,
+              "conditionalOn": { "field": "child_current_resident", "value": "other_person" },
+              "placeholder": "e.g. Maternal grandmother — Mary Johnson"
+            },
+            {
+              "id": "what_i_am_seeking",
+              "label": "What are you asking for regarding this child?",
+              "type": "checkbox-group",
+              "required": true,
+              "options": [
+                { "value": "sole_decision_making", "label": "Sole decision-making responsibility (sole custody)" },
+                { "value": "joint_decision_making", "label": "Joint decision-making responsibility (joint custody)" },
+                { "value": "primary_parenting_time", "label": "Primary parenting time (child lives primarily with me)" },
+                { "value": "specified_parenting_time", "label": "Specified parenting time (schedule)" },
+                { "value": "supervised_parenting_time", "label": "Supervised parenting time only" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "f351-step3",
+      "title": "Your Living Situation",
+      "description": "Describe where you currently live and who lives with you.",
+      "fields": [
+        {
+          "id": "my_current_address",
+          "label": "Your current address",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "applicant_address",
+          "placeholder": "e.g. 456 Oak Ave, Toronto ON M6G 2B3"
+        },
+        {
+          "id": "how_long_at_address",
+          "label": "How long have you lived at this address?",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 8 months / since March 2025"
+        },
+        {
+          "id": "household_members",
+          "label": "Who else lives in your home?",
+          "type": "repeatable-group",
+          "required": false,
+          "maxItems": 10,
+          "addLabel": "Add another person",
+          "helpText": "List everyone who lives with you other than the children named above. Include new partners, other children, parents, roommates, etc.",
+          "fields": [
+            {
+              "id": "member_name",
+              "label": "Full name",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Michael Brown"
+            },
+            {
+              "id": "member_relationship",
+              "label": "Relationship to you",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. New partner, my mother, adult sibling, roommate"
+            },
+            {
+              "id": "member_age",
+              "label": "Age",
+              "type": "number",
+              "required": false,
+              "placeholder": "e.g. 34"
+            }
+          ]
+        },
+        {
+          "id": "plan_to_move",
+          "label": "Do you plan to move in the next 12 months?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" },
+            { "value": "possibly", "label": "Possibly — not sure yet" }
+          ]
+        },
+        {
+          "id": "move_details",
+          "label": "Describe your planned move",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "plan_to_move", "value": "yes" },
+          "placeholder": "e.g. I plan to move to Ottawa in September 2025 for a new job. I intend to bring the children with me and enroll them in school there."
+        }
+      ]
+    },
+    {
+      "stepId": "f351-step4",
+      "title": "Previous Court Proceedings",
+      "description": "Disclose any previous or ongoing court cases involving these children or yourself.",
+      "fields": [
+        {
+          "id": "previous_custody_proceedings",
+          "label": "Have there been any previous court proceedings about the custody, access, or child protection of the children named in this form?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ],
+          "helpText": "Include proceedings in Ontario or any other province, territory, or country."
+        },
+        {
+          "id": "previous_proceedings_details",
+          "label": "Describe the previous court proceedings",
+          "type": "repeatable-group",
+          "required": false,
+          "conditionalOnParent": { "field": "previous_custody_proceedings", "value": "yes" },
+          "maxItems": 5,
+          "addLabel": "Add another proceeding",
+          "fields": [
+            {
+              "id": "proc_court_location",
+              "label": "Court and location",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Ontario Court of Justice, Toronto / Family Court, Brampton"
+            },
+            {
+              "id": "proc_file_number",
+              "label": "File number (if known)",
+              "type": "text",
+              "required": false,
+              "placeholder": "e.g. FC-2022-08734"
+            },
+            {
+              "id": "proc_type",
+              "label": "Type of proceeding",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Custody and access application / Child protection / Divorce"
+            },
+            {
+              "id": "proc_outcome",
+              "label": "Outcome or current status",
+              "type": "textarea",
+              "required": true,
+              "placeholder": "e.g. Order dated June 1, 2023 gave the Applicant primary custody with Respondent having access every other weekend. Case is now closed. / Still ongoing."
+            }
+          ]
+        },
+        {
+          "id": "existing_orders",
+          "label": "Are there any existing court orders or agreements about the children?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "existing_orders_details",
+          "label": "Describe the existing orders or agreements",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "existing_orders", "value": "yes" },
+          "placeholder": "e.g. There is a temporary consent order dated April 10, 2025 providing that the children live primarily with the Applicant. There is also a separation agreement dated January 2024 that addresses parenting but which I am now seeking to vary."
+        }
+      ]
+    },
+    {
+      "stepId": "f351-step5",
+      "title": "Child Protection Involvement",
+      "description": "You must disclose any involvement with Children's Aid Societies (CAS) or equivalent child protection agencies — in Ontario or anywhere else.",
+      "fields": [
+        {
+          "id": "cas_involvement_notice",
+          "label": "Important",
+          "type": "info-box",
+          "content": "You must disclose **all** past or current involvement with Children's Aid Societies (CAS), child protection agencies, or equivalent government bodies — in Ontario or any other province, territory, or country. This includes investigations that did not result in a finding or that were closed. Failure to disclose is taken very seriously by courts."
+        },
+        {
+          "id": "has_cas_involvement",
+          "label": "Have you or anyone in your household ever been involved with a Children's Aid Society or child protection agency?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "cas_involvement_details",
+          "label": "Describe each involvement with a child protection agency",
+          "type": "repeatable-group",
+          "required": false,
+          "conditionalOnParent": { "field": "has_cas_involvement", "value": "yes" },
+          "maxItems": 10,
+          "addLabel": "Add another involvement",
+          "helpText": "Include all investigations, protection orders, voluntary services agreements, or court proceedings.",
+          "fields": [
+            {
+              "id": "cas_agency_name",
+              "label": "Name of the CAS or child protection agency",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Children's Aid Society of Toronto / Ministry for Children in British Columbia"
+            },
+            {
+              "id": "cas_date_period",
+              "label": "Approximate date or period of involvement",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. March to August 2021 / 2019 (date unknown)"
+            },
+            {
+              "id": "cas_reason",
+              "label": "Reason for the involvement",
+              "type": "textarea",
+              "required": true,
+              "placeholder": "e.g. A neighbour made an anonymous report of neglect. A worker investigated and found no concerns. The file was closed after two home visits."
+            },
+            {
+              "id": "cas_outcome",
+              "label": "Outcome",
+              "type": "textarea",
+              "required": true,
+              "placeholder": "e.g. File closed with no findings / Voluntary service agreement signed and completed / Child apprehended and returned following court order / Protection order made — specify terms"
+            },
+            {
+              "id": "cas_who_involved",
+              "label": "Who was involved (you, your partner, your child, another household member)?",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Myself and the child Alex / My current partner (before we met)"
+            }
+          ]
+        },
+        {
+          "id": "cas_currently_open",
+          "label": "Is there currently an open child protection case involving you or any child in your home?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "cas_currently_open_details",
+          "label": "Describe the current open child protection case",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "cas_currently_open", "value": "yes" },
+          "placeholder": "e.g. There is a current open file with the CAS of Peel regarding an allegation made by the other party in January 2025. The worker has conducted two visits and the investigation is ongoing. No protection concerns have been identified to date."
+        }
+      ]
+    },
+    {
+      "stepId": "f351-step6",
+      "title": "Criminal History",
+      "description": "You must disclose any criminal charges or convictions. This includes offences related to violence, weapons, drugs, and any offences involving children.",
+      "fields": [
+        {
+          "id": "criminal_history_notice",
+          "label": "Important",
+          "type": "info-box",
+          "content": "You must disclose **all** criminal charges and convictions — including those for which you received a pardon (record suspension), charges that were withdrawn or stayed, and charges that are currently before the courts. Disclose charges in Canada and any other country."
+        },
+        {
+          "id": "has_criminal_history",
+          "label": "Have you ever been charged with or convicted of a criminal offence in Canada or any other country?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "criminal_history_details",
+          "label": "List each criminal charge or conviction",
+          "type": "repeatable-group",
+          "required": false,
+          "conditionalOnParent": { "field": "has_criminal_history", "value": "yes" },
+          "maxItems": 15,
+          "addLabel": "Add another charge or conviction",
+          "fields": [
+            {
+              "id": "offence_description",
+              "label": "Offence description",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Assault / Impaired driving / Possession of a controlled substance"
+            },
+            {
+              "id": "offence_date",
+              "label": "Approximate date of the offence or charge",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. June 2018 / Approximately 2015"
+            },
+            {
+              "id": "offence_outcome",
+              "label": "Outcome",
+              "type": "select",
+              "required": true,
+              "options": [
+                { "value": "convicted", "label": "Convicted" },
+                { "value": "acquitted", "label": "Acquitted (found not guilty)" },
+                { "value": "withdrawn_stayed", "label": "Charge withdrawn or stayed" },
+                { "value": "absolute_discharge", "label": "Absolute discharge" },
+                { "value": "conditional_discharge", "label": "Conditional discharge" },
+                { "value": "pending", "label": "Charge currently pending" },
+                { "value": "pardon_received", "label": "Convicted and received a pardon / record suspension" }
+              ]
+            },
+            {
+              "id": "offence_sentence",
+              "label": "Sentence or conditions (if convicted)",
+              "type": "text",
+              "required": false,
+              "placeholder": "e.g. Fine of $500 / 6-month conditional sentence / 18 months probation"
+            },
+            {
+              "id": "offence_involved_children_or_violence",
+              "label": "Did this offence involve violence, weapons, or children?",
+              "type": "radio",
+              "required": true,
+              "options": [
+                { "value": "yes", "label": "Yes" },
+                { "value": "no", "label": "No" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "household_criminal_history",
+          "label": "Does anyone else in your household have a criminal record or pending charges?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" },
+            { "value": "unknown", "label": "I don't know" }
+          ]
+        },
+        {
+          "id": "household_criminal_history_details",
+          "label": "Describe the household member's criminal history",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "household_criminal_history", "value": "yes" },
+          "placeholder": "e.g. My current partner was convicted of impaired driving in 2019 and received a fine. There have been no other charges."
+        }
+      ]
+    },
+    {
+      "stepId": "f351-step7",
+      "title": "Domestic Violence & Abuse History",
+      "description": "You must disclose any history of domestic violence, abuse, or a restraining order — whether you were the victim, the alleged perpetrator, or both.",
+      "fields": [
+        {
+          "id": "dv_notice",
+          "label": "About this section",
+          "type": "info-box",
+          "content": "Ontario courts take domestic violence very seriously in custody and access decisions. You must disclose:\n\n- Any history of physical, sexual, emotional, psychological, or financial abuse between you and the other party\n- Any police involvement or criminal charges related to domestic violence\n- Any restraining orders or peace bonds\n- Any history of stalking, harassment, or coercive control\n\nThis information helps the court assess the safety of the children and both parties. Disclosing abuse does not automatically change your right to parenting time — the court's focus is on the children's safety and best interests."
+        },
+        {
+          "id": "has_dv_history",
+          "label": "Has there been any domestic violence or abuse in your relationship with the other party?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes_i_experienced", "label": "Yes — I experienced abuse from the other party" },
+            { "value": "yes_i_was_alleged", "label": "Yes — the other party has alleged that I was abusive" },
+            { "value": "yes_both", "label": "Yes — both of the above apply" },
+            { "value": "no", "label": "No — there has been no domestic violence or abuse" }
+          ]
+        },
+        {
+          "id": "dv_description_experienced",
+          "label": "Describe the abuse you experienced",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "has_dv_history", "value": "yes_i_experienced", "orValues": ["yes_i_experienced", "yes_both"] },
+          "placeholder": "e.g. During our relationship, the other party pushed and grabbed me on multiple occasions. The most serious incident occurred in November 2023 when they shoved me against the wall in front of the children. I called police on that occasion. There were also incidents of controlling behavior — monitoring my phone, preventing me from seeing family, and controlling our finances.",
+          "helpText": "Describe specific incidents where possible, including approximate dates and whether the children were present or witnessed the abuse."
+        },
+        {
+          "id": "dv_description_alleged",
+          "label": "Describe what the other party has alleged about you",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "has_dv_history", "value": "yes_i_was_alleged", "orValues": ["yes_i_was_alleged", "yes_both"] },
+          "placeholder": "e.g. The other party has alleged that I was physically abusive during our relationship. I deny these allegations. They made a report to police in February 2024 which was investigated and no charges were laid."
+        },
+        {
+          "id": "police_involvement_dv",
+          "label": "Was police ever called for a domestic violence incident involving you and the other party?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "police_involvement_dv_details",
+          "label": "Describe the police involvement",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "police_involvement_dv", "value": "yes" },
+          "placeholder": "e.g. Police were called on November 12, 2023 following an incident at our home. The other party was charged with assault. The charge was subsequently withdrawn. Police were also called in February 2024 on a report by the other party — I was not charged."
+        },
+        {
+          "id": "has_restraining_order",
+          "label": "Is there a restraining order or peace bond between you and the other party?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes_against_them", "label": "Yes — there is a restraining order against the other party" },
+            { "value": "yes_against_me", "label": "Yes — there is a restraining order against me" },
+            { "value": "yes_peace_bond", "label": "Yes — there is a peace bond" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "restraining_order_details",
+          "label": "Describe the restraining order or peace bond",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "has_restraining_order", "value": "no", "inverse": true },
+          "placeholder": "e.g. There is a restraining order made February 15, 2024 by Justice Chen prohibiting the other party from attending within 200 metres of my home and the children's school. It expires February 14, 2026."
+        },
+        {
+          "id": "dv_impact_on_children",
+          "label": "Were the children present for or affected by any of the incidents described above?",
+          "type": "radio",
+          "required": false,
+          "conditionalOn": { "field": "has_dv_history", "value": "no", "inverse": true },
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "dv_impact_details",
+          "label": "Describe how the children were affected",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "dv_impact_on_children", "value": "yes" },
+          "placeholder": "e.g. The children (ages 7 and 9) were present in the home during the November 2023 incident and witnessed the other party pushing me. Alex has since disclosed to a school counsellor that they are afraid of the other party. Both children are currently receiving counselling."
+        }
+      ]
+    },
+    {
+      "stepId": "f351-step8",
+      "title": "Proposed Parenting Plan",
+      "description": "Describe your proposed parenting plan and why it is in the best interests of the children.",
+      "fields": [
+        {
+          "id": "proposed_parenting_plan",
+          "label": "Describe your proposed parenting arrangement in detail",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. I am proposing that Alex and Sam live primarily with me at my home in Toronto. I propose that the other party have parenting time every other weekend from Friday at 6 p.m. to Sunday at 6 p.m., plus one evening per week (Wednesdays from 4 p.m. to 7 p.m.). Holidays to be shared equally as follows: [describe holiday schedule]. I am asking for sole decision-making responsibility because the parties are unable to communicate effectively and agreement on major decisions is not feasible.",
+          "helpText": "Be specific about where the children will live, how often each parent will see them, and who will make major decisions about education, health care, and religion."
+        },
+        {
+          "id": "decision_making_proposal",
+          "label": "What are you proposing for decision-making responsibility?",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "sole_to_me", "label": "Sole decision-making to me — I make all major decisions" },
+            { "value": "joint", "label": "Joint decision-making — both parties decide together" },
+            { "value": "parallel", "label": "Parallel decision-making — each parent decides independently in their area (e.g. I decide education, they decide health)" },
+            { "value": "sole_to_other", "label": "Sole decision-making to the other party (I am only seeking parenting time)" }
+          ]
+        },
+        {
+          "id": "best_interests_narrative",
+          "label": "Why is your proposed arrangement in the best interests of the children?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. I have been the children's primary caregiver throughout their lives. I manage their school attendance, medical appointments, and extracurricular activities. The children are settled in their current school and community. My proposed arrangement maintains stability and allows both children to maintain a meaningful relationship with both parents while ensuring their safety and well-being.",
+          "helpText": "Ontario law requires the court to focus on the best interests of the children. Address: stability, existing relationships, safety, each parent's ability to meet the children's needs, and the children's own views (if age-appropriate)."
+        },
+        {
+          "id": "children_views",
+          "label": "Have the children expressed views or preferences about where they want to live or how much time they want to spend with each parent?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No / too young to express a view" }
+          ]
+        },
+        {
+          "id": "children_views_details",
+          "label": "Describe the children's views",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "children_views", "value": "yes" },
+          "placeholder": "e.g. Alex (age 12) has expressed clearly to me, to their school counsellor, and to a family friend that they want to live primarily with me and see the other party on weekends. Sam (age 9) has said they miss the other party but is settled and happy living with me."
+        },
+        {
+          "id": "relationship_with_other_parent",
+          "label": "Describe the children's current relationship with the other parent",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. The children love both parents and have a positive relationship with the other party despite the separation. They enjoy their time with the other party and I support that relationship. However, the other party has cancelled parenting time on four occasions in the past two months without adequate notice, which has been upsetting for the children."
+        },
+        {
+          "id": "willing_to_facilitate_relationship",
+          "label": "Are you willing to support the children's relationship with the other parent?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes — I am committed to supporting the children's relationship with both parents" },
+            { "value": "yes_with_conditions", "label": "Yes — but with conditions due to safety concerns" },
+            { "value": "no", "label": "No — I have serious concerns about the other parent's access to the children" }
+          ]
+        },
+        {
+          "id": "conditions_for_access",
+          "label": "Describe the conditions or concerns",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "willing_to_facilitate_relationship", "value": "yes_with_conditions", "orValues": ["yes_with_conditions", "no"] },
+          "placeholder": "e.g. I support the children having a relationship with the other party but believe all visits should be supervised by a neutral third party given the history of domestic violence. I am asking the court to order supervised access until a parenting assessment has been completed."
+        }
+      ]
+    },
+    {
+      "stepId": "f351-step9",
+      "title": "Declaration",
+      "description": "This affidavit must be sworn before a commissioner of oaths. Do not sign it until you are in front of the commissioner.",
+      "fields": [
+        {
+          "id": "swear_or_affirm",
+          "label": "Will you swear or affirm?",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "swear", "label": "Swear (on a religious text)" },
+            { "value": "affirm", "label": "Affirm (non-religious solemn declaration)" }
+          ]
+        },
+        {
+          "id": "municipality_of_swearing",
+          "label": "Municipality where you will swear or affirm this affidavit",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Toronto"
+        },
+        {
+          "id": "commissioning_date",
+          "label": "Date of commissioning (leave blank to complete at courthouse)",
+          "type": "date",
+          "required": false
+        },
+        {
+          "id": "accuracy_declaration",
+          "label": "Declaration",
+          "type": "declaration",
+          "required": true,
+          "text": "I, the deponent, declare that the contents of this affidavit are true, and I make this solemn declaration conscientiously believing it to be true and knowing that it is of the same force and effect as if made under oath. I understand that providing false information in an affidavit is perjury.",
+          "checkboxLabel": "I confirm this declaration is true and complete to the best of my knowledge and belief."
+        }
+      ]
+    }
+  ],
+  "pdfMapping": {
+    "notes": "Form 35.1 — Affidavit in Support of Claim for Custody or Access. Must be sworn before a commissioner of oaths. Required whenever custody or access is claimed in an Ontario family law proceeding. See ontario.ca/page/family-law-forms for current version.",
+    "case_header": ["courthouse", "court_file_number", "applicant_full_name", "respondent_full_name", "deponent_name", "deponent_role"],
+    "children_section": ["children"],
+    "living_situation": ["my_current_address", "how_long_at_address", "household_members", "plan_to_move"],
+    "previous_proceedings": ["previous_custody_proceedings", "previous_proceedings_details", "existing_orders"],
+    "cas_section": ["has_cas_involvement", "cas_involvement_details", "cas_currently_open"],
+    "criminal_section": ["has_criminal_history", "criminal_history_details", "household_criminal_history"],
+    "dv_section": ["has_dv_history", "dv_description_experienced", "dv_description_alleged", "police_involvement_dv", "has_restraining_order", "dv_impact_on_children"],
+    "parenting_plan": ["proposed_parenting_plan", "decision_making_proposal", "best_interests_narrative", "children_views", "relationship_with_other_parent"],
+    "declaration": ["swear_or_affirm", "municipality_of_swearing", "accuracy_declaration"]
+  }
+}

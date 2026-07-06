@@ -1,0 +1,537 @@
+{
+  "formCode": "form15b-response-to-change",
+  "formNumber": "Form 15B",
+  "title": "Response to Motion to Change",
+  "jurisdiction": "Ontario",
+  "act": "Family Law Rules",
+  "version": "December 2020",
+  "description": "Filed by the responding party when they receive a Motion to Change (Form 15). Use this form if you disagree with the changes being requested, or if you want to ask for different or additional changes to the existing order or agreement. Must be sworn before a commissioner of oaths. You have 30 days to respond if you live in Canada or the US, or 60 days if you live elsewhere.",
+  "steps": [
+    {
+      "step": 1,
+      "title": "Court & File Information",
+      "description": "Enter the court details and the file number from the Motion to Change you received.",
+      "fields": [
+        {
+          "id": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "required": true,
+          "autoFill": "courthouse",
+          "options": [
+            "Barrie", "Belleville", "Brampton", "Brantford", "Brockville",
+            "Chatham", "Cobourg", "Cornwall", "Guelph", "Hamilton",
+            "Kingston", "Kitchener", "L'Orignal", "Lindsay", "London",
+            "Milton", "Newmarket", "North Bay", "Oshawa", "Ottawa",
+            "Owen Sound", "Pembroke", "Perth", "Peterborough", "Sarnia",
+            "Sault Ste. Marie", "Simcoe", "St. Catharines", "St. Thomas",
+            "Sudbury", "Thunder Bay", "Timmins", "Toronto (Ontario Court of Justice)",
+            "Toronto (Superior Court of Justice — 393 University)",
+            "Toronto (Superior Court of Justice — 47 Sheppard)",
+            "Welland", "Windsor", "Woodstock"
+          ],
+          "hint": "Select the courthouse shown at the top of the Motion to Change (Form 15) you received."
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court File Number",
+          "type": "text",
+          "required": true,
+          "autoFill": "court_file_number",
+          "placeholder": "e.g. FC-12345-24",
+          "hint": "Copy the court file number exactly from the Motion to Change you received."
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "title": "Applicant (Moving Party) Information",
+      "description": "Enter the name and contact details of the person who filed the Motion to Change against you.",
+      "fields": [
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant (Moving Party) — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "autoFill": "applicant_full_name",
+          "placeholder": "e.g. Jane Elizabeth Smith",
+          "hint": "This is the person who filed the Motion to Change. Copy the name from the form you received."
+        },
+        {
+          "id": "applicant_address",
+          "label": "Applicant — Address for Service",
+          "type": "text",
+          "required": true,
+          "placeholder": "Street & number, city, province, postal code"
+        },
+        {
+          "id": "applicant_phone",
+          "label": "Applicant — Phone & Fax",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0100"
+        },
+        {
+          "id": "applicant_email",
+          "label": "Applicant — Email",
+          "type": "email",
+          "required": false,
+          "placeholder": "e.g. jane.smith@email.com"
+        },
+        {
+          "id": "applicant_lawyer",
+          "label": "Applicant's Lawyer — Name, Address & Contact (if any)",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "Lawyer name, firm, address, phone, fax, email",
+          "hint": "Leave blank if the applicant is self-represented."
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "title": "Respondent (Your) Information",
+      "description": "Enter your name and contact details as the responding party.",
+      "fields": [
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent (You) — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "autoFill": "respondent_full_name",
+          "placeholder": "e.g. John Robert Smith",
+          "hint": "Your full legal name."
+        },
+        {
+          "id": "respondent_address",
+          "label": "Respondent — Address for Service",
+          "type": "text",
+          "required": true,
+          "autoFill": "user_address",
+          "placeholder": "Street & number, city, province, postal code"
+        },
+        {
+          "id": "respondent_phone",
+          "label": "Respondent — Phone & Fax",
+          "type": "tel",
+          "required": false,
+          "autoFill": "user_phone",
+          "placeholder": "e.g. 705-555-0200"
+        },
+        {
+          "id": "respondent_email",
+          "label": "Respondent — Email",
+          "type": "email",
+          "required": false,
+          "autoFill": "user_email",
+          "placeholder": "e.g. john.smith@email.com"
+        },
+        {
+          "id": "respondent_lawyer",
+          "label": "Respondent's Lawyer — Name, Address & Contact (if any)",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "Lawyer name, firm, address, phone, fax, email",
+          "hint": "Leave blank if you are self-represented."
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "title": "Part A — Your Basic Information",
+      "description": "Confirm your role and provide basic information about your response.",
+      "fields": [
+        {
+          "id": "respondent_municipality",
+          "label": "Municipality and Province Where You Live",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Sudbury, Ontario",
+          "hint": "State the city or town and province where you currently reside."
+        },
+        {
+          "id": "interjurisdictional_request",
+          "label": "Are you requesting to convert this motion to change support from s.17 to s.18.1 of the Divorce Act?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "no",
+              "label": "No"
+            },
+            {
+              "value": "yes",
+              "label": "Yes — I live outside Ontario and this motion includes support claims under the Divorce Act"
+            }
+          ],
+          "hint": "This option is only available if you live outside Ontario and the motion involves support under the Divorce Act. If you are unsure, choose No."
+        },
+        {
+          "id": "agreed_paragraphs",
+          "label": "I agree with the following claims made by the requesting party (list paragraph numbers from Form 15 that you agree with, e.g. 11(a), 11(b))",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "e.g. Paragraph 11(a), 11(c)",
+          "hint": "Look at paragraph 11 of the Motion to Change (Form 15) you received. List the items you agree with. Leave blank if you disagree with everything."
+        },
+        {
+          "id": "disagreed_paragraphs",
+          "label": "I disagree with the following claims (list paragraph numbers from Form 15 that you disagree with)",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "e.g. Paragraph 11(b), 11(d), 11(e)",
+          "hint": "List the items you do not agree with. If you disagree with everything, you can write 'All claims in paragraph 11'."
+        },
+        {
+          "id": "reason_for_disagreement",
+          "label": "I disagree with the claims because (briefly explain why you do not think the current order or agreement should be changed):",
+          "type": "textarea",
+          "required": true,
+          "rows": 5,
+          "placeholder": "e.g. The existing order was made based on my income at the time. My income has not changed significantly, and the current arrangement continues to be in the best interests of the children...",
+          "hint": "Be specific. Explain what has NOT changed, or why the other party's reasons for change are not valid."
+        },
+        {
+          "id": "factual_disagreements",
+          "label": "I also disagree with the following facts in the Motion to Change (Form 15) (explain what information you do not agree with and why):",
+          "type": "textarea",
+          "required": false,
+          "rows": 4,
+          "placeholder": "e.g. Paragraph 7 states that my income has increased to $90,000. This is incorrect — my current annual income is $72,000 as shown in my attached financial statement.",
+          "hint": "Point out specific statements in the other party's Form 15 that are factually wrong."
+        },
+        {
+          "id": "dismiss_request",
+          "label": "I am asking that the motion to change (except the parts I agree with) be dismissed with costs.",
+          "type": "checkbox",
+          "required": false,
+          "hint": "Check this if you want the court to dismiss the motion and require the other party to pay your legal costs."
+        }
+      ]
+    },
+    {
+      "step": 5,
+      "title": "Part A — Support Information (if applicable)",
+      "description": "Complete this section only if the motion to change includes a request to change child or spousal support.",
+      "fields": [
+        {
+          "id": "support_involved",
+          "label": "Does this motion to change include support?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "no", "label": "No — this motion does not involve child or spousal support"},
+            {"value": "yes", "label": "Yes — child support, spousal support, or both are included"}
+          ]
+        },
+        {
+          "id": "support_role",
+          "label": "In relation to the support order, I am the:",
+          "type": "radio",
+          "required": false,
+          "showIf": {"field": "support_involved", "value": "yes"},
+          "options": [
+            {"value": "payor", "label": "Support payor (I pay support)"},
+            {"value": "recipient", "label": "Support recipient (I receive support)"}
+          ]
+        },
+        {
+          "id": "assignment_status",
+          "label": "Confirmation of assignment",
+          "type": "radio",
+          "required": false,
+          "showIf": {"field": "support_involved", "value": "yes"},
+          "options": [
+            {"value": "not_assigned", "label": "The order has NOT been assigned to a government agency"},
+            {"value": "assigned", "label": "The order HAS been assigned to a government agency (I must serve a copy on the agency)"}
+          ],
+          "hint": "You must attach the confirmation of assignment form from the Ontario Ministry of Children, Community and Social Services showing the assignment status."
+        },
+        {
+          "id": "recalculation_notice",
+          "label": "Has a Notice of Recalculation been issued by the online Child Support Service since the order or agreement was made?",
+          "type": "radio",
+          "required": false,
+          "showIf": {"field": "support_involved", "value": "yes"},
+          "options": [
+            {"value": "no", "label": "No"},
+            {"value": "yes", "label": "Yes — I have attached the Notice of Recalculation (include the date below)"}
+          ]
+        },
+        {
+          "id": "recalculation_date",
+          "label": "Date of the Notice of Recalculation",
+          "type": "date",
+          "required": false,
+          "showIf": {"field": "recalculation_notice", "value": "yes"}
+        }
+      ]
+    },
+    {
+      "step": 6,
+      "title": "Part B — Changes You Are Asking For",
+      "description": "Complete this section only if you want to ask the court for your own changes, in addition to or instead of the other party's requests. Skip this section if you are only asking to dismiss the other party's motion.",
+      "fields": [
+        {
+          "id": "requesting_own_changes",
+          "label": "Are you asking the court to make changes of your own (in addition to or different from the other party's request)?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "no", "label": "No — I only want the other party's motion dismissed"},
+            {"value": "yes", "label": "Yes — I am also asking for changes"}
+          ]
+        },
+        {
+          "id": "changes_requested",
+          "label": "I want to change the following (check all that apply):",
+          "type": "checkboxgroup",
+          "required": false,
+          "showIf": {"field": "requesting_own_changes", "value": "yes"},
+          "options": [
+            {"value": "decision_making", "label": "Decision-making responsibility (formerly called custody)"},
+            {"value": "parenting_time", "label": "Parenting time (formerly called access)"},
+            {"value": "contact", "label": "Contact with a child"},
+            {"value": "child_support_table", "label": "Child support — table amount"},
+            {"value": "child_support_expenses", "label": "Child support — special or extraordinary expenses"},
+            {"value": "spousal_support", "label": "Spousal support"},
+            {"value": "other", "label": "Other (describe below)"}
+          ]
+        },
+        {
+          "id": "changes_other_description",
+          "label": "If you selected 'Other', describe the change:",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "showIf": {"field": "requesting_own_changes", "value": "yes"},
+          "placeholder": "Describe any other change you are requesting"
+        },
+        {
+          "id": "specific_terms_to_change",
+          "label": "Specific terms of the existing order or agreement you want changed (provide the paragraph number and the exact wording as it appears in the order or agreement):",
+          "type": "textarea",
+          "required": false,
+          "rows": 6,
+          "showIf": {"field": "requesting_own_changes", "value": "yes"},
+          "placeholder": "e.g. Paragraph 3 of the Order dated June 1, 2022 states: 'The Respondent shall pay child support in the amount of $800 per month.' I am asking that this be changed to $600 per month effective...",
+          "hint": "Copy the paragraph number and wording exactly from the existing order or agreement, then explain what you want it changed to."
+        }
+      ]
+    },
+    {
+      "step": 7,
+      "title": "Part C — Why You Want the Changes",
+      "description": "Provide the facts that explain why the court should make the changes you are asking for. You may complete this section OR attach a separate affidavit (Form 14A).",
+      "fields": [
+        {
+          "id": "evidence_method",
+          "label": "How will you provide your evidence?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "this_form", "label": "I will provide my evidence in this form (complete below)"},
+            {"value": "affidavit", "label": "I will attach a separate Affidavit (Form 14A) with my evidence"}
+          ],
+          "hint": "Both options are acceptable. An affidavit may be clearer if your situation is complex."
+        },
+        {
+          "id": "order_compliance",
+          "label": "Are you and the other party following the current order or agreement?",
+          "type": "radio",
+          "required": false,
+          "showIf": {"field": "evidence_method", "value": "this_form"},
+          "options": [
+            {"value": "yes", "label": "Yes — both parties are complying with the current order"},
+            {"value": "no", "label": "No — give details below"}
+          ]
+        },
+        {
+          "id": "order_compliance_details",
+          "label": "Describe how the order is not being followed:",
+          "type": "textarea",
+          "required": false,
+          "rows": 4,
+          "showIf": {"field": "order_compliance", "value": "no"},
+          "placeholder": "e.g. The applicant has failed to make support payments since January 2025. The arrears now total approximately $4,800."
+        },
+        {
+          "id": "facts_for_change",
+          "label": "Briefly describe the facts that show why the court should change the order or agreement, including how your situation has changed since it was made:",
+          "type": "textarea",
+          "required": false,
+          "rows": 8,
+          "showIf": {"field": "evidence_method", "value": "this_form"},
+          "placeholder": "e.g. Since the existing order was made in 2022, I have experienced a significant reduction in income due to a job loss. I am currently employed part-time earning $42,000 per year, compared to $78,000 at the time of the original order. This change in circumstances makes the current support amount unaffordable...",
+          "hint": "Be specific — include dates, amounts, and what has changed. The more detail you provide, the stronger your case."
+        }
+      ]
+    },
+    {
+      "step": 8,
+      "title": "Part D — Additional Information for Support Cases",
+      "description": "Complete this section only if you are asking to change child support or spousal support.",
+      "fields": [
+        {
+          "id": "support_change_requested",
+          "label": "Are you asking to change child support or spousal support in Part B?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "no", "label": "No — skip this section"},
+            {"value": "yes", "label": "Yes — I am asking to change support"}
+          ]
+        },
+        {
+          "id": "support_currently_owed",
+          "label": "Is support owed under the current order or agreement?",
+          "type": "radio",
+          "required": false,
+          "showIf": {"field": "support_change_requested", "value": "yes"},
+          "options": [
+            {"value": "no", "label": "No support is currently owed"},
+            {"value": "yes", "label": "Yes — support arrears exist"}
+          ]
+        },
+        {
+          "id": "support_arrears_amount",
+          "label": "Amount of support arrears currently owing ($):",
+          "type": "currency",
+          "required": false,
+          "showIf": {"field": "support_currently_owed", "value": "yes"},
+          "placeholder": "0.00"
+        },
+        {
+          "id": "support_change_start",
+          "label": "When do you want the change in support to start?",
+          "type": "radio",
+          "required": false,
+          "showIf": {"field": "support_change_requested", "value": "yes"},
+          "options": [
+            {"value": "today", "label": "Today"},
+            {"value": "before_today", "label": "Before today (give the exact date below)"}
+          ]
+        },
+        {
+          "id": "support_retroactive_date",
+          "label": "Retroactive start date for support change:",
+          "type": "date",
+          "required": false,
+          "showIf": {"field": "support_change_start", "value": "before_today"},
+          "hint": "If you are asking for a retroactive change, you must answer the questions below."
+        },
+        {
+          "id": "retroactive_first_request_date",
+          "label": "What date did you first ask the other party for updated income information or to change support?",
+          "type": "date",
+          "required": false,
+          "showIf": {"field": "support_change_start", "value": "before_today"}
+        },
+        {
+          "id": "retroactive_obstruction",
+          "label": "Did the other party do anything to make it difficult for you to know if support should change?",
+          "type": "radio",
+          "required": false,
+          "showIf": {"field": "support_change_start", "value": "before_today"},
+          "options": [
+            {"value": "no", "label": "No"},
+            {"value": "yes", "label": "Yes — describe below"}
+          ]
+        },
+        {
+          "id": "retroactive_obstruction_details",
+          "label": "Describe what the other party did to obstruct your knowledge of whether support should change:",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "showIf": {"field": "retroactive_obstruction", "value": "yes"},
+          "placeholder": "e.g. The other party refused to provide their income information when I requested it in March 2024..."
+        },
+        {
+          "id": "retroactive_delay_reason",
+          "label": "Why didn't you ask the court to change support sooner?",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "showIf": {"field": "support_change_start", "value": "before_today"},
+          "placeholder": "e.g. I was unaware that the other party's income had increased significantly until I received their financial disclosure in this motion..."
+        },
+        {
+          "id": "retroactive_circumstances",
+          "label": "Describe your circumstances and the child's circumstances that support this retroactive request:",
+          "type": "textarea",
+          "required": false,
+          "rows": 4,
+          "showIf": {"field": "support_change_start", "value": "before_today"},
+          "placeholder": "e.g. During the period in question, my income was significantly lower than the other party's. The child was living primarily with me and I was covering all day-to-day expenses without adequate support..."
+        }
+      ]
+    },
+    {
+      "step": 9,
+      "title": "Respondent's Certificate & Declaration",
+      "description": "Confirm your duties and sign before a commissioner of oaths.",
+      "fields": [
+        {
+          "id": "duties_info",
+          "label": "Your Legal Duties",
+          "type": "info",
+          "content": "Sections 7.1 to 7.5 of the Divorce Act and section 33.1 of the Children's Law Reform Act require you to:\n\n• Exercise decision-making responsibility, parenting time, or contact in a manner consistent with the child's best interests\n• Protect the child from conflict arising from this case, to the best of your ability\n• Try to resolve family law issues using out-of-court dispute resolution options, if appropriate\n• Provide complete, accurate, and up-to-date information\n• Comply with any orders made in this case"
+        },
+        {
+          "id": "duties_acknowledged",
+          "label": "I certify that I am aware of my duties under the Divorce Act and the Children's Law Reform Act.",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "id": "swear_or_affirm",
+          "label": "Will you swear (religious oath) or affirm (non-religious, solemn promise)?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "swear", "label": "Swear — I will take a religious oath"},
+            {"value": "affirm", "label": "Affirm — I will make a solemn non-religious promise"}
+          ]
+        },
+        {
+          "id": "signing_municipality",
+          "label": "Municipality Where You Will Sign This Form",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Sudbury, Ontario",
+          "hint": "You must sign this form in front of a lawyer, notary public, or commissioner for taking affidavits. The commissioner will complete the date."
+        },
+        {
+          "id": "commissioner_reminder",
+          "label": "Important: Commissioner of Oaths",
+          "type": "info",
+          "content": "You must sign this form in front of a commissioner for taking affidavits (such as a lawyer, notary public, or court clerk). Do not sign it until you are in front of the commissioner. If you are asking to change support, you must also attach a completed Financial Statement (Form 13 or Form 13.1)."
+        },
+        {
+          "id": "financial_statement_attached",
+          "label": "I have attached (or will attach) a completed Financial Statement (Form 13 or 13.1) as required.",
+          "type": "checkbox",
+          "required": false,
+          "hint": "Required if you or the other party is asking to change child support or spousal support."
+        },
+        {
+          "id": "signature_confirmation",
+          "label": "I confirm that everything stated in this Response to Motion to Change is true, and I understand that making a false statement is an offence under the Criminal Code of Canada.",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "id": "hearth_page_notice",
+          "label": "Hearth & Page Notice",
+          "type": "info",
+          "content": "This form was prepared using Hearth & Page (hearthandpage.ca). You must serve a copy on the moving party and file this form with the court within 30 days of being served (or 60 days if you live outside Canada or the US). File your Form 6B (Affidavit of Service) at the same time. Hearth & Page is not a law firm and does not provide legal advice."
+        }
+      ]
+    }
+  ]
+}

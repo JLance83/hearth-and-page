@@ -1,0 +1,470 @@
+{
+  "formId": "ON-F15",
+  "jurisdiction": "ON",
+  "pdfFileName": "form15.pdf",
+  "title": "Form 15 \u2014 Motion to Change",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules (FLR 15)",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "helpIntro": "Form 15 is used when you want to change an existing court order or agreement and the other party does NOT agree to the change. If both parties agree, use Form 23 (Consent Motion to Change) instead. To bring a Motion to Change, you must show the court there has been a 'material change in circumstances' since the original order was made \u2014 something significant has changed that was not anticipated at the time.",
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 7",
+      "intro": "Enter the court file details from the original order you want to change.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": true,
+          "placeholder": "e.g. FC-2024-12345",
+          "helpText": "The file number from the original order. If you are registering an agreement to change, this may be a new file.",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "applicantFullName",
+          "label": "Your full legal name (the person asking for the change)",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "pdfFieldName": "Applicant full name",
+          "id": "moving_party_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "respondentFullName",
+          "label": "Other party's full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "pdfFieldName": "Respondent full name",
+          "id": "other_party_name",
+          "autoFill": "respondent_full_name"
+        }
+      ]
+    },
+    {
+      "partId": "existingOrder",
+      "title": "The existing order or agreement",
+      "subtitle": "Step 2 of 7",
+      "intro": "Describe the existing order or agreement you want to change. Attach a copy when you file.",
+      "fields": [
+        {
+          "fieldId": "orderType",
+          "label": "What are you asking to change?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "A court order",
+            "A separation agreement",
+            "A domestic contract",
+            "A paternity agreement",
+            "A combined court order and agreement"
+          ],
+          "pdfFieldName": "Order type"
+        },
+        {
+          "fieldId": "orderDate",
+          "label": "Date of the existing order or agreement",
+          "type": "date",
+          "required": true,
+          "helpText": "Found at the top or signature block of the original document.",
+          "pdfFieldName": "Order date"
+        },
+        {
+          "fieldId": "orderMadeBy",
+          "label": "Name of the judge or officer who made the order (if a court order)",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. Justice Patel",
+          "pdfFieldName": "Order made by"
+        },
+        {
+          "fieldId": "orderCurrentTerms",
+          "label": "What does the existing order or agreement currently say?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. The Respondent pays child support of $950 per month for the child Alex Lance, born April 12, 2015.\n\nThe parties share decision-making responsibility for Alex. Alex lives primarily with the Applicant with the Respondent having parenting time every other weekend.",
+          "helpText": "Copy the relevant paragraphs from the existing order. Attach the full order when you file.",
+          "pdfFieldName": "Order current terms"
+        }
+      ]
+    },
+    {
+      "partId": "materialChange",
+      "title": "Material change in circumstances",
+      "subtitle": "Step 3 of 7",
+      "intro": "This is the most critical part. You must convince the court that something significant has changed since the original order was made. Without a material change, the court will not reopen the matter.",
+      "fields": [
+        {
+          "fieldId": "materialChangeType",
+          "label": "What type of change has occurred?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Change in income \u2014 mine has decreased significantly",
+            "Change in income \u2014 the other party's has increased significantly",
+            "Change in income \u2014 mine has increased significantly",
+            "Job loss or layoff",
+            "Child's needs have changed (age, health, education, special needs)",
+            "Parenting arrangement is no longer working",
+            "One party plans to relocate",
+            "New partner / remarriage affecting support",
+            "Child has reached age of majority or become independent",
+            "Health issue \u2014 mine",
+            "Health issue \u2014 the other party's",
+            "Other significant change"
+          ],
+          "pdfFieldName": "Material change type"
+        },
+        {
+          "fieldId": "materialChangeDescription",
+          "label": "Describe the material change in detail",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. Since the order was made in March 2023, my employment circumstances have changed significantly. I was laid off from my position as a project manager in January 2026. My annual income has dropped from $95,000 to approximately $32,000 in employment insurance benefits. This change was not anticipated at the time of the original order.",
+          "helpText": "Be specific: what changed, when it changed, why it was not anticipated in the original order, and how it affects the existing terms. The court needs to see that this is a real, lasting change \u2014 not a temporary setback.",
+          "pdfFieldName": "Material change description"
+        },
+        {
+          "fieldId": "whenChangeOccurred",
+          "label": "When did this change occur?",
+          "type": "date",
+          "required": true,
+          "helpText": "The approximate date the change began.",
+          "pdfFieldName": "When change occurred"
+        },
+        {
+          "fieldId": "changeNotAnticipated",
+          "label": "Explain why this change was not anticipated when the original order was made",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. At the time of the order in March 2023, I was employed full-time and my income was stable. The layoff in January 2026 was unexpected and due to company-wide restructuring beyond my control.",
+          "pdfFieldName": "Change not anticipated"
+        }
+      ]
+    },
+    {
+      "partId": "changesRequested",
+      "title": "Changes you are asking for",
+      "subtitle": "Step 4 of 7",
+      "intro": "Describe exactly what you want the court to change. Be as specific as possible about the new terms you are proposing.",
+      "fields": [
+        {
+          "fieldId": "changeChildSupport",
+          "label": "Are you asking to change child support?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Change child support"
+        },
+        {
+          "fieldId": "childSupportCurrentAmount",
+          "label": "Current child support amount",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeChildSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "pdfFieldName": "Child support current amount"
+        },
+        {
+          "fieldId": "childSupportProposedAmount",
+          "label": "New child support amount you are proposing",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeChildSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "helpText": "Child support is set by the Child Support Guidelines based on the payor's income. Use the federal child support tables at canada.ca to find the guideline amount for your income and number of children.",
+          "pdfFieldName": "Child support proposed amount"
+        },
+        {
+          "fieldId": "childSupportEffectiveDate",
+          "label": "Date you want the new amount to start",
+          "type": "date",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeChildSupport",
+            "showWhen": "yes"
+          },
+          "helpText": "Courts often make changes retroactive to the date of the motion or the date circumstances changed.",
+          "pdfFieldName": "Child support effective date"
+        },
+        {
+          "fieldId": "childSupportChangeDetails",
+          "label": "Describe the full child support change you are requesting",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeChildSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. I am requesting that child support be reduced from $950 per month to $385 per month, which is the Child Support Guidelines amount for one child based on my current annual income of $32,000. I am requesting this change be effective January 1, 2026.",
+          "pdfFieldName": "Child support change details"
+        },
+        {
+          "fieldId": "changeSpousalSupport",
+          "label": "Are you asking to change spousal support?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Change spousal support"
+        },
+        {
+          "fieldId": "spousalSupportCurrentAmount",
+          "label": "Current spousal support amount",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeSpousalSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "pdfFieldName": "Spousal support current amount"
+        },
+        {
+          "fieldId": "spousalSupportProposedAmount",
+          "label": "New spousal support amount you are proposing (enter 0 to terminate)",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeSpousalSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "pdfFieldName": "Spousal support proposed amount"
+        },
+        {
+          "fieldId": "spousalSupportChangeDetails",
+          "label": "Describe the spousal support change you are requesting",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeSpousalSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. I am requesting that spousal support be terminated effective June 1, 2026, as the recipient has become self-sufficient, earning $68,000 per year, and the original basis for support no longer exists.",
+          "pdfFieldName": "Spousal support change details"
+        },
+        {
+          "fieldId": "changeParenting",
+          "label": "Are you asking to change parenting time or decision-making?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Change parenting"
+        },
+        {
+          "fieldId": "parentingCurrentArrangement",
+          "label": "Current parenting arrangement",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeParenting",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. Alex lives primarily with the Applicant. The Respondent has parenting time every other weekend from Friday at 6 p.m. to Sunday at 6 p.m.",
+          "pdfFieldName": "Parenting current arrangement"
+        },
+        {
+          "fieldId": "parentingProposedArrangement",
+          "label": "Proposed new parenting arrangement",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeParenting",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. I am requesting equal parenting time on a week-on, week-off schedule. Alex is now 11 years old and has expressed a strong preference to spend more time with both parents.",
+          "helpText": "Be specific about days, times, and holiday schedules. Always frame changes in terms of the child's best interests.",
+          "pdfFieldName": "Parenting proposed arrangement"
+        },
+        {
+          "fieldId": "changeOther",
+          "label": "Are you asking to change any other term of the order?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Change other"
+        },
+        {
+          "fieldId": "otherChangeDetails",
+          "label": "Describe the other change you are requesting",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeOther",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. I am requesting that the requirement to maintain life insurance be removed, as the child support obligation is being reduced.",
+          "pdfFieldName": "Other change details"
+        }
+      ]
+    },
+    {
+      "partId": "children",
+      "title": "Children",
+      "subtitle": "Step 5 of 7",
+      "intro": "If the changes involve children, provide their current details.",
+      "fields": [
+        {
+          "fieldId": "hasChildren",
+          "label": "Do the requested changes involve children?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Has children"
+        },
+        {
+          "fieldId": "childrenDetails",
+          "label": "List the children (name, date of birth, where they live now)",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildren",
+            "showWhen": "yes"
+          },
+          "source": "profile.children.list",
+          "placeholder": "Alex Lance \u2014 born April 12, 2015 \u2014 living with Applicant\nSam Lance \u2014 born September 3, 2018 \u2014 living with Applicant",
+          "pdfFieldName": "Children details"
+        },
+        {
+          "fieldId": "childrenCurrentSituation",
+          "label": "Describe how the children's situation has changed since the original order",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildren",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. Alex is now 11 years old and in Grade 6. Since the order was made, Alex has started a competitive hockey program that runs on weekends, which conflicts with the current parenting schedule.",
+          "pdfFieldName": "Children current situation"
+        },
+        {
+          "fieldId": "bestInterestsBasis",
+          "label": "Why are the proposed changes in the best interests of the children?",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildren",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. Alex has expressed a clear preference (at age 11) to spend more time with the Respondent. Equal parenting time will strengthen Alex's relationship with both parents and is consistent with Alex's wishes.",
+          "pdfFieldName": "Best interests basis"
+        }
+      ]
+    },
+    {
+      "partId": "temporaryOrder",
+      "title": "Temporary order (if needed urgently)",
+      "subtitle": "Step 6 of 7",
+      "intro": "If you need the court to make a temporary change right away \u2014 while your full Motion to Change is being scheduled \u2014 you can ask for a temporary order.",
+      "fields": [
+        {
+          "fieldId": "seekingTemporaryOrder",
+          "label": "Are you asking for a temporary order in addition to the final change?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "A temporary order provides immediate relief while you wait for the full hearing, which can be months away.",
+          "pdfFieldName": "Seeking temporary order"
+        },
+        {
+          "fieldId": "temporaryOrderDetails",
+          "label": "Describe the temporary order you are asking for",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "seekingTemporaryOrder",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. I am asking for a temporary reduction in child support from $950 to $385 per month, effective immediately, until the full motion is heard. I cannot afford the current amount on my reduced income.",
+          "pdfFieldName": "Temporary order details"
+        },
+        {
+          "fieldId": "urgencyReason",
+          "label": "Why is a temporary order needed urgently?",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "seekingTemporaryOrder",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. I have been unable to meet the current support obligation since my layoff in January 2026. I am accumulating arrears and face enforcement action by the Family Responsibility Office.",
+          "pdfFieldName": "Urgency reason"
+        }
+      ]
+    },
+    {
+      "partId": "review",
+      "title": "Review and sign",
+      "subtitle": "Step 7 of 7",
+      "intro": "Review your Motion to Change. After filing, you must serve the other party and file a Form 15A (Change Information) and a supporting affidavit.",
+      "fields": [
+        {
+          "fieldId": "form15aReminder",
+          "label": "I understand I must also file Form 15A (Change Information) with this motion.",
+          "type": "checkbox",
+          "required": true,
+          "helpText": "Form 15A provides the court with detailed financial information to support the change. It must be filed at the same time as Form 15.",
+          "pdfFieldName": "Form 15A reminder"
+        },
+        {
+          "fieldId": "serviceReminder",
+          "label": "I understand I must serve the other party with this motion and file proof of service (Form 6B).",
+          "type": "checkbox",
+          "required": true,
+          "pdfFieldName": "Service reminder"
+        },
+        {
+          "fieldId": "signatureDate",
+          "label": "Date of signature",
+          "type": "date",
+          "required": true,
+          "pdfFieldName": "Signature date"
+        },
+        {
+          "fieldId": "declarationConfirmed",
+          "label": "I confirm the information in this Motion to Change is accurate and complete.",
+          "type": "checkbox",
+          "required": true,
+          "pdfFieldName": "Declaration confirmed"
+        }
+      ]
+    }
+  ]
+}

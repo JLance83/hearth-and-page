@@ -1,0 +1,403 @@
+{
+  "formId": "ON-F25F",
+  "formCode": "form25f-restraining-order-fla",
+  "formNumber": "Form 25F",
+  "jurisdiction": "Ontario",
+  "act": "Family Law Act, R.S.O. 1990, c. F.3, s. 46 (Order restraining harassment); Family Law Rules, O. Reg. 114/99, Rules 25(11)(b)(i.1), 25(11.1)",
+  "version": "September 1, 2009",
+  "title": "Form 25F \u2014 Restraining Order",
+  "subtitle": "Ontario Family Court \u2014 Family Law Act, s. 46",
+  "description": "A court-issued restraining order under s. 46 of the Family Law Act to prevent harassment and communication between former spouses or partners. Completed by the court clerk after a judge grants the order. The user fills in the applicant details and the conduct being restrained; a judge signs the order. Registered on the Canadian Police Information Centre (CPIC) database. Disobeying this order is a criminal offence.",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "safetyFlag": {
+    "enabled": true,
+    "criticalWarning": true,
+    "message": "If you or your children are in immediate danger, call 911. A restraining order takes time to obtain through the courts. If you need protection immediately, contact the police first.",
+    "urgentMotion": "If you need a restraining order urgently (without waiting weeks for a hearing), you can file an urgent motion WITHOUT NOTICE to the other party using Form 14 (Notice of Motion) and Form 14A (Affidavit). The judge can grant a temporary restraining order the same day."
+  },
+  "steps": [
+    {
+      "stepId": "safety-check",
+      "stepNumber": 1,
+      "title": "Safety Information",
+      "subtitle": "Read before continuing",
+      "intro": "Form 25F is the restraining order itself, signed by a judge. You need to apply for it first using a motion or application. This section explains what you need to do.",
+      "fields": [
+        {
+          "fieldId": "safety_info",
+          "type": "info",
+          "label": "Immediate Danger",
+          "content": "If you or your children are in immediate danger, call 911. Do not wait for a court order."
+        },
+        {
+          "fieldId": "urgent_info",
+          "type": "info",
+          "label": "Urgent Restraining Order (Without Notice)",
+          "content": "If you need protection quickly, you can file an urgent motion WITHOUT telling the other party first. File Form 14 (Notice of Motion) and Form 14A (Affidavit) explaining why you are afraid. A judge can grant a temporary restraining order the same day. You will also need to start or reopen a family court case with Form 8 (Application General)."
+        },
+        {
+          "fieldId": "legislation_info",
+          "type": "info",
+          "label": "Which Law Applies — Form 25F",
+          "content": "Form 25F is used for restraining orders under section 46 of the Family Law Act (FLA). This applies to former spouses or partners in a family law case. It orders the restrained person to stop harassing or communicating with you. If your case involves children and the order is under the Children's Law Reform Act (CLRA), use Form 25G instead."
+        },
+        {
+          "fieldId": "cpic_info",
+          "type": "info",
+          "label": "CPIC Registration & Criminal Consequences",
+          "content": "Once granted, this order is registered on the Canadian Police Information Centre (CPIC) database. Any police officer in Canada can enforce it. Disobeying this order is a criminal offence punishable by fine or imprisonment. The restrained person can be arrested without a warrant under s. 495 of the Criminal Code."
+        },
+        {
+          "fieldId": "has_existing_case",
+          "type": "yesno",
+          "label": "Do you already have a family court case open (a court file number)?",
+          "required": true,
+          "default": "no",
+          "helpText": "If yes, your restraining order application will be added to your existing case. If no, you will need to file Form 8 (Application General) to start a new case at the same time."
+        },
+        {
+          "fieldId": "no_case_info",
+          "type": "info",
+          "label": "Starting a New Case",
+          "content": "Since you don't have an open case, you will need to file Form 8 (Application General) to start one. Hearth & Page will help you prepare both Form 8 and this restraining order application together.",
+          "showIf": { "field": "has_existing_case", "value": "no" }
+        }
+      ]
+    },
+    {
+      "stepId": "court-info",
+      "stepNumber": 2,
+      "title": "Court Information",
+      "subtitle": "Where the case is or will be filed",
+      "fields": [
+        {
+          "fieldId": "court_name",
+          "type": "select",
+          "label": "Name of Court",
+          "required": true,
+          "options": [
+            "Ontario Court of Justice",
+            "Superior Court of Justice",
+            "Superior Court of Justice (Family Court Branch)"
+          ]
+        },
+        {
+          "fieldId": "court_office_address",
+          "type": "text",
+          "label": "Court Office Address",
+          "required": true,
+          "placeholder": "393 University Ave, Toronto, ON M5G 1E6",
+          "source": "profile.case.courthouse"
+        },
+        {
+          "fieldId": "court_file_number",
+          "type": "text",
+          "label": "Court File Number (if you already have one)",
+          "required": false,
+          "placeholder": "FC-2026-000000",
+          "source": "profile.case.fileNumber"
+        }
+      ]
+    },
+    {
+      "stepId": "parties",
+      "stepNumber": 3,
+      "title": "Applicant & Respondent",
+      "subtitle": "Who is applying and who is being restrained",
+      "intro": "The applicant is the person seeking the restraining order (you). The respondent is the person you want restrained.",
+      "groups": [
+        {
+          "label": "Applicant (You — person seeking protection)",
+          "fields": [
+            {
+              "fieldId": "applicant_full_name",
+              "type": "text",
+              "label": "Your Full Legal Name",
+              "required": true,
+              "source": "profile.applicant.fullName"
+            },
+            {
+              "fieldId": "applicant_address",
+              "type": "text",
+              "label": "Your Address for Service",
+              "required": true,
+              "source": "profile.applicant.address",
+              "helpText": "This address will appear on the court form. You may use a lawyer's address or a P.O. Box if you are concerned about the respondent knowing your location."
+            },
+            {
+              "fieldId": "applicant_phone",
+              "type": "tel",
+              "label": "Your Phone Number",
+              "required": true,
+              "source": "profile.applicant.phone"
+            },
+            {
+              "fieldId": "applicant_email",
+              "type": "email",
+              "label": "Your Email (if any)",
+              "required": false,
+              "source": "profile.applicant.email"
+            },
+            {
+              "fieldId": "applicant_has_lawyer",
+              "type": "yesno",
+              "label": "Do you have a lawyer?",
+              "required": true,
+              "default": "no"
+            },
+            {
+              "fieldId": "applicant_lawyer_name",
+              "type": "text",
+              "label": "Lawyer's Full Name",
+              "required": false,
+              "showIf": { "field": "applicant_has_lawyer", "value": "yes" }
+            },
+            {
+              "fieldId": "applicant_lawyer_address",
+              "type": "text",
+              "label": "Lawyer's Address",
+              "required": false,
+              "showIf": { "field": "applicant_has_lawyer", "value": "yes" }
+            }
+          ]
+        },
+        {
+          "label": "Respondent (Person to be restrained)",
+          "fields": [
+            {
+              "fieldId": "respondent_full_name",
+              "type": "text",
+              "label": "Respondent Full Legal Name",
+              "required": true,
+              "source": "profile.respondent.fullName"
+            },
+            {
+              "fieldId": "respondent_dob",
+              "type": "date",
+              "label": "Respondent Date of Birth",
+              "required": true,
+              "helpText": "Required for CPIC registration of the restraining order."
+            },
+            {
+              "fieldId": "respondent_address",
+              "type": "text",
+              "label": "Respondent Address (if known)",
+              "required": false,
+              "source": "profile.respondent.address"
+            },
+            {
+              "fieldId": "respondent_has_lawyer",
+              "type": "yesno",
+              "label": "Does the respondent have a lawyer?",
+              "required": false,
+              "default": "no"
+            },
+            {
+              "fieldId": "respondent_lawyer_name",
+              "type": "text",
+              "label": "Respondent's Lawyer's Name",
+              "required": false,
+              "showIf": { "field": "respondent_has_lawyer", "value": "yes" }
+            },
+            {
+              "fieldId": "respondent_lawyer_address",
+              "type": "text",
+              "label": "Respondent's Lawyer's Address",
+              "required": false,
+              "showIf": { "field": "respondent_has_lawyer", "value": "yes" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "conduct",
+      "stepNumber": 4,
+      "title": "Conduct to be Restrained",
+      "subtitle": "What you are asking the court to order",
+      "intro": "Describe the specific conduct you want the judge to order the respondent to stop. Be as specific as possible — a judge can only order what you ask for.",
+      "fields": [
+        {
+          "fieldId": "conduct_types",
+          "type": "checkbox",
+          "label": "I am asking the court to order the respondent not to:",
+          "required": false,
+          "helpText": "Select all that apply."
+        },
+        {
+          "fieldId": "conduct_attend_home",
+          "type": "checkbox",
+          "label": "Come to or near my home or residence"
+        },
+        {
+          "fieldId": "conduct_attend_workplace",
+          "type": "checkbox",
+          "label": "Come to or near my workplace"
+        },
+        {
+          "fieldId": "conduct_attend_school",
+          "type": "checkbox",
+          "label": "Come to or near my children's school or daycare"
+        },
+        {
+          "fieldId": "conduct_contact_me",
+          "type": "checkbox",
+          "label": "Contact or communicate with me (by any means including phone, text, email, or social media)"
+        },
+        {
+          "fieldId": "conduct_contact_children",
+          "type": "checkbox",
+          "label": "Contact or communicate with our children except as permitted by a parenting order"
+        },
+        {
+          "fieldId": "conduct_other",
+          "type": "checkbox",
+          "label": "Other conduct (describe below)"
+        },
+        {
+          "fieldId": "conduct_other_description",
+          "type": "textarea",
+          "label": "Describe the other conduct to be restrained",
+          "required": false,
+          "showIf": { "field": "conduct_other", "value": true }
+        },
+        {
+          "fieldId": "addresses_to_protect",
+          "type": "textarea",
+          "label": "Specific addresses / locations to include in the order",
+          "required": false,
+          "placeholder": "123 Main Street, Toronto, ON — my residence\n456 School Road, Toronto, ON — children's school",
+          "helpText": "List all addresses the restraining order should cover. The more specific you are, the easier it is for police to enforce."
+        },
+        {
+          "fieldId": "exclusion_zone_metres",
+          "type": "number",
+          "label": "Exclusion distance (metres) — how close the respondent must not come",
+          "required": false,
+          "placeholder": "100",
+          "min": 10,
+          "max": 1000,
+          "helpText": "Common distances are 100-500 metres. Leave blank if you are not requesting a specific distance."
+        },
+        {
+          "fieldId": "order_effective_date",
+          "type": "date",
+          "label": "Order Effective Date (usually the date the judge signs)",
+          "required": false,
+          "helpText": "Usually left for the judge to complete. Leave blank unless your lawyer advises otherwise."
+        },
+        {
+          "fieldId": "order_expiry_date",
+          "type": "date",
+          "label": "Order Expiry Date (if not indefinite)",
+          "required": false,
+          "helpText": "Restraining orders can be permanent or time-limited. If you want a permanent order, leave blank. If you want a specific end date (e.g., until children finish high school), enter it here."
+        },
+        {
+          "fieldId": "order_permanent",
+          "type": "yesno",
+          "label": "Are you requesting a permanent (indefinite) restraining order?",
+          "required": true,
+          "default": "yes"
+        }
+      ]
+    },
+    {
+      "stepId": "motion-type",
+      "stepNumber": 5,
+      "title": "Motion Type",
+      "subtitle": "With or without notice to the respondent",
+      "intro": "You must decide whether to give the respondent notice of your motion before the hearing, or to apply without notice for an emergency order.",
+      "fields": [
+        {
+          "fieldId": "motion_type",
+          "type": "radio",
+          "label": "How are you bringing your motion?",
+          "required": true,
+          "options": [
+            { "value": "with_notice", "label": "With notice — I will serve the respondent before the hearing (standard process)" },
+            { "value": "without_notice", "label": "Without notice — I need an emergency temporary order immediately (the respondent will be served after)" }
+          ],
+          "helpText": "Most motions are made with notice. A motion without notice is only appropriate in urgent safety situations where giving notice could put you or your children at risk."
+        },
+        {
+          "fieldId": "without_notice_reason",
+          "type": "textarea",
+          "label": "Why are you asking for a motion without notice?",
+          "required": false,
+          "showIf": { "field": "motion_type", "value": "without_notice" },
+          "placeholder": "Describe the urgency and why giving notice to the respondent would put you or your children at risk.",
+          "helpText": "The judge needs to know why you cannot give notice. Describe recent incidents, threats, or danger."
+        },
+        {
+          "fieldId": "prior_incidents",
+          "type": "textarea",
+          "label": "Describe the incidents of harassment or threatening behaviour",
+          "required": true,
+          "placeholder": "On [date], the respondent...\nOn [date], the respondent...",
+          "helpText": "Provide specific dates, locations, and descriptions of each incident. This information will go in your Form 14A (Affidavit) which must be filed with this motion."
+        },
+        {
+          "fieldId": "police_involved",
+          "type": "yesno",
+          "label": "Have you called the police about any of these incidents?",
+          "required": true,
+          "default": "no"
+        },
+        {
+          "fieldId": "police_report_details",
+          "type": "text",
+          "label": "Police report number(s) and detachment",
+          "required": false,
+          "showIf": { "field": "police_involved", "value": "yes" }
+        }
+      ]
+    },
+    {
+      "stepId": "delivery-signature",
+      "stepNumber": 6,
+      "title": "Required Documents & Next Steps",
+      "subtitle": "What to file with the court",
+      "intro": "Form 25F is the order itself — it is signed by the judge, not by you. You must file supporting documents to get the order granted.",
+      "fields": [
+        {
+          "fieldId": "filing_checklist_info",
+          "type": "info",
+          "label": "What to File with the Court",
+          "content": "To apply for a restraining order, file these documents together: (1) Form 8 (Application General) if you don't already have an open case, (2) Form 14 (Notice of Motion) stating you are asking for a restraining order under s. 46 of the Family Law Act, (3) Form 14A (Affidavit General) describing the incidents of harassment, (4) A blank Form 10 (Answer) for the respondent, (5) CPIC Restraining Order Information Form (available only at the courthouse counter). If your motion is WITH notice, also file Form 14C (Confirmation of Motion) at least 3 business days before the hearing."
+        },
+        {
+          "fieldId": "form8_needed",
+          "type": "checkbox",
+          "label": "I understand I need to file Form 8 (Application General) to start or reopen my court case.",
+          "required": false
+        },
+        {
+          "fieldId": "form14_needed",
+          "type": "checkbox",
+          "label": "I understand I need to file Form 14 (Notice of Motion) and Form 14A (Affidavit) to support my request.",
+          "required": true
+        },
+        {
+          "fieldId": "cpic_form_needed",
+          "type": "checkbox",
+          "label": "I understand the CPIC Restraining Order Information Form is available only at the courthouse counter — not online.",
+          "required": true
+        },
+        {
+          "fieldId": "victim_services",
+          "type": "info",
+          "label": "Support Resources",
+          "content": "If you are leaving an abusive relationship, contact a Family Court Support Worker at your local courthouse (free service). You can also call the Assaulted Women's Helpline at 1-866-863-0511 (24 hours). Duty counsel (free legal advice) is available at every Ontario family courthouse on motion days."
+        },
+        {
+          "fieldId": "signature_date",
+          "type": "date",
+          "label": "Date Prepared",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

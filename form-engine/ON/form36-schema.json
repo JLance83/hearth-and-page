@@ -1,0 +1,456 @@
+{
+  "formId": "ON-F36",
+  "jurisdiction": "ON",
+  "pdfFileName": "form36.pdf",
+  "title": "Form 36 \u2014 Affidavit for Divorce",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules (FLR 36)",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "helpIntro": "Form 36 is the sworn affidavit you file to support your divorce application. It proves to the court that the legal requirements for a divorce are met \u2014 mainly that you have been separated for at least one year and that there is no reasonable chance of reconciliation. This form is sworn before a commissioner of oaths.",
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 7",
+      "intro": "Enter the court file details from your divorce application.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": false,
+          "placeholder": "e.g. FC-2024-12345",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "applicantFullName",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "pdfFieldName": "Applicant full name",
+          "id": "applicant_full_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "respondentFullName",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "pdfFieldName": "Respondent full name",
+          "id": "respondent_full_name",
+          "autoFill": "respondent_full_name"
+        }
+      ]
+    },
+    {
+      "partId": "marriage",
+      "title": "The marriage",
+      "subtitle": "Step 2 of 7",
+      "intro": "Provide details about your marriage. This information is needed to verify that a valid marriage took place.",
+      "fields": [
+        {
+          "fieldId": "marriageDate",
+          "label": "Date of marriage",
+          "type": "date",
+          "source": "profile.case.marriageDate",
+          "required": true,
+          "pdfFieldName": "Marriage date",
+          "id": "date_of_marriage",
+          "autoFill": "marriage_date"
+        },
+        {
+          "fieldId": "marriageCity",
+          "label": "City or town where you were married",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Toronto",
+          "pdfFieldName": "Marriage city"
+        },
+        {
+          "fieldId": "marriageProvince",
+          "label": "Province or country where you were married",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Ontario, Canada",
+          "pdfFieldName": "Marriage province"
+        },
+        {
+          "fieldId": "marriageCertificateAvailable",
+          "label": "Do you have a marriage certificate?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "You must file a certified copy of your marriage certificate with the court. If you don't have one, contact ServiceOntario or the vital statistics office where you were married.",
+          "pdfFieldName": "Marriage certificate available"
+        },
+        {
+          "fieldId": "marriageCertificateNotes",
+          "label": "If you do not have a marriage certificate, explain why",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "marriageCertificateAvailable",
+            "showWhen": "no"
+          },
+          "placeholder": "e.g. We were married in another country and have been unable to obtain a certified copy. We are in the process of requesting one from the registry office.",
+          "pdfFieldName": "Marriage certificate notes"
+        },
+        {
+          "fieldId": "applicantNameAtMarriage",
+          "label": "Your full name at the time of marriage (if different from current name)",
+          "type": "text",
+          "required": false,
+          "placeholder": "Leave blank if your name has not changed",
+          "pdfFieldName": "Applicant name at marriage"
+        },
+        {
+          "fieldId": "respondentNameAtMarriage",
+          "label": "Other party's full name at the time of marriage (if different from current name)",
+          "type": "text",
+          "required": false,
+          "placeholder": "Leave blank if their name has not changed",
+          "pdfFieldName": "Respondent name at marriage"
+        }
+      ]
+    },
+    {
+      "partId": "separation",
+      "title": "The separation",
+      "subtitle": "Step 3 of 7",
+      "intro": "The Divorce Act requires that spouses have lived separate and apart for at least one year before a divorce can be granted. Answer the questions below to confirm this requirement is met.",
+      "fields": [
+        {
+          "fieldId": "separationDate",
+          "label": "Date you and your spouse separated",
+          "type": "date",
+          "source": "profile.case.separationDate",
+          "required": true,
+          "helpText": "This is the date one or both of you decided the marriage was over and began living separate lives \u2014 even if you remained in the same house.",
+          "pdfFieldName": "Separation date",
+          "id": "date_of_separation",
+          "autoFill": "separation_date"
+        },
+        {
+          "fieldId": "separatedOneYear",
+          "label": "Have you lived separate and apart for at least one year as of today?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "If you separated less than one year ago, you cannot apply for a divorce yet. You must wait until the full year has passed.",
+          "pdfFieldName": "Separated one year"
+        },
+        {
+          "fieldId": "reconciliationAttempts",
+          "label": "Did you and your spouse attempt to reconcile after separating?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Short periods of attempted reconciliation (totalling 90 days or less) do not reset the one-year clock.",
+          "pdfFieldName": "Reconciliation attempts"
+        },
+        {
+          "fieldId": "reconciliationDetails",
+          "label": "Describe the reconciliation attempt(s)",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "reconciliationAttempts",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. We reconciled from April 1 to April 30, 2024 (30 days). We then separated again permanently on May 1, 2024.",
+          "helpText": "Include dates. If total reconciliation attempts were 90 days or less combined, your one-year clock continues from the original separation date.",
+          "pdfFieldName": "Reconciliation details"
+        },
+        {
+          "fieldId": "noReasonableChanceReconciliation",
+          "label": "Is there any reasonable chance you and your spouse will reconcile?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Almost always 'No' \u2014 the court needs this confirmed to grant the divorce.",
+          "pdfFieldName": "Reasonable chance reconciliation"
+        },
+        {
+          "fieldId": "separatedInSameHome",
+          "label": "Did you and your spouse live in the same home after separating?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "It is possible to be 'separated' while living under the same roof if you were living separate lives (separate bedrooms, separate finances, no intimate relationship).",
+          "pdfFieldName": "Separated in same home"
+        },
+        {
+          "fieldId": "separatedInSameHomeDetails",
+          "label": "Describe how you lived separately while in the same home",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "separatedInSameHome",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. From March 1, 2024 we slept in separate bedrooms, had no intimate relationship, ate separately, managed our own finances, and informed family and friends that we were separated.",
+          "helpText": "The court needs specific details to accept an in-home separation.",
+          "pdfFieldName": "Same home separation details"
+        }
+      ]
+    },
+    {
+      "partId": "children",
+      "title": "Children of the marriage",
+      "subtitle": "Step 4 of 7",
+      "intro": "Under the Divorce Act, the court must be satisfied that reasonable arrangements have been made for the support of any children of the marriage before granting a divorce.",
+      "fields": [
+        {
+          "fieldId": "hasChildrenOfMarriage",
+          "label": "Do you have any children of the marriage under 18, or over 18 but still dependent?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Children of the marriage include biological children, adopted children, and stepchildren who were treated as a child of the family.",
+          "pdfFieldName": "Has children of marriage"
+        },
+        {
+          "fieldId": "childrenDetails",
+          "label": "List the children (full name, date of birth, where they live now)",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildrenOfMarriage",
+            "showWhen": "yes"
+          },
+          "source": "profile.children.list",
+          "placeholder": "Alex Lance \u2014 born April 12, 2015 \u2014 lives with Applicant at 123 Main St, Toronto\nSam Lance \u2014 born September 3, 2018 \u2014 lives with Applicant at 123 Main St, Toronto",
+          "pdfFieldName": "Children details"
+        },
+        {
+          "fieldId": "childSupportArranged",
+          "label": "Have reasonable arrangements been made for child support?",
+          "type": "yesno",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildrenOfMarriage",
+            "showWhen": "yes"
+          },
+          "helpText": "The court will not grant the divorce if it is not satisfied that proper support arrangements exist for the children.",
+          "pdfFieldName": "Child support arranged"
+        },
+        {
+          "fieldId": "childSupportArrangementDetails",
+          "label": "Describe the child support arrangements",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildrenOfMarriage",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. The Respondent pays child support of $1,200 per month pursuant to the Child Support Guidelines based on an annual income of $72,000. This is set out in a separation agreement dated March 15, 2025.",
+          "helpText": "Reference any existing court orders, separation agreements, or FRO arrangements.",
+          "pdfFieldName": "Child support arrangement details"
+        },
+        {
+          "fieldId": "custodyArrangementDetails",
+          "label": "Describe the current parenting / custody arrangement",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildrenOfMarriage",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. The children live primarily with the Applicant. The Respondent has parenting time every other weekend pursuant to a separation agreement dated March 15, 2025.",
+          "pdfFieldName": "Custody arrangement details"
+        }
+      ]
+    },
+    {
+      "partId": "collusion",
+      "title": "Collusion and condonation",
+      "subtitle": "Step 5 of 7",
+      "intro": "The court must be satisfied that the divorce is not the result of any agreement to deceive the court, and that no matrimonial offence has been condoned. These are standard legal declarations.",
+      "fields": [
+        {
+          "fieldId": "noCollusion",
+          "label": "I confirm that there has been no collusion in relation to this divorce application",
+          "type": "checkbox",
+          "required": true,
+          "helpText": "Collusion means a secret agreement to deceive the court \u2014 for example, fabricating grounds for divorce or agreeing to hide the truth. This is extremely rare in modern no-fault divorces based on separation.",
+          "pdfFieldName": "No collusion"
+        },
+        {
+          "fieldId": "noCondonation",
+          "label": "I confirm that I have not condoned any conduct that might be raised as a ground for divorce",
+          "type": "checkbox",
+          "required": true,
+          "helpText": "Condonation means forgiving a matrimonial offence (like adultery or cruelty) and resuming the marriage with full knowledge of it. For separation-based divorces, this is generally not applicable but must be declared.",
+          "pdfFieldName": "No condonation"
+        },
+        {
+          "fieldId": "divorceGrounds",
+          "label": "Grounds for divorce",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Separation \u2014 we have lived separate and apart for at least one year (most common)",
+            "Adultery \u2014 my spouse committed adultery",
+            "Physical or mental cruelty \u2014 my spouse treated me with physical or mental cruelty"
+          ],
+          "helpText": "Almost all divorces in Canada are granted on the grounds of separation. Adultery and cruelty are rarely used because they are harder to prove and require additional evidence.",
+          "pdfFieldName": "Divorce grounds"
+        },
+        {
+          "fieldId": "adulteryDetails",
+          "label": "If claiming adultery \u2014 describe the circumstances",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "divorceGrounds",
+            "showWhen": "Adultery \u2014 my spouse committed adultery"
+          },
+          "placeholder": "e.g. My spouse committed adultery with a person known to me from approximately January 2024 onwards.",
+          "helpText": "You do not need to name the third party, but you must have sufficient evidence. Consider whether to proceed on this ground vs. separation.",
+          "pdfFieldName": "Adultery details"
+        },
+        {
+          "fieldId": "crueltyDetails",
+          "label": "If claiming cruelty \u2014 describe the conduct",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "divorceGrounds",
+            "showWhen": "Physical or mental cruelty \u2014 my spouse treated me with physical or mental cruelty"
+          },
+          "placeholder": "e.g. From 2022 to 2024, my spouse subjected me to physical violence on multiple occasions, including...",
+          "helpText": "Must be conduct that made continued cohabitation intolerable. Provide specific incidents with dates.",
+          "pdfFieldName": "Cruelty details"
+        }
+      ]
+    },
+    {
+      "partId": "previousProceedings",
+      "title": "Previous court proceedings",
+      "subtitle": "Step 6 of 7",
+      "intro": "The court needs to know if there are any other divorce or family law proceedings anywhere in Canada or internationally.",
+      "fields": [
+        {
+          "fieldId": "hasPreviousProceedings",
+          "label": "Have there been any previous divorce or family law court proceedings between you and your spouse in any court?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Has previous proceedings"
+        },
+        {
+          "fieldId": "previousProceedingsDetails",
+          "label": "Describe the previous proceedings",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasPreviousProceedings",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. There is an existing Ontario Superior Court proceeding (File No. FC-2024-12345) which includes this divorce application. There are no other proceedings.",
+          "helpText": "Include the court, file number, and type of proceeding. Include proceedings in other provinces or countries.",
+          "pdfFieldName": "Previous proceedings details"
+        },
+        {
+          "fieldId": "hasExistingSeparationAgreement",
+          "label": "Do you have a signed separation agreement?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "If yes, attach a copy to your affidavit. The court will want to see how issues like support and property have been resolved.",
+          "pdfFieldName": "Has separation agreement"
+        },
+        {
+          "fieldId": "separationAgreementDate",
+          "label": "Date of the separation agreement",
+          "type": "date",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasExistingSeparationAgreement",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Separation agreement date"
+        },
+        {
+          "fieldId": "separationAgreementCoversChildren",
+          "label": "Does the separation agreement address the children?",
+          "type": "yesno",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasExistingSeparationAgreement",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Agreement covers children"
+        }
+      ]
+    },
+    {
+      "partId": "swearing",
+      "title": "Declaration and signing",
+      "subtitle": "Step 7 of 7",
+      "intro": "This affidavit must be sworn or affirmed before a commissioner of oaths. Do not sign it until you are in front of the commissioner.",
+      "fields": [
+        {
+          "fieldId": "swearOrAffirm",
+          "label": "Will you swear or affirm?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Swear",
+            "Affirm"
+          ],
+          "pdfFieldName": "Swear or affirm"
+        },
+        {
+          "fieldId": "deponentMunicipality",
+          "label": "Municipality where you will sign this affidavit",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Toronto",
+          "pdfFieldName": "Deponent municipality"
+        },
+        {
+          "fieldId": "commissioningDate",
+          "label": "Date of commissioning (leave blank to complete at courthouse)",
+          "type": "date",
+          "required": false,
+          "pdfFieldName": "Commissioning date"
+        },
+        {
+          "fieldId": "declarationAccurate",
+          "label": "I confirm that everything stated in this affidavit is true, and I understand that swearing a false affidavit is perjury.",
+          "type": "checkbox",
+          "required": true,
+          "pdfFieldName": "Declaration accurate"
+        }
+      ]
+    }
+  ]
+}

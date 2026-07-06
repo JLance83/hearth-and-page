@@ -1,0 +1,334 @@
+{
+  "formCode": "form14c-confirmation-motion",
+  "formNumber": "Form 14C",
+  "title": "Confirmation of Motion",
+  "jurisdiction": "Ontario",
+  "act": "Family Law Rules",
+  "version": "September 2024",
+  "description": "Filed to confirm that your motion is going ahead and that you will attend the hearing. Must be filed by 2:00 PM at least 3 business days before your motion date. If you miss this deadline, your motion may be cancelled. You must also give a copy to the other party before filing with the court.",
+  "steps": [
+    {
+      "step": 1,
+      "title": "Court & File Information",
+      "description": "Enter the court location and file number.",
+      "fields": [
+        {
+          "id": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "required": true,
+          "autoFill": "courthouse",
+          "options": [
+            "Barrie", "Belleville", "Brampton", "Brantford", "Brockville",
+            "Chatham", "Cobourg", "Cornwall", "Guelph", "Hamilton",
+            "Kingston", "Kitchener", "L'Orignal", "Lindsay", "London",
+            "Milton", "Newmarket", "North Bay", "Oshawa", "Ottawa",
+            "Owen Sound", "Pembroke", "Perth", "Peterborough", "Sarnia",
+            "Sault Ste. Marie", "Simcoe", "St. Catharines", "St. Thomas",
+            "Sudbury", "Thunder Bay", "Timmins", "Toronto (Ontario Court of Justice)",
+            "Toronto (Superior Court of Justice — 393 University)",
+            "Toronto (Superior Court of Justice — 47 Sheppard)",
+            "Welland", "Windsor", "Woodstock"
+          ]
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court File Number",
+          "type": "text",
+          "required": true,
+          "autoFill": "court_file_number",
+          "placeholder": "e.g. FC-12345-24"
+        },
+        {
+          "id": "case_management_judge",
+          "label": "Case Management Judge (if any)",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. The Honourable Justice A. Lee",
+          "hint": "If a case management judge has been assigned to your case, enter their name here. Leave blank if none."
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "title": "Applicant & Respondent",
+      "description": "Enter the party names.",
+      "fields": [
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "autoFill": "applicant_full_name",
+          "placeholder": "e.g. Jane Elizabeth Smith"
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "autoFill": "respondent_full_name",
+          "placeholder": "e.g. John Robert Smith"
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "title": "Who Is Filing This Confirmation",
+      "description": "Identify yourself and whether you have spoken with the other party.",
+      "fields": [
+        {
+          "id": "filer_role",
+          "label": "My name is (full legal name) and I am:",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "lawyer_applicant", "label": "The lawyer for the applicant"},
+            {"value": "lawyer_respondent", "label": "The lawyer for the respondent"},
+            {"value": "self_applicant", "label": "The applicant (self-represented)"},
+            {"value": "self_respondent", "label": "The respondent (self-represented)"},
+            {"value": "other", "label": "Other party (specify below)"}
+          ]
+        },
+        {
+          "id": "filer_name",
+          "label": "Your Full Legal Name",
+          "type": "text",
+          "required": true,
+          "autoFill": "applicant_full_name",
+          "placeholder": "e.g. Jane Elizabeth Smith",
+          "hint": "Enter the name of the person or lawyer filing this form."
+        },
+        {
+          "id": "filer_other_description",
+          "label": "If 'Other', describe your role:",
+          "type": "text",
+          "required": false,
+          "showIf": {"field": "filer_role", "value": "other"},
+          "placeholder": "e.g. Intervenor"
+        },
+        {
+          "id": "conferred_with_other_party",
+          "label": "Have you conferred with the opposing counsel or party about the issues, motion material, and time estimates?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "yes", "label": "Yes — we have conferred"},
+            {"value": "no", "label": "No — provide reasons below"}
+          ],
+          "hint": "The Family Law Rules require the parties or their counsel to confer, or attempt to confer, orally or in writing before filing this confirmation."
+        },
+        {
+          "id": "confer_reason_not",
+          "label": "Reason for not conferring with the other party:",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "showIf": {"field": "conferred_with_other_party", "value": "no"},
+          "placeholder": "e.g. I attempted to reach the other party by phone and email on [date] but received no response. / A restraining order prohibits direct communication.",
+          "hint": "Provide a specific reason. If there is a court order prohibiting communication, state that here."
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "title": "Motion Status",
+      "description": "Tell the court what is happening with your motion.",
+      "fields": [
+        {
+          "id": "motion_date",
+          "label": "Scheduled Date of Motion",
+          "type": "date",
+          "required": true,
+          "hint": "The date the motion is scheduled to be heard, as shown on your Notice of Motion (Form 14)."
+        },
+        {
+          "id": "motion_time",
+          "label": "Scheduled Time of Motion",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 9:30 AM",
+          "hint": "The time the motion is scheduled, as shown on your Notice of Motion (Form 14)."
+        },
+        {
+          "id": "case_conference_held",
+          "label": "Has a case conference been held in this case?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "yes", "label": "Yes — a case conference was held"},
+            {"value": "no_exception", "label": "No — but an exception applies (describe below)"},
+            {"value": "not_required", "label": "Not required for this type of motion"}
+          ],
+          "hint": "Generally, a case conference must be held before a motion can be heard, unless the motion is urgent or the court grants an exception."
+        },
+        {
+          "id": "case_conference_exception",
+          "label": "Describe why no case conference was held:",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "showIf": {"field": "case_conference_held", "value": "no_exception"},
+          "placeholder": "e.g. This is an urgent motion for a temporary restraining order. / The court granted leave to bring this motion without a prior conference by order dated [date]."
+        },
+        {
+          "id": "motion_status",
+          "label": "This matter is:",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "going_ahead_listed_issues", "label": "Going ahead on the issues listed below"},
+            {"value": "going_ahead_consent_order", "label": "Going ahead for a consent order"},
+            {"value": "adjourned_on_consent", "label": "Being adjourned on consent to a future date"},
+            {"value": "going_ahead_contested_adjournment", "label": "Going ahead for a contested adjournment asked for by one party"},
+            {"value": "other", "label": "Other (explain below)"}
+          ]
+        },
+        {
+          "id": "adjournment_date",
+          "label": "Adjourned to (date):",
+          "type": "date",
+          "required": false,
+          "showIf": {"field": "motion_status", "value": "adjourned_on_consent"},
+          "hint": "Enter the agreed-upon adjournment date."
+        },
+        {
+          "id": "adjournment_event_type",
+          "label": "Adjourned for what type of event?",
+          "type": "text",
+          "required": false,
+          "showIf": {"field": "motion_status", "value": "adjourned_on_consent"},
+          "placeholder": "e.g. settlement conference, trial management conference"
+        },
+        {
+          "id": "contested_adjournment_party",
+          "label": "Name of party asking for the contested adjournment:",
+          "type": "text",
+          "required": false,
+          "showIf": {"field": "motion_status", "value": "going_ahead_contested_adjournment"},
+          "placeholder": "e.g. the Applicant, Jane Smith"
+        },
+        {
+          "id": "contested_adjournment_reason",
+          "label": "Reason for the contested adjournment request:",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "showIf": {"field": "motion_status", "value": "going_ahead_contested_adjournment"},
+          "placeholder": "e.g. The applicant is requesting an adjournment due to a medical appointment on the scheduled date."
+        },
+        {
+          "id": "motion_status_other",
+          "label": "Describe what is happening:",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "showIf": {"field": "motion_status", "value": "other"},
+          "placeholder": "Describe the current status of the motion."
+        }
+      ]
+    },
+    {
+      "step": 5,
+      "title": "Issues, Documents & Time Estimate",
+      "description": "List the issues, documents for the judge, and how much time you need.",
+      "fields": [
+        {
+          "id": "issues_going_ahead",
+          "label": "Issues going ahead at this motion (list each issue):",
+          "type": "textarea",
+          "required": true,
+          "rows": 5,
+          "placeholder": "e.g.\na) Temporary decision-making responsibility for the child Emma Smith\nb) Temporary parenting time schedule\nc) Temporary child support in the amount of $X per month",
+          "hint": "List every issue the judge will be deciding at this motion. Be specific — include the type of order and the child's name where applicable."
+        },
+        {
+          "id": "documents_for_judge",
+          "label": "Documents the judge should read (list each document, volume, and tab number in the Continuing Record):",
+          "type": "textarea",
+          "required": true,
+          "rows": 6,
+          "placeholder": "e.g.\na) Notice of Motion (Form 14) — Volume 1, Tab A\nb) Affidavit of Jane Smith sworn June 15, 2025 (Form 14A) — Volume 1, Tab B\nc) Financial Statement of Jane Smith (Form 13) — Volume 2, Tab C\nd) Affidavit of Service (Form 6B) — Volume 1, Tab D",
+          "hint": "Organize by volume and tab as they appear in the Continuing Record. The judge uses this list to locate your materials quickly."
+        },
+        {
+          "id": "documents_to_bring",
+          "label": "I confirm that I will bring a complete copy of the Continuing Record to the motion.",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "id": "presiding_judge",
+          "label": "The presiding judge will be (if known):",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. The Honourable Justice A. Lee",
+          "hint": "Leave blank if you do not know who will hear the motion."
+        },
+        {
+          "id": "time_estimate_applicant",
+          "label": "Time estimate — Applicant (minutes):",
+          "type": "number",
+          "required": true,
+          "placeholder": "e.g. 20",
+          "hint": "Estimate how many minutes the applicant (or their lawyer) will need to present arguments."
+        },
+        {
+          "id": "time_estimate_respondent",
+          "label": "Time estimate — Respondent (minutes):",
+          "type": "number",
+          "required": true,
+          "placeholder": "e.g. 20",
+          "hint": "Estimate how many minutes the respondent (or their lawyer) will need."
+        },
+        {
+          "id": "time_estimate_reply",
+          "label": "Time estimate — Reply (minutes, if any):",
+          "type": "number",
+          "required": false,
+          "placeholder": "e.g. 5",
+          "hint": "Estimate any additional time needed for reply submissions. Often 0 or 5 minutes."
+        }
+      ]
+    },
+    {
+      "step": 6,
+      "title": "Delivery & Deadline Reminder",
+      "description": "Confirm you have given a copy to the other party and understand the filing deadline.",
+      "fields": [
+        {
+          "id": "deadline_info",
+          "label": "Filing Deadline — Important",
+          "type": "info",
+          "content": "You must file this Confirmation of Motion with the court no later than 2:00 PM, at least 3 business days before your motion date.\n\nIf you miss this deadline, your motion may be cancelled and you will have to get a new date.\n\nYou can file this form:\n• In person at the courthouse\n• By email (if your court allows it) through Justice Services Online\n\nNote: Courts no longer accept this form by fax."
+        },
+        {
+          "id": "copy_given_to_other_party",
+          "label": "I confirm that I have given (or will give) a copy of this Confirmation to the other party or their lawyer before filing it with the court.",
+          "type": "checkbox",
+          "required": true,
+          "hint": "The Family Law Rules require you to deliver a copy to the other side before filing. You do NOT need to file a Form 6B (Affidavit of Service) for this particular form."
+        },
+        {
+          "id": "signature_date",
+          "label": "Date of Signature",
+          "type": "date",
+          "required": true,
+          "hint": "Enter the date you are signing this confirmation."
+        },
+        {
+          "id": "signature_confirmation",
+          "label": "I confirm that all information in this Confirmation of Motion is accurate.",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "id": "hearth_page_notice",
+          "label": "Hearth & Page Notice",
+          "type": "info",
+          "content": "This form was prepared using Hearth & Page (hearthandpage.ca). File it with the court no later than 2:00 PM, 3 business days before your motion date. Give the other party a copy first. Hearth & Page is not a law firm and does not provide legal advice."
+        }
+      ]
+    }
+  ]
+}

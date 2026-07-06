@@ -1,0 +1,369 @@
+{
+  "formId": "ON-F14B",
+  "formCode": "form14b-motion-form",
+  "title": "Form 14B — Motion Form",
+  "jurisdiction": "Ontario",
+  "version": "2024",
+  "description": "Used for motions that can be decided without a hearing — either because both parties consent, or because the matter is procedural and can be decided on written materials alone (without notice). Common uses include consent orders, procedural directions, and unopposed motions.",
+  "autoPopulateFrom": ["form8-general", "form14-motion"],
+  "steps": [
+    {
+      "stepId": "mb-step1",
+      "title": "Court & Case Information",
+      "description": "Enter the court file details. This motion will be decided by a judge without a hearing.",
+      "fields": [
+        {
+          "id": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "required": true,
+          "autoPopulate": "courthouse",
+          "options": [
+            "Barrie — Superior Court of Justice",
+            "Brampton — Superior Court of Justice",
+            "Brantford — Superior Court of Justice",
+            "Cornwall — Superior Court of Justice",
+            "Hamilton — Superior Court of Justice",
+            "Kingston — Superior Court of Justice",
+            "Kitchener — Superior Court of Justice",
+            "London — Superior Court of Justice",
+            "Milton — Superior Court of Justice",
+            "Newmarket — Superior Court of Justice",
+            "Oshawa — Superior Court of Justice",
+            "Ottawa — Superior Court of Justice",
+            "Peterborough — Superior Court of Justice",
+            "St. Catharines — Superior Court of Justice",
+            "Sudbury — Superior Court of Justice",
+            "Thunder Bay — Superior Court of Justice",
+            "Toronto — Superior Court of Justice",
+            "Windsor — Superior Court of Justice"
+          ]
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court file number",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "court_file_number",
+          "placeholder": "e.g. FC-2024-12345",
+          "helpText": "Required — a file number must exist before you can use Form 14B."
+        },
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "applicant_full_name"
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "respondent_full_name"
+        },
+        {
+          "id": "moving_party",
+          "label": "Who is bringing this motion?",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "applicant", "label": "The Applicant" },
+            { "value": "respondent", "label": "The Respondent" },
+            { "value": "both_parties", "label": "Both parties (joint / consent motion)" }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "mb-step2",
+      "title": "Type of Motion",
+      "description": "Form 14B is used for motions that don't need a full court hearing. Select the type that applies to your situation.",
+      "fields": [
+        {
+          "id": "motion_type",
+          "label": "What type of motion is this?",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "consent", "label": "Consent motion — both parties agree to the order being requested" },
+            { "value": "without_notice", "label": "Without notice motion — the other party has not been told about this motion" },
+            { "value": "procedural", "label": "Procedural / administrative motion — a routine procedural step" },
+            { "value": "unopposed", "label": "Unopposed motion — served on the other party who has not responded" }
+          ],
+          "helpText": "Not sure which to choose? See the guidance below."
+        },
+        {
+          "id": "motion_type_guide",
+          "label": "Which type applies to me?",
+          "type": "info-box",
+          "content": "**Consent motion:** Both parties have agreed on the order. Both must sign. Most common use of Form 14B — great for formalizing agreements.\n\n**Without notice (ex parte):** You are asking the court to make an order without telling the other party first. Only allowed in urgent circumstances — for example, emergency child protection, imminent risk of harm, or urgent asset preservation. The court will question why notice was not given.\n\n**Procedural:** Administrative or housekeeping steps — for example, extending a deadline, correcting a name in a file, or filing materials late.\n\n**Unopposed:** You served the other party and they did not respond within the required time. You are asking the court to grant the order based on their non-response."
+        },
+        {
+          "id": "without_notice_reason",
+          "label": "Why is it necessary to bring this motion without notice to the other party?",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "motion_type", "value": "without_notice" },
+          "placeholder": "e.g. I am bringing this motion without notice because there is an immediate risk that the Respondent will remove the children from Ontario before a court order can be obtained. I have evidence that the Respondent has purchased plane tickets for travel outside Canada on July 4, 2025. Giving notice would defeat the purpose of the order.",
+          "helpText": "You must give a clear reason. Without notice orders are rare and scrutinized closely by judges."
+        },
+        {
+          "id": "date_motion_submitted",
+          "label": "Date you are submitting this motion",
+          "type": "date",
+          "required": true
+        }
+      ]
+    },
+    {
+      "stepId": "mb-step3",
+      "title": "Order(s) You Are Requesting",
+      "description": "Describe exactly what you want the judge to order. Be as specific as possible — the judge will decide based on what you write here.",
+      "fields": [
+        {
+          "id": "orders_requested_categories",
+          "label": "What type of order are you asking for? (select all that apply)",
+          "type": "checkbox-group",
+          "required": true,
+          "options": [
+            { "value": "consent_order", "label": "Consent order — formalizing an agreement between the parties" },
+            { "value": "extend_deadline", "label": "Extend a filing or service deadline" },
+            { "value": "adjourn_matter", "label": "Adjourn (postpone) a scheduled court date" },
+            { "value": "vary_existing_order", "label": "Vary or change a specific term of an existing order (by consent)" },
+            { "value": "file_materials_late", "label": "Permission to file materials after a deadline" },
+            { "value": "set_aside_default", "label": "Set aside a default (restore a party's right to participate)" },
+            { "value": "add_remove_party", "label": "Add or remove a party from the proceeding" },
+            { "value": "seal_court_record", "label": "Seal or restrict access to the court record" },
+            { "value": "dispense_service", "label": "Dispense with service on the other party" },
+            { "value": "urgent_relief", "label": "Urgent interim relief (without notice situations)" },
+            { "value": "other_order", "label": "Other order" }
+          ]
+        },
+        {
+          "id": "orders_requested_details",
+          "label": "Write out the exact order(s) you are asking the judge to make",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. 1. THIS COURT ORDERS that the Respondent is prohibited from removing the children Alex Smith (born April 12, 2015) and Sam Smith (born September 3, 2018) from the Province of Ontario without the written consent of the Applicant or a further order of this court.\n\n2. THIS COURT ORDERS that the Respondent shall immediately surrender the children's passports to the Applicant's counsel.\n\n3. THIS COURT ORDERS that this order be served on the Respondent forthwith.",
+          "helpText": "Write each order on its own numbered line. Start with 'THIS COURT ORDERS that...' This is exactly what the judge will sign. For consent orders, write what both parties have agreed to."
+        },
+        {
+          "id": "effective_date",
+          "label": "From what date should the order take effect?",
+          "type": "date",
+          "required": false,
+          "helpText": "Leave blank if you want the order to take effect immediately upon signing. Courts can also backdate orders in appropriate circumstances."
+        }
+      ]
+    },
+    {
+      "stepId": "mb-step4",
+      "title": "Grounds for the Order",
+      "description": "Briefly explain the facts and legal basis that support the order you are requesting.",
+      "fields": [
+        {
+          "id": "grounds_narrative",
+          "label": "Grounds for this motion",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. The parties have both agreed to change the parenting schedule set out in the consent order dated March 1, 2025. The children have started a new school year and the current schedule no longer works with school pickups. Both parties consent to the proposed change as set out in the draft order attached. The proposed change is in the children's best interests.\n\n— OR —\n\nThe Applicant requires an extension of time to file their financial disclosure. The Applicant's accountant requires an additional 3 weeks to prepare the required documents. The Respondent consents to this extension. No hearing date is affected.",
+          "helpText": "For consent motions, briefly describe why both parties agree. For without-notice motions, describe the urgent facts in detail. For procedural motions, briefly explain what is needed and why."
+        },
+        {
+          "id": "supporting_materials",
+          "label": "What supporting materials are you attaching to this motion?",
+          "type": "checkbox-group",
+          "required": false,
+          "helpText": "Attach any materials that support your request.",
+          "options": [
+            { "value": "affidavit", "label": "Affidavit (sworn statement of facts)" },
+            { "value": "draft_order", "label": "Draft order (the proposed order for the judge to sign)" },
+            { "value": "consent_both_parties", "label": "Written consent signed by both parties" },
+            { "value": "correspondence", "label": "Relevant correspondence or emails" },
+            { "value": "existing_order_copy", "label": "Copy of the existing order being varied or referenced" },
+            { "value": "other_documents", "label": "Other documents" }
+          ]
+        },
+        {
+          "id": "other_documents_description",
+          "label": "Describe the other documents attached",
+          "type": "text",
+          "required": false,
+          "conditionalOn": { "field": "supporting_materials", "value": "other_documents" },
+          "placeholder": "e.g. Airline itinerary showing booked flights for July 4"
+        },
+        {
+          "id": "legal_authority",
+          "label": "Legal authority for this order (optional — helpful for complex motions)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Family Law Rules, Rule 14(12) — motion without notice. Children's Law Reform Act, section 35 — order for return of child. / Leave blank for simple consent or procedural matters.",
+          "helpText": "You don't need to cite law for simple procedural motions. For more complex motions (especially without notice), citing the relevant rule or statute is helpful."
+        }
+      ]
+    },
+    {
+      "stepId": "mb-step5",
+      "title": "Service & Response",
+      "description": "Tell the court whether the other party has been served and whether they have responded.",
+      "fields": [
+        {
+          "id": "other_party_served",
+          "label": "Has the other party been served with this motion?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes — they have been served" },
+            { "value": "no_consent", "label": "No — this is a consent motion and they will sign instead of being served" },
+            { "value": "no_without_notice", "label": "No — I am asking the court to dispense with service (without notice motion)" }
+          ]
+        },
+        {
+          "id": "service_details",
+          "label": "How and when was the other party served?",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "other_party_served", "value": "yes" },
+          "placeholder": "e.g. Served by email on June 20, 2025. The other party acknowledged receipt but has not responded within the required time."
+        },
+        {
+          "id": "other_party_response",
+          "label": "Did the other party respond?",
+          "type": "radio",
+          "required": false,
+          "conditionalOn": { "field": "other_party_served", "value": "yes" },
+          "options": [
+            { "value": "yes_consents", "label": "Yes — they consent to the order" },
+            { "value": "yes_opposes", "label": "Yes — they oppose the order" },
+            { "value": "no_response", "label": "No — they did not respond within the required time" }
+          ]
+        },
+        {
+          "id": "opposition_details",
+          "label": "Describe the other party's opposition",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "other_party_response", "value": "yes_opposes" },
+          "placeholder": "e.g. The Respondent has communicated through their counsel that they oppose the extension of the filing deadline. Their position is that any further delay is prejudicial. I respectfully submit that the court should grant the extension despite this opposition because [reason].",
+          "helpText": "If the other party opposes, Form 14B may not be the right form — a full hearing may be required. Describe their position and why you believe the matter can still proceed on written materials."
+        },
+        {
+          "id": "dispense_service_reason",
+          "label": "Why should service be dispensed with?",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "other_party_served", "value": "no_without_notice" },
+          "placeholder": "e.g. Serving the other party before obtaining this order would defeat its purpose, as they would have the opportunity to remove the children or dissipate assets before the order is made. This is an emergency situation requiring immediate court intervention."
+        }
+      ]
+    },
+    {
+      "stepId": "mb-step6",
+      "title": "Consent (if applicable)",
+      "description": "For consent motions, both parties must agree. Confirm consent details here.",
+      "fields": [
+        {
+          "id": "is_consent_motion",
+          "label": "Is this a consent motion (both parties agree)?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes — both parties consent" },
+            { "value": "no", "label": "No — this is not a consent motion" }
+          ]
+        },
+        {
+          "id": "consent_details",
+          "label": "Confirm consent",
+          "type": "info-box",
+          "conditionalOn": { "field": "is_consent_motion", "value": "yes" },
+          "content": "For a consent motion, both parties must sign the motion form or a separate written consent. The judge does not need to hold a hearing — they will review the materials and, if satisfied, sign the order.\n\nMake sure your draft order accurately reflects what both parties have agreed to. Once signed by the judge, it becomes a binding court order."
+        },
+        {
+          "id": "consent_basis",
+          "label": "How was consent confirmed?",
+          "type": "select",
+          "required": false,
+          "conditionalOn": { "field": "is_consent_motion", "value": "yes" },
+          "options": [
+            { "value": "both_sign_form", "label": "Both parties will sign this motion form" },
+            { "value": "separate_consent", "label": "A separate written consent is attached" },
+            { "value": "lawyer_confirmation", "label": "Consent confirmed by letters from both parties' lawyers" },
+            { "value": "minutes_of_settlement", "label": "Based on Minutes of Settlement signed at a conference" }
+          ]
+        },
+        {
+          "id": "children_involved_consent",
+          "label": "Does this consent motion involve the children?",
+          "type": "radio",
+          "required": false,
+          "conditionalOn": { "field": "is_consent_motion", "value": "yes" },
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No — this is about finances, procedures, or other matters only" }
+          ]
+        },
+        {
+          "id": "best_interests_consent",
+          "label": "Why is the consent order in the best interests of the children?",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "children_involved_consent", "value": "yes" },
+          "placeholder": "e.g. Both parties have agreed that the new parenting schedule better reflects the children's current school and activity schedules. The children are comfortable with both parents. The proposed change maintains stability while accommodating the children's growing independence.",
+          "helpText": "The court must be satisfied that any order involving children serves their best interests, even when both parties consent."
+        }
+      ]
+    },
+    {
+      "stepId": "mb-step7",
+      "title": "Declaration & Signature",
+      "description": "Confirm the accuracy of this motion before filing.",
+      "fields": [
+        {
+          "id": "costs_request",
+          "label": "Are you asking for costs?",
+          "type": "radio",
+          "required": true,
+          "helpText": "Costs are rare on procedural or consent motions. If you are asking for costs, state the amount and basis.",
+          "options": [
+            { "value": "no", "label": "No — no order as to costs" },
+            { "value": "yes", "label": "Yes — I am asking for costs" }
+          ]
+        },
+        {
+          "id": "costs_details",
+          "label": "Describe the costs you are requesting",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "costs_request", "value": "yes" },
+          "placeholder": "e.g. The Respondent caused the need for this motion by failing to comply with the existing order. I am asking for costs of $500 on a partial indemnity basis."
+        },
+        {
+          "id": "declaration_confirmed",
+          "label": "Declaration",
+          "type": "declaration",
+          "required": true,
+          "text": "I declare that the information in this Motion Form is true and complete to the best of my knowledge and belief. I understand that this form will be filed with the Ontario court.",
+          "checkboxLabel": "I confirm this declaration is true and accurate."
+        },
+        {
+          "id": "signature_date",
+          "label": "Date",
+          "type": "date",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "pdfMapping": {
+    "notes": "Form 14B — Motion Form. Used for consent, without notice, procedural, or unopposed motions decided on written materials without a hearing. Attach a draft order for the judge to sign. See ontario.ca/page/family-law-forms.",
+    "case_header": ["courthouse", "court_file_number", "applicant_full_name", "respondent_full_name", "moving_party"],
+    "motion_type_section": ["motion_type", "without_notice_reason", "date_motion_submitted"],
+    "orders_section": ["orders_requested_categories", "orders_requested_details", "effective_date"],
+    "grounds_section": ["grounds_narrative", "supporting_materials", "legal_authority"],
+    "service_section": ["other_party_served", "service_details", "other_party_response"],
+    "consent_section": ["is_consent_motion", "consent_basis", "children_involved_consent", "best_interests_consent"],
+    "declaration_section": ["costs_request", "declaration_confirmed", "signature_date"]
+  }
+}

@@ -1,0 +1,559 @@
+{
+  "formId": "ON-F17E",
+  "formCode": "form17e-trial-brief",
+  "title": "Form 17E — Trial Management Conference Brief",
+  "jurisdiction": "Ontario",
+  "version": "2024",
+  "description": "Prepared by each party before a trial management conference. Summarizes the issues going to trial, witnesses, evidence, time estimate, and any remaining settlement possibilities. Required under Family Law Rules Rule 17(13).",
+  "autoPopulateFrom": ["form8-general", "form13-financial", "form17-conference-notice"],
+  "steps": [
+    {
+      "stepId": "tb-step1",
+      "title": "Case Identification",
+      "description": "Confirm the court and case details. This brief must be filed and served at least 7 days before the trial management conference.",
+      "fields": [
+        {
+          "id": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "required": true,
+          "autoPopulate": "courthouse",
+          "options": [
+            "Barrie — Superior Court of Justice",
+            "Brampton — Superior Court of Justice",
+            "Brantford — Superior Court of Justice",
+            "Cornwall — Superior Court of Justice",
+            "Hamilton — Superior Court of Justice",
+            "Kingston — Superior Court of Justice",
+            "Kitchener — Superior Court of Justice",
+            "London — Superior Court of Justice",
+            "Milton — Superior Court of Justice",
+            "Newmarket — Superior Court of Justice",
+            "Oshawa — Superior Court of Justice",
+            "Ottawa — Superior Court of Justice",
+            "Peterborough — Superior Court of Justice",
+            "St. Catharines — Superior Court of Justice",
+            "Sudbury — Superior Court of Justice",
+            "Thunder Bay — Superior Court of Justice",
+            "Toronto — Superior Court of Justice",
+            "Windsor — Superior Court of Justice"
+          ]
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court file number",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "court_file_number",
+          "placeholder": "e.g. FC-2024-12345"
+        },
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "applicant_full_name",
+          "placeholder": "e.g. Jane Marie Smith"
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "respondent_full_name",
+          "placeholder": "e.g. John Robert Smith"
+        },
+        {
+          "id": "party_role",
+          "label": "You are completing this brief as",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "applicant", "label": "The Applicant" },
+            { "value": "respondent", "label": "The Respondent" }
+          ]
+        },
+        {
+          "id": "tmc_date",
+          "label": "Date of the trial management conference",
+          "type": "date",
+          "required": true,
+          "helpText": "This brief must be served on the other party and filed with the court at least 7 days before this date."
+        },
+        {
+          "id": "trial_date",
+          "label": "Scheduled trial date (if set)",
+          "type": "date",
+          "required": false,
+          "helpText": "If a trial date has already been scheduled, enter it here. Leave blank if not yet set."
+        }
+      ]
+    },
+    {
+      "stepId": "tb-step2",
+      "title": "Issues Going to Trial",
+      "description": "List every issue that has NOT been resolved and must be decided by the judge at trial. Be thorough — issues not listed here may not be raised at trial.",
+      "fields": [
+        {
+          "id": "trial_issues",
+          "label": "Issues remaining for trial (select all that apply)",
+          "type": "checkbox-group",
+          "required": true,
+          "helpText": "Only check issues that are still genuinely in dispute. Settled issues should not be listed.",
+          "options": [
+            { "value": "decision_making", "label": "Decision-making responsibility (custody)" },
+            { "value": "parenting_time", "label": "Parenting time schedule" },
+            { "value": "relocation", "label": "Relocation of a child" },
+            { "value": "child_support_amount", "label": "Amount of child support" },
+            { "value": "child_support_arrears", "label": "Child support arrears" },
+            { "value": "special_extraordinary_expenses", "label": "Special or extraordinary expenses (Section 7)" },
+            { "value": "spousal_support_entitlement", "label": "Whether spousal support should be paid (entitlement)" },
+            { "value": "spousal_support_amount", "label": "Amount of spousal support" },
+            { "value": "spousal_support_duration", "label": "Duration of spousal support" },
+            { "value": "spousal_support_arrears", "label": "Spousal support arrears" },
+            { "value": "equalization", "label": "Property equalization (net family property)" },
+            { "value": "possession_family_home", "label": "Possession of the family home" },
+            { "value": "specific_property", "label": "Division of a specific asset (pension, business, investment)" },
+            { "value": "restraining_order", "label": "Restraining or non-harassment order" },
+            { "value": "costs", "label": "Costs of the proceeding" },
+            { "value": "other_trial_issue", "label": "Other issue" }
+          ]
+        },
+        {
+          "id": "other_trial_issue_description",
+          "label": "Describe the other trial issue",
+          "type": "text",
+          "required": false,
+          "conditionalOn": { "field": "trial_issues", "value": "other_trial_issue" },
+          "placeholder": "e.g. Interpretation of a term in the separation agreement"
+        },
+        {
+          "id": "issues_resolved_before_trial",
+          "label": "Have any issues been resolved since the last conference?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No — all listed issues remain in dispute" }
+          ]
+        },
+        {
+          "id": "resolved_issues_description",
+          "label": "Describe what has been resolved",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "issues_resolved_before_trial", "value": "yes" },
+          "placeholder": "e.g. Child support has been agreed at $850/month effective September 1, 2025. Only the issue of parenting time and spousal support remain for trial."
+        }
+      ]
+    },
+    {
+      "stepId": "tb-step3",
+      "title": "Your Position on Each Issue",
+      "description": "For each issue going to trial, state your position clearly. The judge will read this to understand what you are asking for and why.",
+      "fields": [
+        {
+          "id": "position_decision_making",
+          "label": "Your position on decision-making responsibility (custody)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. I am asking for sole decision-making responsibility. The other party and I are unable to communicate effectively about the children's medical and educational decisions. The children's school records show I have been their primary caregiver throughout the relationship and since separation.",
+          "helpText": "State clearly what you are asking for and the key facts that support your position. Keep it to the point."
+        },
+        {
+          "id": "position_parenting_time",
+          "label": "Your position on parenting time",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. I am asking that the children reside primarily with me on a schedule of: school weeks with me, alternating weekends with the other party (Friday 6 p.m. to Sunday 6 p.m.), and equal sharing of statutory holidays. This mirrors the arrangement that has been in place since separation and is working well for the children."
+        },
+        {
+          "id": "position_child_support",
+          "label": "Your position on child support",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Based on the other party's annual income of $82,000 (as disclosed in their financial statement), the Child Support Guidelines amount for two children is $1,340/month. I am asking for this amount plus contribution to the children's extracurricular and medical expenses (Section 7)."
+        },
+        {
+          "id": "position_spousal_support",
+          "label": "Your position on spousal support",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. I am asking for spousal support of $1,200/month for a period of 8 years. I left full-time employment in 2018 to care for the children at the other party's request, losing significant career advancement. The Spousal Support Advisory Guidelines range is $900–$1,500/month for 6–12 years based on our incomes."
+        },
+        {
+          "id": "position_property",
+          "label": "Your position on property division / equalization",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. I am asking for an equalization payment of $47,000 based on my net family property calculation. The main assets in dispute are the RRSP ($62,000), the car ($18,000), and a business interest the other party has not fully disclosed."
+        },
+        {
+          "id": "position_other_issues",
+          "label": "Your position on any other trial issues",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Regarding costs: the other party has consistently refused to disclose financial information and rejected reasonable settlement offers. I am asking for full recovery costs on a substantial indemnity basis."
+        }
+      ]
+    },
+    {
+      "stepId": "tb-step4",
+      "title": "Witnesses",
+      "description": "List every witness you plan to call at trial. Include yourself. Failing to list a witness here may prevent you from calling them at trial.",
+      "fields": [
+        {
+          "id": "witnesses",
+          "label": "Witnesses you plan to call at trial",
+          "type": "repeatable-group",
+          "required": true,
+          "maxItems": 15,
+          "addLabel": "Add another witness",
+          "helpText": "List all witnesses including yourself. You do not need to list the other party — they are not your witness.",
+          "fields": [
+            {
+              "id": "witness_name",
+              "label": "Witness name",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Jane Smith (myself) or Dr. Sarah Lee"
+            },
+            {
+              "id": "witness_role",
+              "label": "Role or relationship to the case",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Applicant / Mother, Treating physician, Teacher at child's school, Accountant"
+            },
+            {
+              "id": "witness_testimony_summary",
+              "label": "What will this witness testify about?",
+              "type": "textarea",
+              "required": true,
+              "placeholder": "e.g. Will testify about the children's daily routine, the parenting arrangements since separation, and the Respondent's involvement (or lack thereof) in school and medical appointments."
+            },
+            {
+              "id": "witness_time_estimate",
+              "label": "Estimated time for this witness (examination + cross-examination)",
+              "type": "select",
+              "required": true,
+              "options": [
+                { "value": "30_min", "label": "30 minutes" },
+                { "value": "1_hour", "label": "1 hour" },
+                { "value": "1.5_hours", "label": "1.5 hours" },
+                { "value": "2_hours", "label": "2 hours" },
+                { "value": "half_day", "label": "Half day (3 hours)" },
+                { "value": "full_day", "label": "Full day" }
+              ]
+            },
+            {
+              "id": "witness_is_expert",
+              "label": "Is this an expert witness?",
+              "type": "radio",
+              "required": true,
+              "options": [
+                { "value": "yes", "label": "Yes — qualified expert (e.g. psychologist, appraiser, accountant)" },
+                { "value": "no", "label": "No — fact witness or party" }
+              ]
+            },
+            {
+              "id": "expert_report_served",
+              "label": "Has the expert's report been served on the other party?",
+              "type": "radio",
+              "required": false,
+              "conditionalOn": { "field": "witness_is_expert", "value": "yes" },
+              "options": [
+                { "value": "yes", "label": "Yes — served" },
+                { "value": "no", "label": "No — not yet served" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "tb-step5",
+      "title": "Evidence & Documents",
+      "description": "Identify the key documents and evidence you plan to use at trial.",
+      "fields": [
+        {
+          "id": "key_documents",
+          "label": "Key documents you plan to use at trial (select all that apply)",
+          "type": "checkbox-group",
+          "required": true,
+          "options": [
+            { "value": "financial_statements", "label": "Financial statements (Form 13 or 13.1)" },
+            { "value": "tax_returns", "label": "Income tax returns and Notices of Assessment" },
+            { "value": "pay_stubs", "label": "Pay stubs and employment records" },
+            { "value": "bank_statements", "label": "Bank statements" },
+            { "value": "property_valuations", "label": "Property appraisals or valuations" },
+            { "value": "business_records", "label": "Business financial records" },
+            { "value": "pension_records", "label": "Pension and retirement account records" },
+            { "value": "medical_records", "label": "Medical records" },
+            { "value": "school_records", "label": "School and daycare records" },
+            { "value": "parenting_records", "label": "Parenting logs, photographs, communications" },
+            { "value": "police_records", "label": "Police reports or CAS records" },
+            { "value": "text_email_records", "label": "Text messages or emails" },
+            { "value": "existing_orders", "label": "Prior court orders or agreements" },
+            { "value": "expert_reports", "label": "Expert reports (parenting assessment, valuation, etc.)" },
+            { "value": "other_documents", "label": "Other documents" }
+          ]
+        },
+        {
+          "id": "other_documents_description",
+          "label": "Describe the other documents",
+          "type": "text",
+          "required": false,
+          "conditionalOn": { "field": "key_documents", "value": "other_documents" },
+          "placeholder": "e.g. Social media posts, travel records, immigration documents"
+        },
+        {
+          "id": "continuing_record_complete",
+          "label": "Is your portion of the Continuing Record up to date?",
+          "type": "radio",
+          "required": true,
+          "helpText": "The Continuing Record is the official binder of all documents filed in your case. You are responsible for keeping your section organized and filed with the court.",
+          "options": [
+            { "value": "yes", "label": "Yes — my portion of the Continuing Record is up to date" },
+            { "value": "no", "label": "No — I need to add documents before trial" },
+            { "value": "unsure", "label": "I'm not sure — I will confirm with the court clerk" }
+          ]
+        },
+        {
+          "id": "documents_still_needed",
+          "label": "Are there any documents you still need from the other party or a third party?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No — I have all the documents I need" }
+          ]
+        },
+        {
+          "id": "documents_still_needed_details",
+          "label": "Describe what documents you still need and from whom",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "documents_still_needed", "value": "yes" },
+          "placeholder": "e.g. I am still waiting for the other party's business financial records for 2022–2024, which they have not produced despite being ordered to do so. I may need to bring a motion to compel production before trial."
+        }
+      ]
+    },
+    {
+      "stepId": "tb-step6",
+      "title": "Time Estimate for Trial",
+      "description": "The judge needs to know how long trial will take to allocate court time properly.",
+      "fields": [
+        {
+          "id": "your_time_estimate",
+          "label": "How many days do you estimate your case will take (your witnesses + your cross-examinations of the other party's witnesses)?",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "1_day", "label": "1 day" },
+            { "value": "2_days", "label": "2 days" },
+            { "value": "3_days", "label": "3 days" },
+            { "value": "4_days", "label": "4 days" },
+            { "value": "5_days", "label": "5 days (1 week)" },
+            { "value": "6_to_10_days", "label": "6–10 days (2 weeks)" },
+            { "value": "more_than_10_days", "label": "More than 10 days" }
+          ]
+        },
+        {
+          "id": "total_trial_estimate",
+          "label": "What is your estimate for the total length of trial (both parties combined)?",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "1_day", "label": "1 day" },
+            { "value": "2_days", "label": "2 days" },
+            { "value": "3_days", "label": "3 days" },
+            { "value": "4_days", "label": "4 days" },
+            { "value": "5_days", "label": "5 days (1 week)" },
+            { "value": "6_to_10_days", "label": "6–10 days" },
+            { "value": "more_than_10_days", "label": "More than 10 days" }
+          ],
+          "helpText": "This is your estimate for the whole trial — your side and the other party's side combined."
+        },
+        {
+          "id": "scheduling_constraints",
+          "label": "Are there any scheduling constraints the court should know about?",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. The expert witness (Dr. Sarah Lee) is not available in August. One of the parties has pre-booked travel July 10–17. The school-year schedule affects the children and I would prefer a trial date after September.",
+          "helpText": "List any dates to avoid for any witness or party, or any other scheduling considerations."
+        },
+        {
+          "id": "interpreter_needed",
+          "label": "Does any party or witness need a court interpreter?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "interpreter_language",
+          "label": "What language(s) does the interpreter need to speak?",
+          "type": "text",
+          "required": false,
+          "conditionalOn": { "field": "interpreter_needed", "value": "yes" },
+          "placeholder": "e.g. French, Punjabi, Mandarin"
+        },
+        {
+          "id": "accommodation_needs",
+          "label": "Are there any accessibility or accommodation needs for any party or witness?",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. The Applicant uses a wheelchair and requires an accessible courtroom. One witness has hearing loss and requires a hearing loop system.",
+          "helpText": "Contact the court's accessibility coordinator as early as possible if accommodations are needed."
+        }
+      ]
+    },
+    {
+      "stepId": "tb-step7",
+      "title": "Settlement Possibilities",
+      "description": "The trial management conference is a final opportunity to settle. The judge must be satisfied that settlement has been genuinely explored before proceeding to trial.",
+      "fields": [
+        {
+          "id": "settlement_attempts",
+          "label": "What settlement attempts have been made?",
+          "type": "checkbox-group",
+          "required": true,
+          "options": [
+            { "value": "direct_negotiation", "label": "Direct negotiation between the parties" },
+            { "value": "lawyer_negotiation", "label": "Negotiation through lawyers" },
+            { "value": "mediation", "label": "Mediation" },
+            { "value": "collaborative", "label": "Collaborative family law process" },
+            { "value": "offers_to_settle", "label": "Formal offers to settle (Rule 18)" },
+            { "value": "none", "label": "No settlement attempts have been made" }
+          ]
+        },
+        {
+          "id": "why_no_settlement",
+          "label": "Why has the case not settled?",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "e.g. The main obstacle is the other party's refusal to provide full financial disclosure, which makes it impossible to accurately value the property and calculate support. We have exchanged offers to settle on parenting but remain $400/month apart on child support.",
+          "helpText": "Be specific and factual. Identifying the real barrier to settlement often helps the judge assist at the conference."
+        },
+        {
+          "id": "still_open_to_settlement",
+          "label": "Are you still open to settling some or all issues before trial?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes_all", "label": "Yes — I am open to settling all remaining issues" },
+            { "value": "yes_some", "label": "Yes — I am open to settling some issues but not all" },
+            { "value": "no", "label": "No — I believe trial is necessary for all remaining issues" }
+          ]
+        },
+        {
+          "id": "issues_still_negotiable",
+          "label": "Which issues are you still willing to negotiate on?",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "still_open_to_settlement", "value": "yes_some" },
+          "placeholder": "e.g. I am willing to negotiate the spousal support duration and amount. I am not willing to accept anything less than primary parenting time given the children's established routine with me."
+        },
+        {
+          "id": "settlement_offer_outstanding",
+          "label": "Is there a formal settlement offer currently outstanding?",
+          "type": "radio",
+          "required": true,
+          "helpText": "A formal offer to settle (Rule 18) can affect who pays costs at the end of trial if it is rejected and the other party does not do better at trial.",
+          "options": [
+            { "value": "yes_i_made", "label": "Yes — I made an offer that has not been accepted" },
+            { "value": "yes_they_made", "label": "Yes — the other party made an offer I have not accepted" },
+            { "value": "both", "label": "Both parties have outstanding offers" },
+            { "value": "no", "label": "No — there is no outstanding offer" }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "tb-step8",
+      "title": "Orders Sought at the Conference",
+      "description": "At the trial management conference, the judge may make procedural orders. Identify what you are asking for.",
+      "fields": [
+        {
+          "id": "tmc_orders_sought",
+          "label": "At the trial management conference, I am asking the judge to",
+          "type": "checkbox-group",
+          "required": true,
+          "options": [
+            { "value": "confirm_trial_date", "label": "Confirm or set the trial date" },
+            { "value": "order_disclosure", "label": "Order the other party to provide outstanding disclosure before trial" },
+            { "value": "limit_witnesses", "label": "Set limits on the number of witnesses each party may call" },
+            { "value": "order_expert_reports", "label": "Set deadlines for serving expert reports" },
+            { "value": "exclude_witnesses", "label": "Order witnesses to be excluded from the courtroom until called" },
+            { "value": "bifurcate", "label": "Bifurcate (split) the trial — hear some issues first" },
+            { "value": "costs_order", "label": "Make a costs order based on conduct in the proceedings" },
+            { "value": "other_tmc_order", "label": "Other order" }
+          ]
+        },
+        {
+          "id": "other_tmc_order_description",
+          "label": "Describe the other order you are seeking at the TMC",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "tmc_orders_sought", "value": "other_tmc_order" },
+          "placeholder": "e.g. I am asking the judge to order that the parties attend a joint pre-trial meeting to attempt resolution on the financial issues with the assistance of a financial neutral."
+        },
+        {
+          "id": "last_minute_issues",
+          "label": "Are there any urgent matters that have arisen recently that the court should know about?",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. The other party recently informed me they intend to relocate to another province with the children before the trial date. I may need to bring an emergency motion to prevent relocation pending trial.",
+          "helpText": "Include anything that has changed since the last court attendance that affects how the trial should proceed."
+        }
+      ]
+    },
+    {
+      "stepId": "tb-step9",
+      "title": "Declaration",
+      "description": "Confirm the accuracy of your trial management conference brief before filing.",
+      "fields": [
+        {
+          "id": "brief_complete_confirmation",
+          "label": "I confirm this Trial Management Conference Brief",
+          "type": "checkbox-group",
+          "required": true,
+          "options": [
+            { "value": "accurate", "label": "Is accurate and complete to the best of my knowledge" },
+            { "value": "served", "label": "Has been or will be served on the other party at least 7 days before the conference" },
+            { "value": "filed", "label": "Has been or will be filed with the court at least 7 days before the conference" }
+          ]
+        },
+        {
+          "id": "signature_date",
+          "label": "Date of completion",
+          "type": "date",
+          "required": true
+        },
+        {
+          "id": "sworn_declaration",
+          "label": "Declaration",
+          "type": "declaration",
+          "required": true,
+          "text": "I declare that the information in this Trial Management Conference Brief is true and complete to the best of my knowledge and belief.",
+          "checkboxLabel": "I confirm this declaration is true and accurate."
+        }
+      ]
+    }
+  ],
+  "pdfMapping": {
+    "notes": "Form 17E — Trial Management Conference Brief. Filed with court and served on all parties at least 7 days before the trial management conference. See ontario.ca/page/family-law-forms for the current version.",
+    "case_identification": ["courthouse", "court_file_number", "applicant_full_name", "respondent_full_name", "party_role", "tmc_date", "trial_date"],
+    "issues_section": ["trial_issues", "issues_resolved_before_trial", "resolved_issues_description"],
+    "positions_section": ["position_decision_making", "position_parenting_time", "position_child_support", "position_spousal_support", "position_property", "position_other_issues"],
+    "witnesses_section": ["witnesses"],
+    "evidence_section": ["key_documents", "continuing_record_complete", "documents_still_needed"],
+    "time_estimate_section": ["your_time_estimate", "total_trial_estimate", "scheduling_constraints", "interpreter_needed", "accommodation_needs"],
+    "settlement_section": ["settlement_attempts", "why_no_settlement", "still_open_to_settlement", "settlement_offer_outstanding"],
+    "tmc_orders_section": ["tmc_orders_sought", "last_minute_issues"],
+    "declaration_section": ["brief_complete_confirmation", "signature_date", "sworn_declaration"]
+  }
+}

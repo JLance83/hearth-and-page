@@ -1,0 +1,912 @@
+{
+  "formId": "ON-F26B",
+  "formCode": "form23c-uncontested-trial",
+  "title": "Affidavit for Uncontested Trial",
+  "jurisdiction": "Ontario",
+  "version": "December 2020",
+  "description": "Filed when you are applying for divorce or another family law order and the other party is not contesting (disputing) the matter. Allows the court to grant the order based on your written evidence without a live hearing. Must be sworn before a commissioner of oaths.",
+  "autoPopulateFrom": [
+    "form8-general",
+    "form36-divorce"
+  ],
+  "steps": [
+    {
+      "stepId": "ud-step1",
+      "title": "About This Affidavit",
+      "description": "Form 26B allows a divorce to proceed without a court hearing. A judge reviews the written materials and grants the divorce if all requirements are met.",
+      "fields": [
+        {
+          "id": "ud_explainer",
+          "label": "When is Form 26B used?",
+          "type": "info-box",
+          "content": "**Form 26B is used when:**\n- You have filed for divorce and the other party has NOT contested it (has not filed an Answer disputing the divorce)\n- OR both parties agree to a joint divorce application\n- There is no need for a court hearing \u2014 the judge decides on the written materials\n\n**You will also need:**\n- A certified copy of your marriage certificate\n- Your Form 36 (Affidavit for Divorce) \u2014 already sworn\n- Form 25A (Order for Divorce) \u2014 the draft order for the judge to sign\n- Proof of service on the other party (Form 6B) if they were not a joint applicant\n\n**After the divorce is granted:** The divorce order becomes effective 31 days after it is made, unless the judge waives the waiting period."
+        },
+        {
+          "id": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "required": true,
+          "autoPopulate": "courthouse",
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ]
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court file number",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "court_file_number",
+          "placeholder": "e.g. FC-2024-12345"
+        },
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "applicant_full_name"
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "respondent_full_name"
+        },
+        {
+          "id": "application_type",
+          "label": "Type of divorce application",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "sole",
+              "label": "Sole application \u2014 I am the only applicant"
+            },
+            {
+              "value": "joint",
+              "label": "Joint application \u2014 both parties are applicants"
+            }
+          ]
+        },
+        {
+          "id": "deponent_role",
+          "label": "You are swearing this affidavit as",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "applicant",
+              "label": "The Applicant"
+            },
+            {
+              "value": "joint_applicant",
+              "label": "One of the joint applicants"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "ud-step2",
+      "title": "The Marriage",
+      "description": "Confirm the details of your marriage. These must match your marriage certificate exactly.",
+      "fields": [
+        {
+          "id": "marriage_date",
+          "label": "Date of marriage",
+          "type": "date",
+          "required": true,
+          "autoPopulate": "marriage_date",
+          "helpText": "Must match your marriage certificate."
+        },
+        {
+          "id": "marriage_city",
+          "label": "City or town where you were married",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Toronto"
+        },
+        {
+          "id": "marriage_province_country",
+          "label": "Province or country where you were married",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Ontario, Canada"
+        },
+        {
+          "id": "applicant_name_at_marriage",
+          "label": "Your full name at the time of marriage (if different from current name)",
+          "type": "text",
+          "required": false,
+          "placeholder": "Leave blank if your name has not changed"
+        },
+        {
+          "id": "respondent_name_at_marriage",
+          "label": "Other party's full name at the time of marriage (if different from current name)",
+          "type": "text",
+          "required": false,
+          "placeholder": "Leave blank if their name has not changed"
+        },
+        {
+          "id": "marriage_certificate_available",
+          "label": "Do you have a certified copy of your marriage certificate?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes \u2014 I will attach a certified copy"
+            },
+            {
+              "value": "no",
+              "label": "No \u2014 I need to obtain one"
+            },
+            {
+              "value": "applied_for",
+              "label": "I have applied for one and it is pending"
+            }
+          ],
+          "helpText": "A certified copy of your marriage certificate is required to be filed with your divorce application. Obtain one from ServiceOntario or the vital statistics office in the jurisdiction where you were married."
+        },
+        {
+          "id": "marriage_certificate_note",
+          "label": "If you do not have a marriage certificate, explain why and what steps you are taking",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": {
+            "field": "marriage_certificate_available",
+            "value": "no",
+            "orValues": [
+              "no",
+              "applied_for"
+            ]
+          },
+          "placeholder": "e.g. We were married in India. I have applied to the Indian government registry for a certified copy and expect to receive it within 8\u201310 weeks. I am asking the court to allow me to file the certificate once received."
+        }
+      ]
+    },
+    {
+      "stepId": "ud-step3",
+      "title": "Residence & Jurisdiction",
+      "description": "The court must confirm it has jurisdiction to grant the divorce. At least one spouse must have lived in Ontario for at least one year before the divorce application was filed.",
+      "fields": [
+        {
+          "id": "applicant_current_address",
+          "label": "Your current address",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "applicant_address",
+          "placeholder": "e.g. 123 Main St, Toronto ON M5V 1A1"
+        },
+        {
+          "id": "applicant_residency_duration",
+          "label": "How long have you lived in Ontario?",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "more_than_1_year",
+              "label": "More than 1 year \u2014 I have lived in Ontario for at least 1 year"
+            },
+            {
+              "value": "less_than_1_year",
+              "label": "Less than 1 year \u2014 I have not lived in Ontario for a full year yet"
+            }
+          ],
+          "helpText": "You must have been ordinarily resident in Ontario for at least one year immediately before the divorce application was filed."
+        },
+        {
+          "id": "residency_note",
+          "label": "Note on residency requirement",
+          "type": "info-box",
+          "conditionalOn": {
+            "field": "applicant_residency_duration",
+            "value": "less_than_1_year"
+          },
+          "content": "If you have not lived in Ontario for at least one year, check whether your spouse has \u2014 if so, they may need to be the applicant, or you may need to wait until the one-year requirement is met."
+        },
+        {
+          "id": "respondent_address_known",
+          "label": "Do you know the other party's current address?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No \u2014 their address is not known to me"
+            }
+          ]
+        },
+        {
+          "id": "respondent_current_address",
+          "label": "Other party's current address",
+          "type": "text",
+          "required": false,
+          "conditionalOn": {
+            "field": "respondent_address_known",
+            "value": "yes"
+          },
+          "placeholder": "e.g. 456 Oak Ave, Ottawa ON K1A 0A1"
+        }
+      ]
+    },
+    {
+      "stepId": "ud-step4",
+      "title": "Separation",
+      "description": "Confirm the separation facts. One year of separation is the most common ground for divorce in Canada.",
+      "fields": [
+        {
+          "id": "separation_date",
+          "label": "Date you and your spouse separated",
+          "type": "date",
+          "required": true,
+          "autoPopulate": "separation_date",
+          "helpText": "The date one or both of you decided the marriage was over."
+        },
+        {
+          "id": "separated_one_year",
+          "label": "Have you lived separate and apart for at least one year as of today?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes \u2014 we have been separated for at least one year"
+            },
+            {
+              "value": "no",
+              "label": "No \u2014 we have not yet been separated for one year"
+            }
+          ],
+          "helpText": "You must have been separated for at least one year before the divorce can be granted."
+        },
+        {
+          "id": "not_yet_separated_note",
+          "label": "Separation requirement not yet met",
+          "type": "info-box",
+          "conditionalOn": {
+            "field": "separated_one_year",
+            "value": "no"
+          },
+          "content": "You can file a divorce application before the one-year anniversary of your separation \u2014 but the court will not grant the divorce until one year has passed. Make note of your one-year anniversary date and follow up with the court at that time."
+        },
+        {
+          "id": "reconciliation_attempts",
+          "label": "Did you and your spouse attempt to reconcile after separating?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes \u2014 we had a period of attempted reconciliation"
+            },
+            {
+              "value": "no",
+              "label": "No \u2014 we did not attempt to reconcile"
+            }
+          ]
+        },
+        {
+          "id": "reconciliation_details",
+          "label": "Describe the reconciliation attempt(s)",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": {
+            "field": "reconciliation_attempts",
+            "value": "yes"
+          },
+          "placeholder": "e.g. We reconciled from October 1 to October 28, 2024 (28 days). We then separated again on October 29, 2024. Our total reconciliation period was less than 90 days so our one-year separation clock was not reset.",
+          "helpText": "Reconciliation periods of 90 days or less (combined) do not reset the one-year clock. Periods over 90 days do reset it."
+        },
+        {
+          "id": "no_reasonable_chance",
+          "label": "Is there any reasonable chance of reconciliation?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "no",
+              "label": "No \u2014 there is no reasonable chance of reconciliation"
+            },
+            {
+              "value": "yes",
+              "label": "Yes \u2014 there may be a possibility"
+            }
+          ],
+          "helpText": "You must confirm there is no reasonable chance of reconciliation for the court to grant the divorce."
+        },
+        {
+          "id": "separated_same_home",
+          "label": "Did you live in the same home after separating?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes \u2014 we continued to live in the same home after separating"
+            },
+            {
+              "value": "no",
+              "label": "No \u2014 we moved to separate homes when we separated"
+            }
+          ]
+        },
+        {
+          "id": "same_home_details",
+          "label": "Describe how you lived separately in the same home",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": {
+            "field": "separated_same_home",
+            "value": "yes"
+          },
+          "placeholder": "e.g. After we separated on March 1, 2024, we continued to share the house due to financial constraints. We slept in separate bedrooms, had no intimate relationship, ate separately, and managed our finances independently. We told family and friends that we had separated. I moved out on September 15, 2024.",
+          "helpText": "The court must be satisfied you were truly living 'separate and apart' even if under the same roof. Be specific."
+        }
+      ]
+    },
+    {
+      "stepId": "ud-step5",
+      "title": "Children",
+      "description": "Confirm whether there are children of the marriage and what support arrangements are in place.",
+      "fields": [
+        {
+          "id": "has_children",
+          "label": "Are there any children of the marriage \u2014 under 18, or 18 or over but still dependent?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No \u2014 there are no children of the marriage"
+            }
+          ],
+          "helpText": "Children of the marriage include biological, adopted, and step-children who were treated as children of the family."
+        },
+        {
+          "id": "children_list",
+          "label": "List the children",
+          "type": "repeatable-group",
+          "required": false,
+          "conditionalOnParent": {
+            "field": "has_children",
+            "value": "yes"
+          },
+          "maxItems": 8,
+          "addLabel": "Add another child",
+          "fields": [
+            {
+              "id": "child_name",
+              "label": "Child's full name",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Alex Jordan Smith"
+            },
+            {
+              "id": "child_dob",
+              "label": "Date of birth",
+              "type": "date",
+              "required": true
+            },
+            {
+              "id": "child_lives_with",
+              "label": "Child currently lives with",
+              "type": "select",
+              "required": true,
+              "options": [
+                {
+                  "value": "applicant",
+                  "label": "The Applicant"
+                },
+                {
+                  "value": "respondent",
+                  "label": "The Respondent"
+                },
+                {
+                  "value": "both_equal",
+                  "label": "Both parents (shared/equal time)"
+                },
+                {
+                  "value": "other",
+                  "label": "Another person"
+                }
+              ]
+            },
+            {
+              "id": "child_still_dependent",
+              "label": "Is this child still dependent (if 18 or over)?",
+              "type": "radio",
+              "required": false,
+              "options": [
+                {
+                  "value": "yes_still_dependent",
+                  "label": "Yes \u2014 still in school or otherwise dependent"
+                },
+                {
+                  "value": "no_independent",
+                  "label": "No \u2014 fully independent"
+                },
+                {
+                  "value": "under_18",
+                  "label": "Under 18 \u2014 automatically a child of the marriage"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "child_support_in_place",
+          "label": "Are reasonable arrangements in place for child support?",
+          "type": "radio",
+          "required": false,
+          "conditionalOn": {
+            "field": "has_children",
+            "value": "yes"
+          },
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes \u2014 child support is in place"
+            },
+            {
+              "value": "no",
+              "label": "No \u2014 child support has not been arranged"
+            }
+          ],
+          "helpText": "The court will not grant the divorce unless satisfied that reasonable support arrangements exist for the children."
+        },
+        {
+          "id": "child_support_details",
+          "label": "Describe the child support arrangements",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": {
+            "field": "child_support_in_place",
+            "value": "yes"
+          },
+          "placeholder": "e.g. The Respondent pays child support of $1,200 per month pursuant to the Federal Child Support Guidelines, as set out in the separation agreement dated March 15, 2025. Payments are made through the Family Responsibility Office."
+        },
+        {
+          "id": "parenting_arrangement_details",
+          "label": "Describe the parenting (custody/access) arrangement",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": {
+            "field": "has_children",
+            "value": "yes"
+          },
+          "placeholder": "e.g. The children reside primarily with the Applicant. The Respondent has parenting time every other weekend from Friday 6 p.m. to Sunday 6 p.m. and Wednesday evenings from 4 p.m. to 7 p.m. This is set out in the separation agreement dated March 15, 2025."
+        }
+      ]
+    },
+    {
+      "stepId": "ud-step6",
+      "title": "Service on the Other Party",
+      "description": "Confirm how the other party was served with the divorce application, or why service is not required.",
+      "fields": [
+        {
+          "id": "service_situation",
+          "label": "Service of the divorce application",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "served_personally",
+              "label": "The other party was personally served with the application"
+            },
+            {
+              "value": "served_by_mail",
+              "label": "The other party was served by mail"
+            },
+            {
+              "value": "served_by_lawyer",
+              "label": "Service was accepted by the other party's lawyer"
+            },
+            {
+              "value": "joint_application",
+              "label": "This is a joint application \u2014 service is not required"
+            },
+            {
+              "value": "court_dispensed_service",
+              "label": "The court dispensed with service"
+            }
+          ]
+        },
+        {
+          "id": "service_date",
+          "label": "Date the other party was served",
+          "type": "date",
+          "required": false,
+          "conditionalOn": {
+            "field": "service_situation",
+            "value": "joint_application",
+            "inverse": true
+          },
+          "helpText": "This should match the date on your Form 6B (Affidavit of Service)."
+        },
+        {
+          "id": "respondent_did_not_contest",
+          "label": "Did the other party file an Answer contesting the divorce?",
+          "type": "radio",
+          "required": false,
+          "conditionalOn": {
+            "field": "service_situation",
+            "value": "joint_application",
+            "inverse": true
+          },
+          "options": [
+            {
+              "value": "no",
+              "label": "No \u2014 they did not file an Answer"
+            },
+            {
+              "value": "yes",
+              "label": "Yes \u2014 they filed a response"
+            }
+          ],
+          "helpText": "Form 26B can only be used if the divorce is uncontested. If the other party filed an Answer, you may need to proceed to a hearing instead."
+        },
+        {
+          "id": "answer_filed_note",
+          "label": "Other party filed a response",
+          "type": "info-box",
+          "conditionalOn": {
+            "field": "respondent_did_not_contest",
+            "value": "yes"
+          },
+          "content": "If the other party filed an Answer to your divorce application, the divorce may be contested and cannot proceed on written materials alone. Contact the court clerk to discuss whether a hearing is required. Form 26B may not be the appropriate form for your situation."
+        }
+      ]
+    },
+    {
+      "stepId": "ud-step7",
+      "title": "Previous Divorce Proceedings",
+      "description": "Disclose any previous divorce or family law proceedings between you and the other party.",
+      "fields": [
+        {
+          "id": "previous_divorce_proceedings",
+          "label": "Are there any other divorce or family law proceedings between you and the other party in any court in Canada or elsewhere?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        {
+          "id": "previous_proceedings_details",
+          "label": "Describe the other proceedings",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": {
+            "field": "previous_divorce_proceedings",
+            "value": "yes"
+          },
+          "placeholder": "e.g. There is an existing Ontario Superior Court of Justice proceeding (File No. FC-2024-12345) which is the proceeding within which this divorce application is filed. There are no other proceedings in any other court in Canada or internationally."
+        },
+        {
+          "id": "existing_separation_agreement",
+          "label": "Do you have a signed separation agreement?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        {
+          "id": "separation_agreement_details",
+          "label": "Describe the separation agreement",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": {
+            "field": "existing_separation_agreement",
+            "value": "yes"
+          },
+          "placeholder": "e.g. The parties executed a separation agreement dated March 15, 2025, which addresses parenting, child support, spousal support, and property division. A copy is filed with the court."
+        }
+      ]
+    },
+    {
+      "stepId": "ud-step8",
+      "title": "Collusion & No Reconciliation",
+      "description": "Standard declarations required by the Divorce Act.",
+      "fields": [
+        {
+          "id": "no_collusion",
+          "label": "Declaration regarding collusion",
+          "type": "checkbox",
+          "required": true,
+          "checkboxLabel": "I confirm that there has been no collusion in relation to this divorce application \u2014 meaning no agreement, conspiracy, or arrangement to fabricate or suppress evidence or to deceive the court.",
+          "helpText": "Collusion is extremely rare in practice but must be declared. It refers to a secret agreement to mislead the court \u2014 for example, fabricating grounds for divorce."
+        },
+        {
+          "id": "no_condonation",
+          "label": "Declaration regarding condonation",
+          "type": "checkbox",
+          "required": true,
+          "checkboxLabel": "I confirm that I have not condoned any conduct that might otherwise be raised as a ground for divorce.",
+          "helpText": "Condonation means forgiving a matrimonial offence (such as adultery or cruelty) and resuming the marriage knowing about it. For separation-based divorces, this is generally not applicable."
+        },
+        {
+          "id": "divorce_grounds",
+          "label": "Grounds for divorce",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "separation",
+              "label": "Separation \u2014 we have been separated for at least one year (most common)"
+            },
+            {
+              "value": "adultery",
+              "label": "Adultery \u2014 my spouse committed adultery"
+            },
+            {
+              "value": "cruelty",
+              "label": "Physical or mental cruelty"
+            }
+          ],
+          "helpText": "Virtually all Canadian divorces proceed on the grounds of one year's separation. Adultery and cruelty are very rarely used because they are more difficult to prove."
+        }
+      ]
+    },
+    {
+      "stepId": "ud-step9",
+      "title": "Name Change (Optional)",
+      "description": "If you wish to resume a former name after the divorce, this can be included in the divorce order.",
+      "fields": [
+        {
+          "id": "name_change_requested",
+          "label": "Do you want to resume a former surname after the divorce?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes \u2014 I want to resume a former name"
+            },
+            {
+              "value": "no",
+              "label": "No \u2014 I do not want to change my name"
+            }
+          ],
+          "helpText": "You can resume a surname you used before the marriage. The divorce order itself serves as proof of the name change \u2014 no separate process is required."
+        },
+        {
+          "id": "name_to_resume",
+          "label": "Surname you want to resume",
+          "type": "text",
+          "required": false,
+          "conditionalOn": {
+            "field": "name_change_requested",
+            "value": "yes"
+          },
+          "placeholder": "e.g. Johnson (your surname before marriage)"
+        },
+        {
+          "id": "waive_31_days",
+          "label": "Are you asking the court to waive the standard 31-day waiting period before the divorce takes effect?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "no",
+              "label": "No \u2014 the standard 31-day effective date is fine"
+            },
+            {
+              "value": "yes",
+              "label": "Yes \u2014 I am asking the court to waive the 31-day period"
+            }
+          ],
+          "helpText": "The divorce normally becomes effective 31 days after the order is made \u2014 this allows time for an appeal. The waiting period is rarely waived; it requires a compelling reason such as an imminent remarriage."
+        },
+        {
+          "id": "waive_reason",
+          "label": "Reason for requesting the 31-day waiver",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": {
+            "field": "waive_31_days",
+            "value": "yes"
+          },
+          "placeholder": "e.g. Both parties consent to the divorce taking immediate effect. The Applicant plans to remarry on [date] and needs the divorce to be final before that date. Both parties waive their right to appeal."
+        }
+      ]
+    },
+    {
+      "stepId": "ud-step10",
+      "title": "Documents Checklist & Declaration",
+      "description": "Confirm what documents you are filing with this affidavit and swear to the accuracy of your information.",
+      "fields": [
+        {
+          "id": "documents_filed",
+          "label": "Documents you are filing with this affidavit",
+          "type": "checkbox-group",
+          "required": true,
+          "helpText": "Check all that apply. You must file all required documents together.",
+          "options": [
+            {
+              "value": "divorce_application",
+              "label": "Divorce application (Form 8A)"
+            },
+            {
+              "value": "form36",
+              "label": "Form 36 \u2014 Affidavit for Divorce (sworn)"
+            },
+            {
+              "value": "form25a",
+              "label": "Form 25A \u2014 Order for Divorce (draft, unsigned)"
+            },
+            {
+              "value": "marriage_certificate",
+              "label": "Certified copy of the marriage certificate"
+            },
+            {
+              "value": "form6b",
+              "label": "Form 6B \u2014 Affidavit of Service (proof of service on the other party)"
+            },
+            {
+              "value": "separation_agreement",
+              "label": "Separation agreement (if one exists)"
+            },
+            {
+              "value": "draft_minutes",
+              "label": "Minutes of settlement or draft consent order"
+            },
+            {
+              "value": "other_form",
+              "label": "Other court forms or documents"
+            }
+          ]
+        },
+        {
+          "id": "other_documents_description",
+          "label": "Describe other documents being filed",
+          "type": "text",
+          "required": false,
+          "conditionalOn": {
+            "field": "documents_filed",
+            "value": "other_form"
+          },
+          "placeholder": "e.g. Financial statement Form 13, property valuation report"
+        },
+        {
+          "id": "swear_or_affirm",
+          "label": "Will you swear or affirm?",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "swear",
+              "label": "Swear (on a religious text)"
+            },
+            {
+              "value": "affirm",
+              "label": "Affirm (non-religious solemn declaration)"
+            }
+          ]
+        },
+        {
+          "id": "municipality_of_swearing",
+          "label": "Municipality where you will swear or affirm this affidavit",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Toronto"
+        },
+        {
+          "id": "commissioning_date",
+          "label": "Date of commissioning (leave blank to complete at courthouse)",
+          "type": "date",
+          "required": false
+        },
+        {
+          "id": "sworn_declaration",
+          "label": "Declaration",
+          "type": "declaration",
+          "required": true,
+          "text": "I, the deponent, declare that the contents of this affidavit are true and complete to the best of my knowledge and belief. I make this solemn declaration conscientiously believing it to be true and knowing that it is of the same force and effect as if made under oath.",
+          "checkboxLabel": "I confirm this declaration is true and accurate."
+        }
+      ]
+    }
+  ],
+  "pdfMapping": {
+    "notes": "Form 26B \u2014 Affidavit (Divorce) for uncontested divorce applications. Must be sworn before a commissioner of oaths. Filed with Form 36, Form 25A, marriage certificate, and proof of service. See ontario.ca/page/family-law-forms.",
+    "case_header": [
+      "courthouse",
+      "court_file_number",
+      "applicant_full_name",
+      "respondent_full_name",
+      "application_type",
+      "deponent_role"
+    ],
+    "marriage_section": [
+      "marriage_date",
+      "marriage_city",
+      "marriage_province_country",
+      "marriage_certificate_available"
+    ],
+    "residence_section": [
+      "applicant_current_address",
+      "applicant_residency_duration"
+    ],
+    "separation_section": [
+      "separation_date",
+      "separated_one_year",
+      "reconciliation_attempts",
+      "no_reasonable_chance",
+      "separated_same_home"
+    ],
+    "children_section": [
+      "has_children",
+      "children_list",
+      "child_support_in_place",
+      "parenting_arrangement_details"
+    ],
+    "service_section": [
+      "service_situation",
+      "service_date",
+      "respondent_did_not_contest"
+    ],
+    "previous_proceedings": [
+      "previous_divorce_proceedings",
+      "existing_separation_agreement"
+    ],
+    "declarations": [
+      "no_collusion",
+      "no_condonation",
+      "divorce_grounds"
+    ],
+    "name_change": [
+      "name_change_requested",
+      "name_to_resume",
+      "waive_31_days"
+    ],
+    "documents_and_oath": [
+      "documents_filed",
+      "swear_or_affirm",
+      "municipality_of_swearing",
+      "sworn_declaration"
+    ]
+  },
+  "formNumber": "Form 23C"
+}

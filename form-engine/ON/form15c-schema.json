@@ -1,0 +1,465 @@
+{
+  "formId": "ON-F23",
+  "jurisdiction": "ON",
+  "pdfFileName": "form23.pdf",
+  "title": "Consent Motion to Change",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules (FLR 15)",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "helpIntro": "Form 23 is used when both parties agree to change an existing court order \u2014 for example, changing a support amount, a parenting schedule, or another term \u2014 without having to go to a full court hearing. Both parties must sign this form. If one party does not agree, you must use Form 14 (Notice of Motion) instead.",
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 6",
+      "intro": "Enter the court file information from the existing order you want to change.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number (from the existing order)",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": true,
+          "placeholder": "e.g. FC-2024-12345",
+          "helpText": "This is printed on the court order you want to change.",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "existingOrderDate",
+          "label": "Date of the existing order you want to change",
+          "type": "date",
+          "required": true,
+          "helpText": "The date printed at the top or bottom of the order.",
+          "pdfFieldName": "Existing order date"
+        },
+        {
+          "fieldId": "existingOrderJudge",
+          "label": "Name of the judge or officer who made the existing order (if known)",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. Justice Smith",
+          "pdfFieldName": "Existing order judge"
+        }
+      ]
+    },
+    {
+      "partId": "parties",
+      "title": "The parties",
+      "subtitle": "Step 2 of 6",
+      "intro": "Confirm both parties' names and contact information.",
+      "fields": [
+        {
+          "fieldId": "applicantFullName",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "pdfFieldName": "Applicant full name",
+          "id": "applicant_full_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "applicantAddress",
+          "label": "Applicant's address for service",
+          "type": "text",
+          "source": "profile.applicant.address",
+          "required": true,
+          "pdfFieldName": "Applicant address",
+          "id": "applicant_address",
+          "autoFill": "user_address"
+        },
+        {
+          "fieldId": "applicantCity",
+          "label": "City",
+          "type": "text",
+          "source": "profile.applicant.city",
+          "required": true,
+          "pdfFieldName": "Applicant city"
+        },
+        {
+          "fieldId": "applicantPostalCode",
+          "label": "Postal code",
+          "type": "text",
+          "source": "profile.applicant.postalCode",
+          "required": true,
+          "pdfFieldName": "Applicant postal code"
+        },
+        {
+          "fieldId": "applicantPhone",
+          "label": "Phone number",
+          "type": "tel",
+          "source": "profile.applicant.phone",
+          "required": true,
+          "pdfFieldName": "Applicant phone",
+          "id": "applicant_phone",
+          "autoFill": "user_phone"
+        },
+        {
+          "fieldId": "respondentFullName",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "pdfFieldName": "Respondent full name",
+          "id": "respondent_full_name",
+          "autoFill": "respondent_full_name"
+        },
+        {
+          "fieldId": "respondentAddress",
+          "label": "Respondent's address for service",
+          "type": "text",
+          "source": "profile.respondent.address",
+          "required": false,
+          "pdfFieldName": "Respondent address"
+        },
+        {
+          "fieldId": "respondentPhone",
+          "label": "Respondent's phone number",
+          "type": "tel",
+          "source": "profile.respondent.phone",
+          "required": false,
+          "pdfFieldName": "Respondent phone"
+        }
+      ]
+    },
+    {
+      "partId": "whatToChange",
+      "title": "What you want to change",
+      "subtitle": "Step 3 of 6",
+      "intro": "Describe exactly what terms of the existing order you both agree to change. Be specific \u2014 the judge will make the new order based on exactly what you write here.",
+      "fields": [
+        {
+          "fieldId": "changeChildSupport",
+          "label": "Are you changing child support?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Change child support"
+        },
+        {
+          "fieldId": "childSupportCurrentAmount",
+          "label": "Current child support amount in the existing order",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeChildSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "pdfFieldName": "Child support current amount"
+        },
+        {
+          "fieldId": "childSupportNewAmount",
+          "label": "New child support amount you both agree to",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeChildSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "pdfFieldName": "Child support new amount"
+        },
+        {
+          "fieldId": "childSupportChangeDate",
+          "label": "Start date for the new child support amount",
+          "type": "date",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeChildSupport",
+            "showWhen": "yes"
+          },
+          "helpText": "Usually the first of the month following the agreed change.",
+          "pdfFieldName": "Child support change date"
+        },
+        {
+          "fieldId": "childSupportChangeReason",
+          "label": "Why are you changing child support?",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeChildSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. The payor's income has changed. The payor now earns $X per year. The new amount reflects the applicable Child Support Guidelines table amount.",
+          "helpText": "The court needs to know there has been a material change in circumstances.",
+          "pdfFieldName": "Child support change reason"
+        },
+        {
+          "fieldId": "changeSpousalSupport",
+          "label": "Are you changing spousal support?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Change spousal support"
+        },
+        {
+          "fieldId": "spousalSupportCurrentAmount",
+          "label": "Current spousal support amount in the existing order",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeSpousalSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "pdfFieldName": "Spousal support current amount"
+        },
+        {
+          "fieldId": "spousalSupportNewAmount",
+          "label": "New spousal support amount you both agree to",
+          "type": "currency",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeSpousalSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "0.00",
+          "helpText": "Enter 0 if you are agreeing to terminate spousal support.",
+          "pdfFieldName": "Spousal support new amount"
+        },
+        {
+          "fieldId": "spousalSupportChangeDate",
+          "label": "Start date for the new spousal support amount",
+          "type": "date",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeSpousalSupport",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Spousal support change date"
+        },
+        {
+          "fieldId": "spousalSupportChangeReason",
+          "label": "Why are you changing spousal support?",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeSpousalSupport",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. The recipient has become self-sufficient and both parties agree support should end.",
+          "pdfFieldName": "Spousal support change reason"
+        },
+        {
+          "fieldId": "changeParenting",
+          "label": "Are you changing parenting time or decision-making?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Change parenting"
+        },
+        {
+          "fieldId": "parentingCurrentArrangement",
+          "label": "Current parenting arrangement in the existing order",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeParenting",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. Currently: children live primarily with Applicant, Respondent has parenting time every other weekend.",
+          "pdfFieldName": "Parenting current arrangement"
+        },
+        {
+          "fieldId": "parentingNewArrangement",
+          "label": "New parenting arrangement you both agree to",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeParenting",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. New arrangement: children alternate weekly between both homes (week-on, week-off). Each parent to have the children on their respective weeks from Sunday at 6:00 p.m. to the following Sunday at 6:00 p.m.",
+          "helpText": "Be as specific as possible \u2014 include days, times, holiday schedules, and any special provisions.",
+          "pdfFieldName": "Parenting new arrangement"
+        },
+        {
+          "fieldId": "changeParentingReason",
+          "label": "Why are you changing the parenting arrangement?",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeParenting",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. The children are older and both parties agree a week-on, week-off schedule better meets the children's current needs and schedules.",
+          "pdfFieldName": "Change parenting reason"
+        },
+        {
+          "fieldId": "changeOther",
+          "label": "Are you changing any other terms of the existing order?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Change other"
+        },
+        {
+          "fieldId": "otherChangeDescription",
+          "label": "Describe the other changes you both agree to",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "changeOther",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. Paragraph 4 of the existing order regarding the family pet is deleted. The parties agree that the dog 'Max' shall reside primarily with the Applicant.",
+          "pdfFieldName": "Other change description"
+        }
+      ]
+    },
+    {
+      "partId": "children",
+      "title": "Children (if applicable)",
+      "subtitle": "Step 4 of 6",
+      "intro": "If the changes affect children, provide their details.",
+      "fields": [
+        {
+          "fieldId": "hasChildren",
+          "label": "Do the changes involve children?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Has children"
+        },
+        {
+          "fieldId": "childrenDetails",
+          "label": "List the children (name and date of birth)",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildren",
+            "showWhen": "yes"
+          },
+          "source": "profile.children.list",
+          "placeholder": "Alex Lance \u2014 born April 12, 2015\nSam Lance \u2014 born September 3, 2018",
+          "pdfFieldName": "Children details"
+        },
+        {
+          "fieldId": "childrenBestInterests",
+          "label": "Why are the proposed changes in the best interests of the children?",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildren",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. Both parties agree that the children are old enough to benefit from equal time with each parent. Both parents live within the same school district so the children's routines will not be disrupted.",
+          "pdfFieldName": "Children best interests"
+        }
+      ]
+    },
+    {
+      "partId": "consent",
+      "title": "Consent of both parties",
+      "subtitle": "Step 5 of 6",
+      "intro": "Both parties must consent to the changes. This section confirms that both of you agree freely and without pressure.",
+      "fields": [
+        {
+          "fieldId": "applicantConsents",
+          "label": "I (the applicant) freely consent to the changes described in this form.",
+          "type": "checkbox",
+          "required": true,
+          "pdfFieldName": "Applicant consents"
+        },
+        {
+          "fieldId": "applicantConsentDate",
+          "label": "Date of applicant's consent",
+          "type": "date",
+          "required": true,
+          "pdfFieldName": "Applicant consent date"
+        },
+        {
+          "fieldId": "respondentConsentConfirmed",
+          "label": "I confirm the respondent has also agreed to these changes and will sign this form.",
+          "type": "checkbox",
+          "required": true,
+          "helpText": "The respondent must physically sign the printed form before it is filed. Both signatures are required.",
+          "pdfFieldName": "Respondent consent confirmed"
+        },
+        {
+          "fieldId": "neitherPartyHasCounsel",
+          "label": "Have both parties had an opportunity to get legal advice before signing?",
+          "type": "yesno",
+          "required": false,
+          "helpText": "You are not required to have a lawyer, but the court will want to know you both understood what you were agreeing to.",
+          "pdfFieldName": "Legal advice opportunity"
+        }
+      ]
+    },
+    {
+      "partId": "review",
+      "title": "Review and finalize",
+      "subtitle": "Step 6 of 6",
+      "intro": "Review the consent motion. Once both parties sign the printed version, file it with the court clerk. You do not need a hearing \u2014 the clerk will submit it to a judge for approval.",
+      "fields": [
+        {
+          "fieldId": "effectiveDate",
+          "label": "When should the new order take effect?",
+          "type": "date",
+          "required": false,
+          "helpText": "Leave blank if you want it to take effect immediately upon the court's approval.",
+          "pdfFieldName": "Effective date"
+        },
+        {
+          "fieldId": "costsAgreement",
+          "label": "Agreement on costs",
+          "type": "select",
+          "required": false,
+          "options": [
+            "No order as to costs \u2014 each party pays their own",
+            "Costs to be determined by the court",
+            "Other arrangement (describe below)"
+          ],
+          "pdfFieldName": "Costs agreement"
+        },
+        {
+          "fieldId": "additionalTerms",
+          "label": "Any additional terms both parties agree to include",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. The parties shall communicate regarding the children via the OurFamilyWizard app only.",
+          "pdfFieldName": "Additional terms"
+        },
+        {
+          "fieldId": "declarationConfirmed",
+          "label": "I confirm this Consent Motion accurately reflects the agreement of both parties and I am signing freely and voluntarily.",
+          "type": "checkbox",
+          "required": true,
+          "pdfFieldName": "Declaration confirmed"
+        }
+      ]
+    }
+  ],
+  "formCode": "form15c-consent-change",
+  "formNumber": "Form 15C",
+  "version": "December 2020",
+  "description": "Used when both parties agree to change an existing court order and want to do so by consent, without a hearing. Must be signed by both parties or their lawyers. Used for changes to child support, spousal support, or parenting arrangements."
+}

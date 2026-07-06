@@ -1,0 +1,834 @@
+{
+  "formId": "ON-F13B",
+  "formCode": "form13b-net-family-property",
+  "title": "Form 13B — Net Family Property Statement",
+  "jurisdiction": "Ontario",
+  "version": "2024",
+  "description": "Used to calculate the equalization of net family property under Part I of the Family Law Act. Each party completes their own Form 13B. The difference between the two net family property values determines the equalization payment owed from one spouse to the other.",
+  "autoPopulateFrom": ["form8-general", "form13-financial", "form13_1-property"],
+  "steps": [
+    {
+      "stepId": "nfp-step1",
+      "title": "About This Form",
+      "description": "Form 13B calculates your net family property (NFP) — the foundation of property equalization in Ontario.",
+      "fields": [
+        {
+          "id": "nfp_explainer",
+          "label": "How equalization works in Ontario",
+          "type": "info-box",
+          "content": "**Ontario's equalization of net family property** means that when a marriage ends, each spouse keeps what they brought in — but they share equally in what was accumulated during the marriage.\n\n**How it works:**\n1. Calculate your assets and debts on the **valuation date** (usually the date you separated)\n2. Subtract your assets and debts on the **date of marriage** (your starting point)\n3. Subtract any **excluded property** (gifts, inheritances, and certain other assets)\n4. The result is your **Net Family Property (NFP)**\n5. The spouse with the higher NFP pays the other half the difference — this is the **equalization payment**\n\n**You need:** your separation date, your marriage date, values of all property at both dates, and records of any gifts or inheritances."
+        },
+        {
+          "id": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "required": true,
+          "autoPopulate": "courthouse",
+          "options": [
+            "Barrie — Superior Court of Justice",
+            "Brampton — Superior Court of Justice",
+            "Brantford — Superior Court of Justice",
+            "Cornwall — Superior Court of Justice",
+            "Hamilton — Superior Court of Justice",
+            "Kingston — Superior Court of Justice",
+            "Kitchener — Superior Court of Justice",
+            "London — Superior Court of Justice",
+            "Milton — Superior Court of Justice",
+            "Newmarket — Superior Court of Justice",
+            "Oshawa — Superior Court of Justice",
+            "Ottawa — Superior Court of Justice",
+            "Peterborough — Superior Court of Justice",
+            "St. Catharines — Superior Court of Justice",
+            "Sudbury — Superior Court of Justice",
+            "Thunder Bay — Superior Court of Justice",
+            "Toronto — Superior Court of Justice",
+            "Windsor — Superior Court of Justice"
+          ]
+        },
+        {
+          "id": "court_file_number",
+          "label": "Court file number",
+          "type": "text",
+          "required": false,
+          "autoPopulate": "court_file_number",
+          "placeholder": "e.g. FC-2024-12345"
+        },
+        {
+          "id": "applicant_full_name",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "applicant_full_name"
+        },
+        {
+          "id": "respondent_full_name",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "required": true,
+          "autoPopulate": "respondent_full_name"
+        },
+        {
+          "id": "completing_party",
+          "label": "You are completing this form as",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "applicant", "label": "The Applicant" },
+            { "value": "respondent", "label": "The Respondent" }
+          ]
+        },
+        {
+          "id": "marriage_date",
+          "label": "Date of marriage",
+          "type": "date",
+          "required": true,
+          "autoPopulate": "marriage_date",
+          "helpText": "The date your marriage was legally performed."
+        },
+        {
+          "id": "valuation_date",
+          "label": "Valuation date (usually your separation date)",
+          "type": "date",
+          "required": true,
+          "autoPopulate": "separation_date",
+          "helpText": "The valuation date is the earliest of: the date you separated, the date a divorce order is made, or the date of an event triggering equalization. Usually this is your separation date."
+        }
+      ]
+    },
+    {
+      "stepId": "nfp-step2",
+      "title": "Assets on Valuation Date",
+      "description": "List the value of everything you owned on the valuation date (your separation date). Include all assets even if they were partially or fully inherited or gifted — you will deduct excluded property later.",
+      "fields": [
+        {
+          "id": "asset_family_home_value",
+          "label": "Family home — value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Enter the fair market value. Use a recent appraisal if available. If you do not own or have an interest in the family home, enter 0."
+        },
+        {
+          "id": "asset_family_home_address",
+          "label": "Family home — address",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. 123 Main St, Toronto ON M5V 1A1"
+        },
+        {
+          "id": "asset_other_real_estate",
+          "label": "Other real estate — total value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Include rental properties, cottages, vacant land, or any other real property you have an interest in."
+        },
+        {
+          "id": "asset_other_real_estate_description",
+          "label": "Describe other real estate",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Rental property at 456 Oak Ave, Toronto — value $480,000 / Cottage at 789 Lake Rd, Muskoka — value $320,000"
+        },
+        {
+          "id": "asset_bank_accounts",
+          "label": "Bank accounts, savings, GICs — total balance on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Total balance across all accounts — chequing, savings, GICs, high-interest savings, TFSAs. Include accounts in your name only and any joint accounts."
+        },
+        {
+          "id": "asset_bank_accounts_description",
+          "label": "Describe bank accounts",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. TD chequing — $4,200 / RBC savings — $12,500 / TFSA at TD — $38,000"
+        },
+        {
+          "id": "asset_rrsp_rrif",
+          "label": "RRSPs, RRIFs, LIRAs — total value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Use the market value before tax. Note: the tax owing on withdrawal is often deducted separately as a liability or negotiated between parties."
+        },
+        {
+          "id": "asset_pension",
+          "label": "Pension plans — value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Use the commuted value (transfer value) of your pension. For defined benefit pensions, you may need an actuarial valuation. Contact your pension administrator."
+        },
+        {
+          "id": "asset_pension_description",
+          "label": "Describe pension plan(s)",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. OMERS defined benefit pension — commuted value on valuation date: $185,000 / Company RRSP/DC pension — $52,000"
+        },
+        {
+          "id": "asset_investments",
+          "label": "Non-registered investments — total value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Include stocks, bonds, mutual funds, ETFs, investment accounts held outside an RRSP or TFSA."
+        },
+        {
+          "id": "asset_business_interest",
+          "label": "Business interests — value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Include shares or ownership interest in any business. A business valuation by a qualified valuator may be required. Enter the fair market value of your interest."
+        },
+        {
+          "id": "asset_business_description",
+          "label": "Describe business interests",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. 50% ownership in ABC Plumbing Inc. — valued at $240,000 by business valuator John Smith, CA·CBV, on [date]"
+        },
+        {
+          "id": "asset_vehicles",
+          "label": "Vehicles — total value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Include cars, trucks, motorcycles, boats, RVs, snowmobiles, etc. Use Canadian Black Book or similar for market value."
+        },
+        {
+          "id": "asset_life_insurance",
+          "label": "Life insurance — cash surrender value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Only include policies with a cash surrender value (whole life, universal life). Term life insurance has no cash value — enter 0."
+        },
+        {
+          "id": "asset_household_contents",
+          "label": "Household contents and personal property — value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Include furniture, appliances, electronics, jewelry, art, collections, and other personal property. Use fair market value (what you could sell it for today)."
+        },
+        {
+          "id": "asset_money_owed_to_you",
+          "label": "Money owed to you (loans receivable, legal settlements) — value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Include any money others owe you — loans you made, pending legal settlements, expected tax refunds, etc."
+        },
+        {
+          "id": "asset_other",
+          "label": "Other assets — value on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "asset_other_description",
+          "label": "Describe other assets",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Cryptocurrency — $8,500 / Structured settlement — $25,000 / Intellectual property rights — $12,000"
+        },
+        {
+          "id": "total_assets_valuation_date",
+          "label": "TOTAL assets on valuation date",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Add up all assets listed above.",
+          "autoCalculate": {
+            "operation": "sum",
+            "fields": ["asset_family_home_value", "asset_other_real_estate", "asset_bank_accounts", "asset_rrsp_rrif", "asset_pension", "asset_investments", "asset_business_interest", "asset_vehicles", "asset_life_insurance", "asset_household_contents", "asset_money_owed_to_you", "asset_other"]
+          }
+        }
+      ]
+    },
+    {
+      "stepId": "nfp-step3",
+      "title": "Debts on Valuation Date",
+      "description": "List all debts and liabilities you owed on the valuation date. These reduce your net family property.",
+      "fields": [
+        {
+          "id": "debt_mortgage_family_home",
+          "label": "Mortgage on family home — balance owing on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "debt_mortgage_other",
+          "label": "Mortgages on other properties — total balance owing on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "debt_vehicle_loans",
+          "label": "Vehicle loans — total balance owing on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "debt_credit_cards",
+          "label": "Credit card balances — total owing on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "debt_lines_of_credit",
+          "label": "Lines of credit — total balance owing on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "debt_student_loans",
+          "label": "Student loans — balance owing on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "debt_personal_loans",
+          "label": "Personal loans (family, bank) — balance owing on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "debt_business_debts",
+          "label": "Business debts you are personally responsible for — balance owing on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "debt_tax_owing",
+          "label": "Income taxes owing (including estimated deferred taxes on RRSPs) — on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Include any income tax owing to CRA, and optionally an estimate of the tax you would owe if you cashed out your RRSP/pension (parties often negotiate whether to include this)."
+        },
+        {
+          "id": "debt_other",
+          "label": "Other debts — total owing on valuation date",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "debt_other_description",
+          "label": "Describe other debts",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Money owed to parents for home down payment loan — $20,000 / Unpaid legal fees — $8,000"
+        },
+        {
+          "id": "total_debts_valuation_date",
+          "label": "TOTAL debts on valuation date",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Add up all debts listed above.",
+          "autoCalculate": {
+            "operation": "sum",
+            "fields": ["debt_mortgage_family_home", "debt_mortgage_other", "debt_vehicle_loans", "debt_credit_cards", "debt_lines_of_credit", "debt_student_loans", "debt_personal_loans", "debt_business_debts", "debt_tax_owing", "debt_other"]
+          }
+        },
+        {
+          "id": "net_on_valuation_date",
+          "label": "Net value on valuation date (assets minus debts)",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Subtract total debts from total assets.",
+          "autoCalculate": {
+            "operation": "subtract",
+            "fields": ["total_assets_valuation_date", "total_debts_valuation_date"]
+          }
+        }
+      ]
+    },
+    {
+      "stepId": "nfp-step4",
+      "title": "Assets on Date of Marriage",
+      "description": "List what you owned on the day you were married. This is subtracted from your valuation date net to calculate growth during the marriage.",
+      "fields": [
+        {
+          "id": "dom_asset_notice",
+          "label": "Date of marriage assets",
+          "type": "info-box",
+          "content": "List the value of your assets on the date of your marriage. These represent what you brought into the marriage — they are subtracted so that property you had before the marriage is not shared.\n\n**Important:** The family home you lived in at separation is NOT deducted even if you owned it before marriage — it is always included in the equalization calculation."
+        },
+        {
+          "id": "dom_bank_accounts",
+          "label": "Bank accounts and savings — balance on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_rrsp",
+          "label": "RRSPs, investments — value on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_real_estate",
+          "label": "Real estate (excluding the matrimonial home) — value on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_business",
+          "label": "Business interests — value on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_pension",
+          "label": "Pension — value on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_vehicles",
+          "label": "Vehicles — value on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_other_assets",
+          "label": "Other assets on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_other_assets_description",
+          "label": "Describe other assets on date of marriage",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. Inheritance received before marriage — $30,000 / Personal property — $5,000"
+        },
+        {
+          "id": "total_assets_dom",
+          "label": "TOTAL assets on date of marriage",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "autoCalculate": {
+            "operation": "sum",
+            "fields": ["dom_bank_accounts", "dom_rrsp", "dom_real_estate", "dom_business", "dom_pension", "dom_vehicles", "dom_other_assets"]
+          }
+        }
+      ]
+    },
+    {
+      "stepId": "nfp-step5",
+      "title": "Debts on Date of Marriage",
+      "description": "List the debts you owed on the day you were married. These reduce your date-of-marriage deduction.",
+      "fields": [
+        {
+          "id": "dom_debt_mortgage",
+          "label": "Mortgage(s) — balance owing on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_debt_vehicle",
+          "label": "Vehicle loans — balance owing on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_debt_student",
+          "label": "Student loans — balance owing on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_debt_credit_cards",
+          "label": "Credit card and line of credit balances — on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "dom_debt_other",
+          "label": "Other debts on date of marriage",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00"
+        },
+        {
+          "id": "total_debts_dom",
+          "label": "TOTAL debts on date of marriage",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "autoCalculate": {
+            "operation": "sum",
+            "fields": ["dom_debt_mortgage", "dom_debt_vehicle", "dom_debt_student", "dom_debt_credit_cards", "dom_debt_other"]
+          }
+        },
+        {
+          "id": "net_dom",
+          "label": "Net value on date of marriage (assets minus debts)",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "This is the amount subtracted from your valuation date net to account for what you brought into the marriage.",
+          "autoCalculate": {
+            "operation": "subtract",
+            "fields": ["total_assets_dom", "total_debts_dom"]
+          }
+        }
+      ]
+    },
+    {
+      "stepId": "nfp-step6",
+      "title": "Excluded Property",
+      "description": "Certain property is excluded from equalization even if you owned it on the valuation date. List any property that qualifies as excluded.",
+      "fields": [
+        {
+          "id": "excluded_property_notice",
+          "label": "What property is excluded?",
+          "type": "info-box",
+          "content": "Under the Family Law Act, the following property received **during the marriage** is excluded from equalization:\n\n- **Gifts or inheritances** received from a third party during the marriage (not from your spouse)\n- **Proceeds from a life insurance policy** received during the marriage\n- **Damages or settlement** for personal injury, nervous shock, or a prescribed right\n- **Property traceable to** any of the above (e.g. if you invested an inheritance and it grew, the original inheritance value is excluded)\n\n**Important:** The increase in value of excluded property is NOT excluded — only the original value of the excluded property itself."
+        },
+        {
+          "id": "has_excluded_property",
+          "label": "Do you have any excluded property?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes" },
+            { "value": "no", "label": "No" }
+          ]
+        },
+        {
+          "id": "excluded_property_items",
+          "label": "List each excluded property item",
+          "type": "repeatable-group",
+          "required": false,
+          "conditionalOnParent": { "field": "has_excluded_property", "value": "yes" },
+          "maxItems": 10,
+          "addLabel": "Add another excluded property item",
+          "fields": [
+            {
+              "id": "excluded_description",
+              "label": "Description of the excluded property",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g. Inheritance from my father's estate / Gift of money from my parents / Personal injury settlement"
+            },
+            {
+              "id": "excluded_source",
+              "label": "Type of exclusion",
+              "type": "select",
+              "required": true,
+              "options": [
+                { "value": "gift", "label": "Gift from a third party (not from spouse)" },
+                { "value": "inheritance", "label": "Inheritance" },
+                { "value": "insurance_proceeds", "label": "Life insurance proceeds" },
+                { "value": "personal_injury", "label": "Personal injury damages or settlement" },
+                { "value": "traceable", "label": "Property traceable to an excluded source" }
+              ]
+            },
+            {
+              "id": "excluded_date_received",
+              "label": "Date received",
+              "type": "date",
+              "required": false,
+              "helpText": "Approximate date you received this property during the marriage."
+            },
+            {
+              "id": "excluded_value",
+              "label": "Value of the excluded property (at the time you received it, or at valuation date if it still exists in original form)",
+              "type": "number",
+              "required": true,
+              "prefix": "$",
+              "placeholder": "0.00"
+            },
+            {
+              "id": "excluded_still_exists",
+              "label": "Does this property still exist in its original form on the valuation date?",
+              "type": "radio",
+              "required": true,
+              "options": [
+                { "value": "yes", "label": "Yes — still exists (e.g. still in a bank account or investment)" },
+                { "value": "partly", "label": "Partly — some was spent or converted, some remains" },
+                { "value": "no", "label": "No — it was spent or no longer traceable" }
+              ]
+            },
+            {
+              "id": "excluded_tracing_notes",
+              "label": "Notes on how you can trace this exclusion",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "e.g. The $45,000 inheritance I received in 2019 was deposited into my TD savings account. I have bank records showing the deposit and the account balance over time. I kept the inheritance separate from joint funds."
+            }
+          ]
+        },
+        {
+          "id": "total_excluded_property",
+          "label": "TOTAL excluded property value",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Add up the values of all excluded property items listed above."
+        }
+      ]
+    },
+    {
+      "stepId": "nfp-step7",
+      "title": "Net Family Property Calculation",
+      "description": "Calculate your net family property. This is the number that determines whether you owe an equalization payment or are entitled to receive one.",
+      "fields": [
+        {
+          "id": "calculation_notice",
+          "label": "The formula",
+          "type": "info-box",
+          "content": "**Net Family Property (NFP) = A − B − C**\n\nWhere:\n- **A** = Net value on valuation date (total assets minus total debts at separation)\n- **B** = Net value on date of marriage (total assets minus total debts at marriage)\n- **C** = Excluded property\n\nIf the result is negative, your NFP is treated as zero.\n\nThe spouse with the **higher NFP** pays the other spouse **half the difference**. That payment is the equalization payment."
+        },
+        {
+          "id": "nfp_line_a",
+          "label": "Line A — Net value on valuation date",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Copy from Step 3: Net value on valuation date.",
+          "autoPopulate": "net_on_valuation_date"
+        },
+        {
+          "id": "nfp_line_b",
+          "label": "Line B — Net value on date of marriage",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Copy from Step 5: Net value on date of marriage.",
+          "autoPopulate": "net_dom"
+        },
+        {
+          "id": "nfp_line_c",
+          "label": "Line C — Total excluded property",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "Copy from Step 6: Total excluded property value. Enter 0 if no excluded property.",
+          "autoPopulate": "total_excluded_property"
+        },
+        {
+          "id": "nfp_result",
+          "label": "Your Net Family Property (A minus B minus C)",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "If this number is negative, your NFP is zero for equalization purposes.",
+          "autoCalculate": {
+            "operation": "subtract",
+            "fields": ["nfp_line_a", "nfp_line_b", "nfp_line_c"]
+          }
+        },
+        {
+          "id": "nfp_is_negative",
+          "label": "Is your calculated NFP negative?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            { "value": "yes", "label": "Yes — my NFP is negative, so I will report it as zero" },
+            { "value": "no", "label": "No — my NFP is zero or positive" }
+          ]
+        },
+        {
+          "id": "nfp_final",
+          "label": "Your final Net Family Property (zero if negative)",
+          "type": "number",
+          "required": true,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "If your calculated NFP above was negative, enter 0 here. Otherwise enter the same number as above."
+        }
+      ]
+    },
+    {
+      "stepId": "nfp-step8",
+      "title": "Equalization Claim",
+      "description": "Based on your NFP, describe what equalization payment you are claiming or expect to owe.",
+      "fields": [
+        {
+          "id": "other_party_nfp_estimate",
+          "label": "What is your estimate of the other party's Net Family Property?",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "If you know or can estimate the other party's NFP, enter it here. The equalization payment is half the difference between the two NFPs."
+        },
+        {
+          "id": "equalization_payment_estimate",
+          "label": "Estimated equalization payment",
+          "type": "number",
+          "required": false,
+          "prefix": "$",
+          "placeholder": "0.00",
+          "helpText": "If your NFP is lower than the other party's, you are owed an equalization payment = (Their NFP − Your NFP) ÷ 2."
+        },
+        {
+          "id": "equalization_direction",
+          "label": "Based on your estimate",
+          "type": "select",
+          "required": false,
+          "options": [
+            { "value": "i_am_owed", "label": "I am owed an equalization payment from the other party" },
+            { "value": "i_owe", "label": "I owe an equalization payment to the other party" },
+            { "value": "equal", "label": "The NFPs appear roughly equal — no significant payment either way" },
+            { "value": "unknown", "label": "I don't have enough information to estimate" }
+          ]
+        },
+        {
+          "id": "property_division_disputes",
+          "label": "Are there any specific assets or valuations that are in dispute with the other party?",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. The parties disagree on the value of the family home — I believe it is worth $780,000 based on a recent appraisal; the other party claims $850,000. The parties also disagree on the valuation of the other party's dental practice.",
+          "helpText": "Identifying disputed valuations helps the court understand what needs to be resolved."
+        },
+        {
+          "id": "unequal_division_claim",
+          "label": "Are you asking the court to award an amount other than the standard equalization payment?",
+          "type": "radio",
+          "required": true,
+          "helpText": "In rare cases, a court can order an unequal division of property if the standard equalization payment would be unconscionable (shockingly unfair).",
+          "options": [
+            { "value": "yes", "label": "Yes — I am asking for an unequal division" },
+            { "value": "no", "label": "No — I am asking for the standard equalization payment" }
+          ]
+        },
+        {
+          "id": "unequal_division_reason",
+          "label": "Explain why an unequal division is warranted",
+          "type": "textarea",
+          "required": false,
+          "conditionalOn": { "field": "unequal_division_claim", "value": "yes" },
+          "placeholder": "e.g. The other party deliberately dissipated significant family assets in the two years before separation by making large unauthorized withdrawals from joint accounts and gambling losses totalling approximately $85,000. Standard equalization would be unconscionable in these circumstances."
+        }
+      ]
+    },
+    {
+      "stepId": "nfp-step9",
+      "title": "Declaration",
+      "description": "Confirm the accuracy of your Net Family Property Statement.",
+      "fields": [
+        {
+          "id": "documents_available",
+          "label": "What documents do you have to support the values in this statement?",
+          "type": "checkbox-group",
+          "required": false,
+          "options": [
+            { "value": "mortgage_statement", "label": "Mortgage statement as of valuation date" },
+            { "value": "bank_statements", "label": "Bank and investment statements as of valuation date" },
+            { "value": "rrsp_statements", "label": "RRSP/RRIF statements as of valuation date" },
+            { "value": "pension_valuation", "label": "Pension commuted value letter from administrator" },
+            { "value": "property_appraisal", "label": "Property appraisal or real estate valuation" },
+            { "value": "business_valuation", "label": "Business valuation report" },
+            { "value": "vehicle_valuation", "label": "Vehicle valuation (Canadian Black Book or appraisal)" },
+            { "value": "tax_returns", "label": "Income tax returns and Notices of Assessment" },
+            { "value": "marriage_date_documents", "label": "Bank/investment statements from date of marriage" },
+            { "value": "inheritance_documents", "label": "Estate documents or gift letters (for excluded property)" }
+          ]
+        },
+        {
+          "id": "sworn_declaration",
+          "label": "Declaration",
+          "type": "declaration",
+          "required": true,
+          "text": "I declare that the information in this Net Family Property Statement is true and complete to the best of my knowledge and belief. I understand that providing false information to the court is a serious matter.",
+          "checkboxLabel": "I confirm this declaration is true and accurate."
+        },
+        {
+          "id": "signature_date",
+          "label": "Date",
+          "type": "date",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "pdfMapping": {
+    "notes": "Form 13B — Net Family Property Statement. Each party completes separately. Used to calculate equalization payment under the Family Law Act. See ontario.ca/page/family-law-forms for the current version.",
+    "case_header": ["courthouse", "court_file_number", "applicant_full_name", "respondent_full_name", "completing_party", "marriage_date", "valuation_date"],
+    "valuation_date_assets": ["asset_family_home_value", "asset_other_real_estate", "asset_bank_accounts", "asset_rrsp_rrif", "asset_pension", "asset_investments", "asset_business_interest", "asset_vehicles", "total_assets_valuation_date"],
+    "valuation_date_debts": ["debt_mortgage_family_home", "debt_mortgage_other", "debt_credit_cards", "total_debts_valuation_date", "net_on_valuation_date"],
+    "marriage_date_section": ["total_assets_dom", "total_debts_dom", "net_dom"],
+    "excluded_property": ["has_excluded_property", "excluded_property_items", "total_excluded_property"],
+    "nfp_calculation": ["nfp_line_a", "nfp_line_b", "nfp_line_c", "nfp_result", "nfp_final"],
+    "equalization_claim": ["equalization_direction", "equalization_payment_estimate", "unequal_division_claim"],
+    "declaration": ["sworn_declaration", "signature_date"]
+  }
+}

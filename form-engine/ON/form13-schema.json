@@ -1,0 +1,728 @@
+{
+  "formId": "ON-F13",
+  "jurisdiction": "ON",
+  "pdfFileName": "form13.pdf",
+  "title": "Form 13 \u2014 Financial Statement (Support Claims)",
+  "subtitle": "Ontario Court of Justice \u2014 Family Law Rules",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "note": "Both parties must complete and exchange financial statements. Ensure all income, expense, asset, and debt figures are accurate \u2014 this is a sworn document.",
+  "universalProfileSections": [
+    "personal",
+    "income"
+  ],
+  "parts": [
+    {
+      "partId": "f13_employment",
+      "title": "Employment & Income Documents",
+      "subtitle": "Step 1 of 6",
+      "intro": "Before you start, gather these documents. You'll need them to fill this form accurately.",
+      "type": "checklist",
+      "fields": [
+        {
+          "fieldId": "doc_paystub",
+          "label": "Most recent pay stub",
+          "type": "checkbox",
+          "required": false,
+          "helpText": "Shows your current salary or hourly wage and deductions."
+        },
+        {
+          "fieldId": "doc_t4_2024",
+          "label": "T4 slip \u2014 2024",
+          "type": "checkbox",
+          "required": false,
+          "helpText": "Employment income summary from your employer."
+        },
+        {
+          "fieldId": "doc_t4_2023",
+          "label": "T4 slip \u2014 2023",
+          "type": "checkbox",
+          "required": false
+        },
+        {
+          "fieldId": "doc_t4_2022",
+          "label": "T4 slip \u2014 2022",
+          "type": "checkbox",
+          "required": false
+        },
+        {
+          "fieldId": "doc_noa_2024",
+          "label": "Notice of Assessment \u2014 2024",
+          "type": "checkbox",
+          "required": false,
+          "helpText": "Sent by CRA after you file your taxes. Shows your total income for the year."
+        },
+        {
+          "fieldId": "doc_noa_2023",
+          "label": "Notice of Assessment \u2014 2023",
+          "type": "checkbox",
+          "required": false
+        },
+        {
+          "fieldId": "doc_noa_2022",
+          "label": "Notice of Assessment \u2014 2022",
+          "type": "checkbox",
+          "required": false
+        },
+        {
+          "fieldId": "doc_business_statements",
+          "label": "Business financial statements (if self-employed)",
+          "type": "checkbox",
+          "required": false,
+          "conditional": {
+            "dependsOn": "employmentType",
+            "showWhen": "self-employed"
+          },
+          "helpText": "Your accountant or bookkeeper can provide these."
+        }
+      ]
+    },
+    {
+      "partId": "f13_income",
+      "title": "Monthly Income",
+      "subtitle": "Step 2 of 6",
+      "intro": "Enter your average monthly income from every source. If an amount varies, use a monthly average. Enter 0 if a source doesn't apply \u2014 don't leave it blank.",
+      "type": "fields",
+      "fields": [
+        {
+          "fieldId": "inc_employment",
+          "label": "Employment income (before deductions)",
+          "type": "currency",
+          "unit": "$/month",
+          "source": "income.monthlyGross",
+          "required": true,
+          "placeholder": "0.00",
+          "helpText": "From your pay stub \u2014 before tax, CPP, or EI is taken off.",
+          "pdfFieldName": "Employment income [0.00]"
+        },
+        {
+          "fieldId": "inc_commissions",
+          "label": "Commissions, tips, bonuses",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Average these out over 12 months if they vary.",
+          "pdfFieldName": "Commissions [0.00]"
+        },
+        {
+          "fieldId": "inc_selfemployment",
+          "label": "Self-employment income (net after expenses)",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "conditional": {
+            "dependsOn": "employmentType",
+            "showWhen": "self-employed"
+          },
+          "helpText": "Net profit after legitimate business expenses. Use your most recent business financial statement.",
+          "pdfFieldName": "Self-employment income [0.00]"
+        },
+        {
+          "fieldId": "inc_ei",
+          "label": "Employment Insurance (EI) benefits",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Employment Insurance [0.00]"
+        },
+        {
+          "fieldId": "inc_wcb",
+          "label": "Workers Compensation (WSIB) benefits",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Workers Compensation [0.00]"
+        },
+        {
+          "fieldId": "inc_socialassistance",
+          "label": "Social assistance / Ontario Works / ODSP",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Social assistance [0.00]"
+        },
+        {
+          "fieldId": "inc_investment",
+          "label": "Investment income (dividends, interest, rent)",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Investment income [0.00]"
+        },
+        {
+          "fieldId": "inc_pension",
+          "label": "Pension / retirement income",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Pension income [0.00]"
+        },
+        {
+          "fieldId": "inc_spousalsupport",
+          "label": "Spousal support received",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Spousal support received [0.00]"
+        },
+        {
+          "fieldId": "inc_childtaxbenefit",
+          "label": "Canada Child Benefit (CCB)",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Monthly CCB payments from CRA for your children.",
+          "pdfFieldName": "Child tax benefit [0.00]"
+        },
+        {
+          "fieldId": "inc_other",
+          "label": "Other income (describe)",
+          "type": "currency",
+          "unit": "$/month",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Other income [0.00]"
+        },
+        {
+          "fieldId": "inc_total_monthly",
+          "label": "Total monthly income",
+          "type": "currency_calculated",
+          "unit": "$/month",
+          "required": true,
+          "calculated": true,
+          "formula": "sum([inc_employment, inc_commissions, inc_selfemployment, inc_ei, inc_wcb, inc_socialassistance, inc_investment, inc_pension, inc_spousalsupport, inc_childtaxbenefit, inc_other])",
+          "helpText": "Auto-calculated from the fields above.",
+          "pdfFieldName": "Total monthly income [0.00]"
+        },
+        {
+          "fieldId": "inc_other_benefits",
+          "label": "Non-cash benefits from employer (health plan, car, housing, etc.)",
+          "type": "textarea",
+          "required": false,
+          "helpText": "Describe any perks that have a dollar value \u2014 e.g. 'employer-paid dental plan ($150/month value)'.",
+          "pdfFieldName": "Other non-cash benefits"
+        }
+      ]
+    },
+    {
+      "partId": "f13_expenses",
+      "title": "Monthly Expenses",
+      "subtitle": "Step 3 of 6",
+      "intro": "Enter your actual monthly expenses. Be honest \u2014 courts compare your income against your expenses to assess support needs. Round to the nearest dollar.",
+      "type": "fields",
+      "groups": [
+        {
+          "groupId": "housing",
+          "label": "Housing",
+          "fields": [
+            {
+              "fieldId": "exp_rent_mortgage",
+              "label": "Rent or mortgage payment",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Rent or mortgage [0.00]"
+            },
+            {
+              "fieldId": "exp_property_tax",
+              "label": "Property taxes",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "helpText": "Divide your annual property tax bill by 12.",
+              "pdfFieldName": "Property taxes [0.00]"
+            },
+            {
+              "fieldId": "exp_property_insurance",
+              "label": "Home / tenant insurance",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Property insurance [0.00]"
+            },
+            {
+              "fieldId": "exp_condo_fees",
+              "label": "Condominium fees",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Condominium fees [0.00]"
+            },
+            {
+              "fieldId": "exp_home_repairs",
+              "label": "Repairs and maintenance",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Repairs and maintenance [0.00]"
+            },
+            {
+              "fieldId": "exp_utilities",
+              "label": "Utilities (hydro, gas, water, internet, phone)",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Water [0.00]"
+            }
+          ]
+        },
+        {
+          "groupId": "food_personal",
+          "label": "Food & Personal",
+          "fields": [
+            {
+              "fieldId": "exp_groceries",
+              "label": "Groceries",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Groceries [0.00]"
+            },
+            {
+              "fieldId": "exp_meals_out",
+              "label": "Meals outside the home",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Meals outside the home [0.00]"
+            },
+            {
+              "fieldId": "exp_clothing",
+              "label": "Clothing",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Clothing [0.00]"
+            },
+            {
+              "fieldId": "exp_personal",
+              "label": "Entertainment & recreation",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Entertainment/recreation [0.00]"
+            },
+            {
+              "fieldId": "exp_vacations",
+              "label": "Vacations",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "helpText": "Average your annual vacation spending by 12.",
+              "pdfFieldName": "Vacations [0.00]"
+            }
+          ]
+        },
+        {
+          "groupId": "transport",
+          "label": "Transportation",
+          "fields": [
+            {
+              "fieldId": "exp_transit",
+              "label": "Transportation (car payments, gas, transit, parking)",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Gas and oil [0.00]"
+            }
+          ]
+        },
+        {
+          "groupId": "health",
+          "label": "Health & Insurance",
+          "fields": [
+            {
+              "fieldId": "exp_health",
+              "label": "Health-related expenses (dental, prescriptions, therapy, glasses)",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Health insurance premiums [0.00]"
+            },
+            {
+              "fieldId": "exp_life_insurance",
+              "label": "Life insurance premiums",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Life Insurance premiums [0.00]"
+            }
+          ]
+        },
+        {
+          "groupId": "children",
+          "label": "Children",
+          "fields": [
+            {
+              "fieldId": "exp_childcare",
+              "label": "Childcare / daycare",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Daycare expense [0.00]"
+            },
+            {
+              "fieldId": "exp_children_activities",
+              "label": "Children's activities (sports, music, tutoring)",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Children's activities [0.00]"
+            }
+          ]
+        },
+        {
+          "groupId": "financial",
+          "label": "Financial Obligations",
+          "fields": [
+            {
+              "fieldId": "exp_rrsp",
+              "label": "RRSP / RESP contributions",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "RRSP/RESP withdrawals [0.00]"
+            },
+            {
+              "fieldId": "exp_debt_payments",
+              "label": "Debt payments (credit cards, loans, lines of credit)",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Debt payments [0.00]"
+            },
+            {
+              "fieldId": "exp_auto_deductions",
+              "label": "Automatic deductions (CPP, EI, union dues, pension plan)",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "helpText": "These are deductions taken off your paycheque automatically \u2014 visible on your pay stub.",
+              "pdfFieldName": "CPP contributions [0.00]"
+            },
+            {
+              "fieldId": "exp_other_support",
+              "label": "Support paid for other children or dependants",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Support paid for other children [0.00]"
+            }
+          ]
+        },
+        {
+          "groupId": "other",
+          "label": "Other",
+          "fields": [
+            {
+              "fieldId": "exp_other",
+              "label": "Other expenses (describe)",
+              "type": "currency",
+              "unit": "$/month",
+              "required": false,
+              "placeholder": "0.00",
+              "pdfFieldName": "Other expenses [0.00]"
+            },
+            {
+              "fieldId": "exp_total_monthly",
+              "label": "Total monthly expenses",
+              "type": "currency_calculated",
+              "unit": "$/month",
+              "required": true,
+              "calculated": true,
+              "formula": "sum([exp_rent_mortgage, exp_property_tax, exp_property_insurance, exp_condo_fees, exp_home_repairs, exp_utilities, exp_groceries, exp_meals_out, exp_clothing, exp_personal, exp_vacations, exp_transit, exp_health, exp_life_insurance, exp_childcare, exp_children_activities, exp_rrsp, exp_debt_payments, exp_auto_deductions, exp_other_support, exp_other])",
+              "pdfFieldName": "Total Amount of Monthly Expenses [0.00]"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "partId": "f13_assets",
+      "title": "Assets",
+      "subtitle": "Step 4 of 6",
+      "intro": "List everything you own or have a share in. Use today's market value, not what you paid for it. Enter 0 if you have none of a particular asset.",
+      "type": "fields",
+      "helpText": "Assets are things you own that have value. Courts use this to understand your overall financial picture.",
+      "fields": [
+        {
+          "fieldId": "asset_realestate",
+          "label": "Real estate (home, cottage, land) \u2014 estimated market value",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Use a recent appraisal, MPAC assessment, or Realtor estimate. Describe the property in the notes field below.",
+          "pdfFieldName": "Real estate [0.00]"
+        },
+        {
+          "fieldId": "asset_realestate_desc",
+          "label": "Real estate description",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. 123 Main St, Toronto \u2014 matrimonial home, joint ownership",
+          "pdfFieldName": "Real estate description"
+        },
+        {
+          "fieldId": "asset_vehicles",
+          "label": "Vehicles (cars, trucks, motorcycles, boats) \u2014 market value",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Check Canadian Black Book or AutoTrader for current resale value.",
+          "pdfFieldName": "Cars and other vehicles [0.00]"
+        },
+        {
+          "fieldId": "asset_bank_accounts",
+          "label": "Bank accounts (chequing, savings, GICs) \u2014 total balance",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Use the balance as of today. Include all accounts at all banks.",
+          "pdfFieldName": "Bank accounts [0.00]"
+        },
+        {
+          "fieldId": "asset_investments",
+          "label": "Investments (stocks, bonds, mutual funds, crypto)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Investments [0.00]"
+        },
+        {
+          "fieldId": "asset_rrsp_pension",
+          "label": "RRSPs, RRIFs, TFSAs, pension plans",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Use the current account balance or commuted value from your pension statement.",
+          "pdfFieldName": "R.R.S.P.'s [0.00]"
+        },
+        {
+          "fieldId": "asset_life_insurance",
+          "label": "Life insurance (cash surrender value)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Only whole life or universal life policies have cash value. Term life = 0.",
+          "pdfFieldName": "Life insurance [0.00]"
+        },
+        {
+          "fieldId": "asset_business",
+          "label": "Business interests (value of any business you own or co-own)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Business interests [0.00]"
+        },
+        {
+          "fieldId": "asset_money_owed",
+          "label": "Money owed to you (loans you've made, tax refunds expected)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Money owed to you [0.00]"
+        },
+        {
+          "fieldId": "asset_other",
+          "label": "Other assets (jewelry, art, collectibles, equipment)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Other assets [0.00]"
+        },
+        {
+          "fieldId": "asset_total",
+          "label": "Total assets",
+          "type": "currency_calculated",
+          "required": true,
+          "calculated": true,
+          "formula": "sum([asset_realestate, asset_vehicles, asset_bank_accounts, asset_investments, asset_rrsp_pension, asset_life_insurance, asset_business, asset_money_owed, asset_other])",
+          "pdfFieldName": "Total assets [0.00]"
+        }
+      ]
+    },
+    {
+      "partId": "f13_debts",
+      "title": "Debts & Liabilities",
+      "subtitle": "Step 5 of 6",
+      "intro": "List everything you owe. Include all debts even if you share them with someone else. Enter 0 if a type of debt doesn't apply.",
+      "type": "fields",
+      "helpText": "Debts reduce your net worth. Being thorough here protects you \u2014 understating debts can hurt your credibility with the court.",
+      "fields": [
+        {
+          "fieldId": "debt_mortgage_loans",
+          "label": "Mortgages and secured loans (balance owing)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Check your most recent mortgage statement for the outstanding balance.",
+          "pdfFieldName": "Mortgages [0.00]"
+        },
+        {
+          "fieldId": "debt_credit_cards",
+          "label": "Credit cards and lines of credit (total balance)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Add up all credit card balances and any outstanding line of credit.",
+          "pdfFieldName": "Credit cards [0.00]"
+        },
+        {
+          "fieldId": "debt_car_loans",
+          "label": "Car loans and leases (balance owing)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Car loans [0.00]"
+        },
+        {
+          "fieldId": "debt_student_loans",
+          "label": "Student loans",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Student loans [0.00]"
+        },
+        {
+          "fieldId": "debt_unpaid_support",
+          "label": "Unpaid support arrears (child or spousal support you owe)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "helpText": "Only include support that is already overdue and unpaid.",
+          "pdfFieldName": "Support arrears [0.00]"
+        },
+        {
+          "fieldId": "debt_taxes_owing",
+          "label": "Taxes owing (CRA balance, HST, etc.)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Income tax [0.00]"
+        },
+        {
+          "fieldId": "debt_other",
+          "label": "Other debts (personal loans, money owed to family)",
+          "type": "currency",
+          "required": false,
+          "placeholder": "0.00",
+          "pdfFieldName": "Other debts [0.00]"
+        },
+        {
+          "fieldId": "debt_total",
+          "label": "Total debts",
+          "type": "currency_calculated",
+          "required": true,
+          "calculated": true,
+          "formula": "sum([debt_mortgage_loans, debt_credit_cards, debt_car_loans, debt_student_loans, debt_unpaid_support, debt_taxes_owing, debt_other])",
+          "pdfFieldName": "Total debts [0.00]"
+        },
+        {
+          "fieldId": "net_worth",
+          "label": "Net worth (assets minus debts)",
+          "type": "currency_calculated",
+          "required": true,
+          "calculated": true,
+          "formula": "asset_total - debt_total",
+          "helpText": "This is automatically calculated. A negative number is normal if you owe more than you own.",
+          "pdfFieldName": "Net worth [0.00]"
+        }
+      ]
+    },
+    {
+      "partId": "f13_schedules",
+      "title": "Schedules & Additional Documents",
+      "subtitle": "Step 6 of 6",
+      "intro": "Form 13 has three schedules you may need to attach depending on your situation.",
+      "type": "fields",
+      "fields": [
+        {
+          "fieldId": "schedule_a_required",
+          "label": "Do you have employment income to report on Schedule A?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Schedule A lists your last 3 years of employment income. You'll need your T4s and Notices of Assessment."
+        },
+        {
+          "fieldId": "schedule_a",
+          "label": "Schedule A \u2014 Employment income details (attach your T4s and NOAs)",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "schedule_a_required",
+            "showWhen": "yes"
+          },
+          "helpText": "Describe your income for 2022, 2023, and 2024. Include your employer name, gross income, and whether you received any lump sums.",
+          "pdfFieldName": "Schedule A"
+        },
+        {
+          "fieldId": "schedule_b_required",
+          "label": "Are you self-employed or do you earn income from a corporation?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Schedule B applies if you own a business, work as a contractor, or receive income through a corporation."
+        },
+        {
+          "fieldId": "schedule_b",
+          "label": "Schedule B \u2014 Non-employment income details",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "schedule_b_required",
+            "showWhen": "yes"
+          },
+          "helpText": "Summarize your self-employment income. Attach your last 3 years of business financial statements.",
+          "pdfFieldName": "Schedule B"
+        },
+        {
+          "fieldId": "schedule_c_required",
+          "label": "Do you have special or extraordinary expenses for children?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Schedule C covers section 7 expenses \u2014 things like daycare, tutoring, medical costs, or post-secondary education that go above the base child support amount."
+        },
+        {
+          "fieldId": "schedule_c",
+          "label": "Schedule C \u2014 Special or extraordinary expenses",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "schedule_c_required",
+            "showWhen": "yes"
+          },
+          "helpText": "List each expense type, the monthly amount, and which child it's for.",
+          "pdfFieldName": "Schedule C"
+        }
+      ]
+    }
+  ]
+}

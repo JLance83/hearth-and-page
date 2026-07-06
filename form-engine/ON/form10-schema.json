@@ -1,0 +1,592 @@
+{
+  "formId": "ON-F10",
+  "jurisdiction": "ON",
+  "pdfFileName": "form10.pdf",
+  "title": "Form 10 \u2014 Answer",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules (FLR 10)",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "helpIntro": "Form 10 is the Answer \u2014 it is how you formally respond when someone has filed a court application against you (Form 8). You use it to agree with or disagree with what the applicant is asking for, and to ask for your own orders from the court. You must serve your Answer on the applicant and file it with the court within 30 days of being served with the Application.",
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 7",
+      "intro": "Enter the court file information from the Application (Form 8) you received.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number (from the Application you received)",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": false,
+          "placeholder": "e.g. FC-2024-12345",
+          "helpText": "This is printed on the Form 8 Application that was served on you.",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "applicationDate",
+          "label": "Date printed on the Application you received",
+          "type": "date",
+          "required": false,
+          "helpText": "Found at the top of the Form 8 Application.",
+          "pdfFieldName": "Application date"
+        }
+      ]
+    },
+    {
+      "partId": "respondentInfo",
+      "title": "Your information (the respondent)",
+      "subtitle": "Step 2 of 7",
+      "intro": "You are the respondent \u2014 the person responding to the application. Fill in your details.",
+      "fields": [
+        {
+          "fieldId": "respondentFullName",
+          "label": "Your full legal name",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "helpText": "In the Answer form, you are called the 'Respondent'. Your name auto-fills from your profile.",
+          "pdfFieldName": "Respondent full name",
+          "id": "respondent_full_name",
+          "autoFill": "respondent_full_name"
+        },
+        {
+          "fieldId": "respondentDateOfBirth",
+          "label": "Your date of birth",
+          "type": "date",
+          "source": "profile.applicant.dateOfBirth",
+          "required": false,
+          "pdfFieldName": "Respondent date of birth",
+          "id": "respondent_dob",
+          "autoFill": "user_dob"
+        },
+        {
+          "fieldId": "respondentAddress",
+          "label": "Your address for service",
+          "type": "text",
+          "source": "profile.applicant.address",
+          "required": true,
+          "helpText": "This is where court documents can be delivered to you.",
+          "pdfFieldName": "Respondent address",
+          "id": "respondent_address",
+          "autoFill": "user_address"
+        },
+        {
+          "fieldId": "respondentCity",
+          "label": "City",
+          "type": "text",
+          "source": "profile.applicant.city",
+          "required": true,
+          "pdfFieldName": "Respondent city"
+        },
+        {
+          "fieldId": "respondentProvince",
+          "label": "Province",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ontario",
+          "pdfFieldName": "Respondent province"
+        },
+        {
+          "fieldId": "respondentPostalCode",
+          "label": "Postal code",
+          "type": "text",
+          "source": "profile.applicant.postalCode",
+          "required": true,
+          "pdfFieldName": "Respondent postal code"
+        },
+        {
+          "fieldId": "respondentPhone",
+          "label": "Phone number",
+          "type": "tel",
+          "source": "profile.applicant.phone",
+          "required": true,
+          "pdfFieldName": "Respondent phone",
+          "id": "respondent_phone",
+          "autoFill": "user_phone"
+        },
+        {
+          "fieldId": "respondentEmail",
+          "label": "Email address",
+          "type": "email",
+          "source": "profile.applicant.email",
+          "required": false,
+          "pdfFieldName": "Respondent email",
+          "id": "respondent_email",
+          "autoFill": "user_email"
+        },
+        {
+          "fieldId": "respondentHasLawyer",
+          "label": "Do you have a lawyer representing you?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Respondent has lawyer"
+        },
+        {
+          "fieldId": "respondentLawyerName",
+          "label": "Your lawyer's full name",
+          "type": "text",
+          "required": false,
+          "conditional": {
+            "dependsOn": "respondentHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Respondent lawyer name"
+        },
+        {
+          "fieldId": "respondentLawyerAddress",
+          "label": "Your lawyer's address",
+          "type": "text",
+          "required": false,
+          "conditional": {
+            "dependsOn": "respondentHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Respondent lawyer address"
+        },
+        {
+          "fieldId": "respondentLawyerPhone",
+          "label": "Your lawyer's phone number",
+          "type": "tel",
+          "required": false,
+          "conditional": {
+            "dependsOn": "respondentHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Respondent lawyer phone"
+        }
+      ]
+    },
+    {
+      "partId": "applicantInfo",
+      "title": "The other party (the applicant)",
+      "subtitle": "Step 3 of 7",
+      "intro": "Confirm the details of the person who filed the Application against you.",
+      "fields": [
+        {
+          "fieldId": "applicantFullName",
+          "label": "The applicant's full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "pdfFieldName": "Applicant full name",
+          "id": "applicant_full_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "applicantAddress",
+          "label": "The applicant's address for service",
+          "type": "text",
+          "source": "profile.respondent.address",
+          "required": false,
+          "pdfFieldName": "Applicant address"
+        },
+        {
+          "fieldId": "applicantHasLawyer",
+          "label": "Does the applicant have a lawyer?",
+          "type": "yesno",
+          "required": false,
+          "pdfFieldName": "Applicant has lawyer"
+        },
+        {
+          "fieldId": "applicantLawyerName",
+          "label": "Applicant's lawyer's name",
+          "type": "text",
+          "required": false,
+          "conditional": {
+            "dependsOn": "applicantHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Applicant lawyer name"
+        },
+        {
+          "fieldId": "applicantLawyerAddress",
+          "label": "Applicant's lawyer's address",
+          "type": "text",
+          "required": false,
+          "conditional": {
+            "dependsOn": "applicantHasLawyer",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Applicant lawyer address"
+        }
+      ]
+    },
+    {
+      "partId": "responseToApplication",
+      "title": "Your response to the Application",
+      "subtitle": "Step 4 of 7",
+      "intro": "Go through each thing the applicant is asking for and say whether you agree or disagree. You can also ask for your own orders in the next step.",
+      "fields": [
+        {
+          "fieldId": "overallPosition",
+          "label": "Overall, what is your position on the Application?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "I disagree with everything the applicant is asking for",
+            "I agree with some things and disagree with others",
+            "I agree with everything the applicant is asking for",
+            "I agree with most things but want to add my own requests"
+          ],
+          "pdfFieldName": "Overall position"
+        },
+        {
+          "fieldId": "agreeCustody",
+          "label": "Do you agree with the applicant's request about custody / decision-making?",
+          "type": "select",
+          "required": false,
+          "options": [
+            "Yes \u2014 I agree",
+            "No \u2014 I disagree",
+            "Partly agree",
+            "This was not requested",
+            "I have my own proposal (describe below)"
+          ],
+          "pdfFieldName": "Agree custody"
+        },
+        {
+          "fieldId": "custodyPosition",
+          "label": "Describe your position on custody / decision-making",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "agreeCustody",
+            "showWhen": "No \u2014 I disagree"
+          },
+          "placeholder": "e.g. I disagree. I am the primary caregiver and the children should reside primarily with me. I propose that both parents share decision-making but that the children live with me.",
+          "helpText": "Be specific. What arrangement do you propose instead?",
+          "pdfFieldName": "Custody position"
+        },
+        {
+          "fieldId": "agreeParentingTime",
+          "label": "Do you agree with the applicant's request about parenting time / access?",
+          "type": "select",
+          "required": false,
+          "options": [
+            "Yes \u2014 I agree",
+            "No \u2014 I disagree",
+            "Partly agree",
+            "This was not requested",
+            "I have my own proposal (describe below)"
+          ],
+          "pdfFieldName": "Agree parenting time"
+        },
+        {
+          "fieldId": "parentingTimePosition",
+          "label": "Describe your proposed parenting time schedule",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "agreeParentingTime",
+            "showWhen": "No \u2014 I disagree"
+          },
+          "placeholder": "e.g. I propose that the children live with me week-on, week-off. The Applicant would have parenting time every other weekend.",
+          "pdfFieldName": "Parenting time position"
+        },
+        {
+          "fieldId": "agreeChildSupport",
+          "label": "Do you agree with the applicant's request about child support?",
+          "type": "select",
+          "required": false,
+          "options": [
+            "Yes \u2014 I agree",
+            "No \u2014 I disagree",
+            "Partly agree",
+            "This was not requested",
+            "I have my own proposal (describe below)"
+          ],
+          "pdfFieldName": "Agree child support"
+        },
+        {
+          "fieldId": "childSupportPosition",
+          "label": "Describe your position on child support",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "agreeChildSupport",
+            "showWhen": "No \u2014 I disagree"
+          },
+          "placeholder": "e.g. I disagree with the amount requested. Based on my income of $X per year, the correct amount under the Child Support Guidelines is $Y per month.",
+          "pdfFieldName": "Child support position"
+        },
+        {
+          "fieldId": "agreeSpousalSupport",
+          "label": "Do you agree with the applicant's request about spousal support?",
+          "type": "select",
+          "required": false,
+          "options": [
+            "Yes \u2014 I agree",
+            "No \u2014 I disagree",
+            "Partly agree",
+            "This was not requested",
+            "Not applicable"
+          ],
+          "pdfFieldName": "Agree spousal support"
+        },
+        {
+          "fieldId": "spousalSupportPosition",
+          "label": "Describe your position on spousal support",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "agreeSpousalSupport",
+            "showWhen": "No \u2014 I disagree"
+          },
+          "placeholder": "e.g. I disagree. We were together for only 2 years and I should not be required to pay spousal support.",
+          "pdfFieldName": "Spousal support position"
+        },
+        {
+          "fieldId": "agreeProperty",
+          "label": "Do you agree with the applicant's request about property / equalization?",
+          "type": "select",
+          "required": false,
+          "options": [
+            "Yes \u2014 I agree",
+            "No \u2014 I disagree",
+            "Partly agree",
+            "This was not requested",
+            "Not applicable"
+          ],
+          "pdfFieldName": "Agree property"
+        },
+        {
+          "fieldId": "propertyPosition",
+          "label": "Describe your position on property or equalization",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "agreeProperty",
+            "showWhen": "No \u2014 I disagree"
+          },
+          "placeholder": "e.g. I disagree with the applicant's valuation of the matrimonial home. The correct value is $X not $Y.",
+          "pdfFieldName": "Property position"
+        },
+        {
+          "fieldId": "disagreeOtherDetails",
+          "label": "Is there anything else in the Application you disagree with? Explain.",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. I dispute the applicant's claim that I was the primary breadwinner. I was laid off in January 2024.",
+          "pdfFieldName": "Disagree other details"
+        }
+      ]
+    },
+    {
+      "partId": "ownOrders",
+      "title": "Orders you are asking for",
+      "subtitle": "Step 5 of 7",
+      "intro": "If you want orders of your own \u2014 not just to respond to the applicant's requests \u2014 list them here. This is your chance to ask the court for what YOU want.",
+      "fields": [
+        {
+          "fieldId": "requestingOwnOrders",
+          "label": "Are you asking the court for any orders of your own?",
+          "type": "yesno",
+          "required": true,
+          "helpText": "Even if the applicant is the one who started the case, you can use your Answer to ask for orders that benefit you.",
+          "pdfFieldName": "Requesting own orders"
+        },
+        {
+          "fieldId": "ownOrdersCustody",
+          "label": "Are you asking for custody / decision-making responsibility?",
+          "type": "checkbox",
+          "conditional": {
+            "dependsOn": "requestingOwnOrders",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Own order custody"
+        },
+        {
+          "fieldId": "ownOrdersParentingTime",
+          "label": "Are you asking for a specific parenting time schedule?",
+          "type": "checkbox",
+          "conditional": {
+            "dependsOn": "requestingOwnOrders",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Own order parenting time"
+        },
+        {
+          "fieldId": "ownOrdersChildSupport",
+          "label": "Are you asking the other party to pay child support to you?",
+          "type": "checkbox",
+          "conditional": {
+            "dependsOn": "requestingOwnOrders",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Own order child support"
+        },
+        {
+          "fieldId": "ownOrdersSpousalSupport",
+          "label": "Are you asking the other party to pay spousal support to you?",
+          "type": "checkbox",
+          "conditional": {
+            "dependsOn": "requestingOwnOrders",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Own order spousal support"
+        },
+        {
+          "fieldId": "ownOrdersProperty",
+          "label": "Are you asking for a property / equalization payment?",
+          "type": "checkbox",
+          "conditional": {
+            "dependsOn": "requestingOwnOrders",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Own order property"
+        },
+        {
+          "fieldId": "ownOrdersRestrainingOrder",
+          "label": "Are you asking for a restraining or non-harassment order?",
+          "type": "checkbox",
+          "conditional": {
+            "dependsOn": "requestingOwnOrders",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Own order restraining order"
+        },
+        {
+          "fieldId": "ownOrdersOther",
+          "label": "Any other orders (describe below)?",
+          "type": "checkbox",
+          "conditional": {
+            "dependsOn": "requestingOwnOrders",
+            "showWhen": "yes"
+          },
+          "pdfFieldName": "Own order other"
+        },
+        {
+          "fieldId": "ownOrdersFullDescription",
+          "label": "Describe all the orders you are asking for in detail",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "requestingOwnOrders",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. 1. An order that I have primary decision-making responsibility for our child Alex Lance, born April 12, 2015.\n2. An order that the Applicant pay child support of $X per month pursuant to the Child Support Guidelines.\n3. An order that the Applicant pay costs of this proceeding.",
+          "helpText": "Number each order. Be specific \u2014 include names, amounts, and dates where possible.",
+          "pdfFieldName": "Own orders full description"
+        }
+      ]
+    },
+    {
+      "partId": "children",
+      "title": "Children (if applicable)",
+      "subtitle": "Step 6 of 7",
+      "intro": "If children are involved in this case, provide their details. The court needs this information to assess their best interests.",
+      "fields": [
+        {
+          "fieldId": "hasChildren",
+          "label": "Are there children involved in this case?",
+          "type": "yesno",
+          "required": true,
+          "pdfFieldName": "Has children"
+        },
+        {
+          "fieldId": "childrenDetails",
+          "label": "List the children (name, date of birth, where they currently live)",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildren",
+            "showWhen": "yes"
+          },
+          "source": "profile.children.list",
+          "placeholder": "Alex Lance \u2014 born April 12, 2015 \u2014 living with me at 123 Main Street, Toronto\nSam Lance \u2014 born September 3, 2018 \u2014 living with me at 123 Main Street, Toronto",
+          "helpText": "One child per line: full name, date of birth, and where they currently live.",
+          "pdfFieldName": "Children details"
+        },
+        {
+          "fieldId": "childrenLivingArrangement",
+          "label": "Describe where the children have been living since the parents separated",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildren",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. Since our separation in March 2024, both children have lived primarily with me. The Applicant sees them every other weekend.",
+          "pdfFieldName": "Children living arrangement"
+        },
+        {
+          "fieldId": "childrenBestInterests",
+          "label": "Why is your proposal in the best interests of the children?",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "hasChildren",
+            "showWhen": "yes"
+          },
+          "placeholder": "e.g. I am the primary caregiver. I take the children to school, medical appointments, and activities. They have a stable home with me and are enrolled in school nearby.",
+          "helpText": "The court always focuses on what is best for the children \u2014 not what is best for either parent.",
+          "pdfFieldName": "Children best interests"
+        }
+      ]
+    },
+    {
+      "partId": "review",
+      "title": "Review and sign",
+      "subtitle": "Step 7 of 7",
+      "intro": "Review your Answer. Once filed, serve a copy on the applicant (or their lawyer) within 30 days of being served with the Application. Then file proof of service (Form 6B).",
+      "fields": [
+        {
+          "fieldId": "importantFactsOmitted",
+          "label": "Is there anything else important the court should know that you haven't mentioned?",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. There is a prior agreement between the parties dated January 2023 that the Applicant has not disclosed.",
+          "pdfFieldName": "Important facts omitted"
+        },
+        {
+          "fieldId": "signatureDate",
+          "label": "Date you are signing this Answer",
+          "type": "date",
+          "required": true,
+          "pdfFieldName": "Signature date"
+        },
+        {
+          "fieldId": "declarationConfirmed",
+          "label": "I confirm the information in this Answer is accurate and complete to the best of my knowledge.",
+          "type": "checkbox",
+          "required": true,
+          "pdfFieldName": "Declaration confirmed"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,300 @@
+{
+  "formId": "ON-F6B",
+  "jurisdiction": "ON",
+  "pdfFileName": "form6b.pdf",
+  "title": "Form 6B \u2014 Affidavit of Service",
+  "subtitle": "Ontario Family Court \u2014 Family Law Rules (FLR 6)",
+  "requiredPlan": "standard",
+  "freeForm": false,
+  "helpIntro": "After you serve any court document on the other party, you must file an Affidavit of Service (Form 6B) with the court to prove the documents were delivered. You swear or affirm this form in front of a commissioner of oaths. You need one Form 6B for each time you serve documents.",
+  "parts": [
+    {
+      "partId": "court",
+      "title": "Court information",
+      "subtitle": "Step 1 of 5",
+      "intro": "Confirm the court file this service relates to.",
+      "fields": [
+        {
+          "fieldId": "courthouse",
+          "label": "Courthouse",
+          "type": "select",
+          "source": "profile.case.courthouse",
+          "required": true,
+          "options": [
+            "Barrie \u2014 Superior Court of Justice",
+            "Brampton \u2014 Superior Court of Justice",
+            "Brantford \u2014 Superior Court of Justice",
+            "Cornwall \u2014 Superior Court of Justice",
+            "Hamilton \u2014 Superior Court of Justice",
+            "Kingston \u2014 Superior Court of Justice",
+            "Kitchener \u2014 Superior Court of Justice",
+            "London \u2014 Superior Court of Justice",
+            "Milton \u2014 Superior Court of Justice",
+            "Newmarket \u2014 Superior Court of Justice",
+            "Oshawa \u2014 Superior Court of Justice",
+            "Ottawa \u2014 Superior Court of Justice",
+            "Peterborough \u2014 Superior Court of Justice",
+            "St. Catharines \u2014 Superior Court of Justice",
+            "Sudbury \u2014 Superior Court of Justice",
+            "Thunder Bay \u2014 Superior Court of Justice",
+            "Toronto \u2014 Superior Court of Justice",
+            "Windsor \u2014 Superior Court of Justice"
+          ],
+          "pdfFieldName": "Courthouse",
+          "id": "courthouse",
+          "autoFill": "courthouse"
+        },
+        {
+          "fieldId": "fileNumber",
+          "label": "Court file number",
+          "type": "text",
+          "source": "profile.case.fileNumber",
+          "required": false,
+          "placeholder": "e.g. FC-2024-12345",
+          "pdfFieldName": "Court file number",
+          "id": "court_file_number",
+          "autoFill": "court_file_number"
+        },
+        {
+          "fieldId": "applicantFullName",
+          "label": "Applicant's full legal name",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "pdfFieldName": "Applicant full name",
+          "id": "applicant_full_name",
+          "autoFill": "applicant_full_name"
+        },
+        {
+          "fieldId": "respondentFullName",
+          "label": "Respondent's full legal name",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "pdfFieldName": "Respondent full name",
+          "id": "respondent_full_name",
+          "autoFill": "respondent_full_name"
+        }
+      ]
+    },
+    {
+      "partId": "server",
+      "title": "Who served the documents?",
+      "subtitle": "Step 2 of 5",
+      "intro": "The person who physically delivered or sent the documents fills out this section. That can be you, or someone you asked to serve on your behalf (a friend, process server, etc.).",
+      "fields": [
+        {
+          "fieldId": "serverFullName",
+          "label": "Full name of the person who served the documents",
+          "type": "text",
+          "source": "profile.applicant.fullName",
+          "required": true,
+          "helpText": "If you served the documents yourself, enter your own name. If someone else served them, enter their name \u2014 they will need to sign this affidavit.",
+          "pdfFieldName": "Server full name"
+        },
+        {
+          "fieldId": "serverAge",
+          "label": "Age of the person who served the documents",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 34",
+          "helpText": "Must be 18 years of age or older to serve court documents in Ontario.",
+          "pdfFieldName": "Server age"
+        },
+        {
+          "fieldId": "serverAddress",
+          "label": "Server's address",
+          "type": "text",
+          "required": true,
+          "helpText": "The home or business address of the person who did the serving.",
+          "pdfFieldName": "Server address"
+        },
+        {
+          "fieldId": "serverCity",
+          "label": "City",
+          "type": "text",
+          "required": true,
+          "pdfFieldName": "Server city"
+        },
+        {
+          "fieldId": "serverProvince",
+          "label": "Province",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ontario",
+          "pdfFieldName": "Server province"
+        },
+        {
+          "fieldId": "serverPostalCode",
+          "label": "Postal code",
+          "type": "text",
+          "required": true,
+          "pdfFieldName": "Server postal code"
+        }
+      ]
+    },
+    {
+      "partId": "documents",
+      "title": "Documents that were served",
+      "subtitle": "Step 3 of 5",
+      "intro": "List every document you delivered to the other party in this batch of service.",
+      "fields": [
+        {
+          "fieldId": "documentsList",
+          "label": "List the documents that were served",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Form 8 \u2014 Application (dated June 1, 2026)\nForm 14 \u2014 Notice of Motion (dated June 15, 2026)\nForm 14A \u2014 Affidavit (dated June 15, 2026)",
+          "helpText": "List each document on a separate line. Include the form number, the document name, and the date on it.",
+          "pdfFieldName": "Documents list"
+        }
+      ]
+    },
+    {
+      "partId": "serviceDetails",
+      "title": "How and where the documents were served",
+      "subtitle": "Step 4 of 5",
+      "intro": "Describe exactly how you delivered the documents. The method of service affects when the other party is considered to have received them.",
+      "fields": [
+        {
+          "fieldId": "personServed",
+          "label": "Full name of the person who was served",
+          "type": "text",
+          "source": "profile.respondent.fullName",
+          "required": true,
+          "helpText": "Usually the other party. If they have a lawyer, you may serve the lawyer instead.",
+          "pdfFieldName": "Person served"
+        },
+        {
+          "fieldId": "serviceMethod",
+          "label": "How were the documents served?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Personal service \u2014 handed directly to the person",
+            "Leaving with adult at residence \u2014 left with another adult at their home",
+            "Leaving with adult at business \u2014 left with person in charge or adult employee",
+            "Regular mail \u2014 sent by Canada Post",
+            "Courier \u2014 sent by courier service",
+            "Email \u2014 sent by email (with prior agreement or court order)",
+            "Fax \u2014 sent by fax",
+            "Acceptance by lawyer \u2014 lawyer accepted on their client's behalf",
+            "Other (describe below)"
+          ],
+          "pdfFieldName": "Service method"
+        },
+        {
+          "fieldId": "serviceMethodOther",
+          "label": "Describe the other method of service",
+          "type": "textarea",
+          "required": false,
+          "conditional": {
+            "dependsOn": "serviceMethod",
+            "showWhen": "Other (describe below)"
+          },
+          "placeholder": "Describe how the documents were served.",
+          "pdfFieldName": "Service method other"
+        },
+        {
+          "fieldId": "serviceDate",
+          "label": "Date the documents were served",
+          "type": "date",
+          "required": true,
+          "helpText": "The actual date you handed over, mailed, emailed, or couriered the documents.",
+          "pdfFieldName": "Service date"
+        },
+        {
+          "fieldId": "serviceTime",
+          "label": "Time the documents were served (if personal service)",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. 2:30 p.m.",
+          "helpText": "Only required for personal service (hand delivery).",
+          "pdfFieldName": "Service time"
+        },
+        {
+          "fieldId": "serviceAddress",
+          "label": "Address where service took place",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 456 Oak Street, Toronto, ON M4B 1B2",
+          "helpText": "For mail/email, use the address it was sent to. For personal service, the place where documents were handed over.",
+          "pdfFieldName": "Service address"
+        },
+        {
+          "fieldId": "personReceivedDescription",
+          "label": "If you served a person other than the named party, describe who received the documents",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "e.g. A woman who identified herself as the Respondent's spouse, approximately 40 years old.",
+          "helpText": "For example, if you left documents with an adult at the respondent's home, describe that person.",
+          "pdfFieldName": "Person received description"
+        },
+        {
+          "fieldId": "emailAddress",
+          "label": "Email address documents were sent to (if served by email)",
+          "type": "email",
+          "required": false,
+          "conditional": {
+            "dependsOn": "serviceMethod",
+            "showWhen": "Email \u2014 sent by email (with prior agreement or court order)"
+          },
+          "pdfFieldName": "Email address served to"
+        },
+        {
+          "fieldId": "emailConfirmationReceived",
+          "label": "Did you receive confirmation the email was delivered or opened?",
+          "type": "yesno",
+          "required": false,
+          "conditional": {
+            "dependsOn": "serviceMethod",
+            "showWhen": "Email \u2014 sent by email (with prior agreement or court order)"
+          },
+          "pdfFieldName": "Email confirmation received"
+        }
+      ]
+    },
+    {
+      "partId": "swearing",
+      "title": "Swearing / commissioning",
+      "subtitle": "Step 5 of 5",
+      "intro": "This affidavit must be signed in front of a commissioner of oaths. The commissioner will complete the bottom section. Commissioners are available free at most Ontario courthouses.",
+      "fields": [
+        {
+          "fieldId": "swearOrAffirm",
+          "label": "Will you swear or affirm?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Swear",
+            "Affirm"
+          ],
+          "helpText": "Both are legally equal. Swearing is a religious oath; affirming is a non-religious promise.",
+          "pdfFieldName": "Swear or affirm"
+        },
+        {
+          "fieldId": "commissioningMunicipality",
+          "label": "Municipality where it will be commissioned",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. Toronto",
+          "pdfFieldName": "Commissioning municipality"
+        },
+        {
+          "fieldId": "commissioningDate",
+          "label": "Date it will be commissioned (leave blank to fill at courthouse)",
+          "type": "date",
+          "required": false,
+          "pdfFieldName": "Commissioning date"
+        },
+        {
+          "fieldId": "declarationConfirmed",
+          "label": "I confirm the service described above took place as stated, and I understand this must be signed in front of a commissioner of oaths.",
+          "type": "checkbox",
+          "required": true,
+          "pdfFieldName": "Declaration confirmed"
+        }
+      ]
+    }
+  ]
+}

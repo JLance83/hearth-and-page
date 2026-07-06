@@ -1,0 +1,392 @@
+{
+  "formCode": "form4-change-representation",
+  "formNumber": "Form 4",
+  "title": "Notice of Change in Representation",
+  "jurisdiction": "Ontario",
+  "act": "Family Law Rules",
+  "version": "October 2013",
+  "description": "Used when a party changes their legal representation — for example, hiring a lawyer, switching to a new lawyer, dismissing a lawyer to self-represent, or getting court permission to be represented by someone who is not a lawyer.",
+  "steps": [
+    {
+      "step": 1,
+      "title": "Court & File Information",
+      "description": "Enter the court location and file number for your case.",
+      "fields": [
+        {
+          "id": "court_file_number",
+          "label": "Court File Number",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. FC-12345-24",
+          "hint": "This is the number the court assigned to your case. It appears on your Application or any prior court documents."
+        },
+        {
+          "id": "court_name",
+          "label": "Name of Court",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Ontario Court of Justice",
+          "hint": "Write the full name of the court where your case is being heard."
+        },
+        {
+          "id": "court_location",
+          "label": "Court Location (City)",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Toronto",
+          "hint": "The city or municipality where the court office is located."
+        },
+        {
+          "id": "court_office_address",
+          "label": "Court Office Address",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. 311 Jarvis Street, Toronto, ON M5B 2C4",
+          "hint": "Full street address of the courthouse."
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "title": "Applicant Information",
+      "description": "Enter the applicant's full name and contact details.",
+      "fields": [
+        {
+          "id": "applicant_fullname",
+          "label": "Applicant — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Jane Elizabeth Smith",
+          "autoFill": "user_fullname",
+          "hint": "Use the full legal name exactly as it appears on the original Application."
+        },
+        {
+          "id": "applicant_address",
+          "label": "Applicant — Address for Service",
+          "type": "text",
+          "required": true,
+          "placeholder": "Street & number, city, province, postal code",
+          "autoFill": "user_address"
+        },
+        {
+          "id": "applicant_phone",
+          "label": "Applicant — Telephone Number",
+          "type": "tel",
+          "required": true,
+          "placeholder": "e.g. 416-555-0100",
+          "autoFill": "user_phone"
+        },
+        {
+          "id": "applicant_fax",
+          "label": "Applicant — Fax Number (if any)",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0101"
+        },
+        {
+          "id": "applicant_email",
+          "label": "Applicant — Email Address (if any)",
+          "type": "email",
+          "required": false,
+          "placeholder": "e.g. jane.smith@email.com",
+          "autoFill": "user_email"
+        },
+        {
+          "id": "applicant_lawyer_current",
+          "label": "Applicant's Current / Previous Lawyer (if any)",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "Lawyer's full name, firm, address, telephone, fax, email",
+          "hint": "Enter the current or previous lawyer's details if applicable. Leave blank if the applicant has always been self-represented."
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "title": "Respondent Information",
+      "description": "Enter the respondent's full name and contact details.",
+      "fields": [
+        {
+          "id": "respondent_fullname",
+          "label": "Respondent — Full Legal Name",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. John Robert Smith",
+          "autoFill": "spouse_fullname"
+        },
+        {
+          "id": "respondent_address",
+          "label": "Respondent — Address for Service",
+          "type": "text",
+          "required": true,
+          "placeholder": "Street & number, city, province, postal code",
+          "autoFill": "spouse_address"
+        },
+        {
+          "id": "respondent_phone",
+          "label": "Respondent — Telephone Number",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0200"
+        },
+        {
+          "id": "respondent_fax",
+          "label": "Respondent — Fax Number (if any)",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0201"
+        },
+        {
+          "id": "respondent_email",
+          "label": "Respondent — Email Address (if any)",
+          "type": "email",
+          "required": false,
+          "placeholder": "e.g. john.smith@email.com"
+        },
+        {
+          "id": "respondent_lawyer_name",
+          "label": "Respondent's Lawyer — Full Name & Address (if any)",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "Lawyer's full name, firm, address, telephone, fax, email",
+          "hint": "Leave blank if the respondent is self-represented."
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "title": "Children's Lawyer (if involved)",
+      "description": "If a Children's Lawyer has been appointed in your case, enter their information here.",
+      "fields": [
+        {
+          "id": "childrens_lawyer_involved",
+          "label": "Is a Children's Lawyer involved in this case?",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "no", "label": "No — no Children's Lawyer is involved"},
+            {"value": "yes", "label": "Yes — a Children's Lawyer has been appointed"}
+          ],
+          "hint": "A Children's Lawyer may be appointed by the court to represent your child's interests separately."
+        },
+        {
+          "id": "childrens_lawyer_details",
+          "label": "Children's Lawyer / Agent — Name, Address & Child Represented",
+          "type": "textarea",
+          "required": false,
+          "rows": 4,
+          "placeholder": "Name & address of Children's Lawyer's agent for service (street & number, municipality, postal code, telephone & fax), and name of person represented.",
+          "showIf": {"field": "childrens_lawyer_involved", "value": "yes"},
+          "hint": "Enter the Children's Lawyer's contact information and the name of the child they represent."
+        }
+      ]
+    },
+    {
+      "step": 5,
+      "title": "Who is Filing This Notice",
+      "description": "Tell the court which party is changing their representation.",
+      "fields": [
+        {
+          "id": "filer_role",
+          "label": "I am the:",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {"value": "applicant", "label": "Applicant"},
+            {"value": "respondent", "label": "Respondent"},
+            {"value": "other", "label": "Other party in this case"}
+          ]
+        },
+        {
+          "id": "filer_name",
+          "label": "My Full Legal Name",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. Jane Elizabeth Smith",
+          "autoFill": "user_fullname",
+          "hint": "This notice is addressed to all parties and their lawyers."
+        }
+      ]
+    },
+    {
+      "step": 6,
+      "title": "Nature of the Change",
+      "description": "Select the change in representation that applies to you. Choose only one.",
+      "fields": [
+        {
+          "id": "representation_change",
+          "label": "My change in representation is:",
+          "type": "radio",
+          "required": true,
+          "options": [
+            {
+              "value": "new_lawyer_first_time",
+              "label": "I have chosen to be represented by a lawyer (I was previously self-represented)"
+            },
+            {
+              "value": "new_lawyer_switch",
+              "label": "I have chosen a new lawyer (replacing my previous lawyer)"
+            },
+            {
+              "value": "self_represented",
+              "label": "I have decided to act in person (I am dismissing my lawyer and will represent myself)"
+            },
+            {
+              "value": "non_lawyer_rep",
+              "label": "I have the court's permission to be represented by a person who is not a lawyer"
+            },
+            {
+              "value": "self_rep_child_protection",
+              "label": "I have the court's permission to appear in person at a child protection trial"
+            }
+          ],
+          "hint": "If you are switching to self-representation from a lawyer, you must also serve this notice on your former lawyer."
+        }
+      ]
+    },
+    {
+      "step": 7,
+      "title": "New Representation Details",
+      "description": "Provide the contact details for your new lawyer or representative, or your new address for service if acting in person.",
+      "fields": [
+        {
+          "id": "new_rep_name",
+          "label": "New Lawyer / Representative — Full Name",
+          "type": "text",
+          "required": false,
+          "placeholder": "e.g. A. Jones, Barrister & Solicitor",
+          "showIf": {"field": "representation_change", "values": ["new_lawyer_first_time", "new_lawyer_switch", "non_lawyer_rep"]},
+          "hint": "Enter the full name of your new lawyer or court-approved representative."
+        },
+        {
+          "id": "new_rep_address",
+          "label": "New Lawyer / Representative — Address",
+          "type": "text",
+          "required": false,
+          "placeholder": "Street & number, city, province, postal code",
+          "showIf": {"field": "representation_change", "values": ["new_lawyer_first_time", "new_lawyer_switch", "non_lawyer_rep"]}
+        },
+        {
+          "id": "new_rep_phone",
+          "label": "New Lawyer / Representative — Telephone Number",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0300",
+          "showIf": {"field": "representation_change", "values": ["new_lawyer_first_time", "new_lawyer_switch", "non_lawyer_rep"]}
+        },
+        {
+          "id": "new_rep_fax",
+          "label": "New Lawyer / Representative — Fax Number (if any)",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0301",
+          "showIf": {"field": "representation_change", "values": ["new_lawyer_first_time", "new_lawyer_switch", "non_lawyer_rep"]}
+        },
+        {
+          "id": "new_rep_email",
+          "label": "New Lawyer / Representative — Email Address (if any)",
+          "type": "email",
+          "required": false,
+          "placeholder": "e.g. a.jones@lawfirm.com",
+          "showIf": {"field": "representation_change", "values": ["new_lawyer_first_time", "new_lawyer_switch", "non_lawyer_rep"]}
+        },
+        {
+          "id": "self_rep_service_address",
+          "label": "My Address for Service (if acting in person)",
+          "type": "text",
+          "required": false,
+          "placeholder": "Street & number, city, province, postal code",
+          "showIf": {"field": "representation_change", "values": ["self_represented", "self_rep_child_protection"]},
+          "autoFill": "user_address",
+          "hint": "If you are acting without a lawyer, documents will be served on you at this address. Provide a complete address — a PO Box alone is not sufficient."
+        },
+        {
+          "id": "self_rep_phone",
+          "label": "My Telephone Number (if acting in person)",
+          "type": "tel",
+          "required": false,
+          "placeholder": "e.g. 416-555-0100",
+          "showIf": {"field": "representation_change", "values": ["self_represented", "self_rep_child_protection"]},
+          "autoFill": "user_phone"
+        },
+        {
+          "id": "self_rep_email",
+          "label": "My Email Address (if acting in person)",
+          "type": "email",
+          "required": false,
+          "placeholder": "e.g. jane.smith@email.com",
+          "showIf": {"field": "representation_change", "values": ["self_represented", "self_rep_child_protection"]},
+          "autoFill": "user_email"
+        },
+        {
+          "id": "lawyer_consent_attached",
+          "label": "I have attached the new lawyer's consent to this notice",
+          "type": "checkbox",
+          "required": false,
+          "showIf": {"field": "representation_change", "values": ["new_lawyer_first_time", "new_lawyer_switch"]},
+          "hint": "Rule 4 of the Family Law Rules requires you to attach the new lawyer's consent when you were previously self-represented and are now hiring a lawyer."
+        }
+      ]
+    },
+    {
+      "step": 8,
+      "title": "Service Instructions",
+      "description": "Important steps you must complete after filing this notice.",
+      "fields": [
+        {
+          "id": "service_instructions_info",
+          "label": "Important Service Requirements",
+          "type": "info",
+          "content": "After completing this form, you must:\n\n1. Serve a copy of this notice on the lawyers for all other parties. If another party does not have a lawyer, serve it on that party directly.\n\n2. If you had a lawyer who is no longer representing you because of this notice, you must also serve a copy on your former lawyer.\n\n3. You may serve by any method in Rule 6 of the Family Law Rules (mail, courier, fax, or email).\n\n4. After serving, file this notice with the court clerk together with proof of service (Form 6B: Affidavit of Service).\n\n5. If a child protection case has been scheduled for trial, you must obtain the court's permission before removing your lawyer."
+        },
+        {
+          "id": "service_completed_on_parties",
+          "label": "I confirm I will serve this notice on all parties or their lawyers before filing with the court.",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "id": "service_completed_on_former_lawyer",
+          "label": "I will also serve this notice on my former lawyer (if applicable).",
+          "type": "checkbox",
+          "required": false,
+          "hint": "Check this if you had a lawyer who is being replaced or dismissed."
+        },
+        {
+          "id": "form6b_reminder",
+          "label": "I understand I must file Form 6B (Affidavit of Service) as proof that I served this notice.",
+          "type": "checkbox",
+          "required": true
+        }
+      ]
+    },
+    {
+      "step": 9,
+      "title": "Signature & Date",
+      "description": "Sign and date this notice. You must sign it personally.",
+      "fields": [
+        {
+          "id": "signature_date",
+          "label": "Date of Signature",
+          "type": "date",
+          "required": true,
+          "hint": "Enter today's date or the date you are signing this notice."
+        },
+        {
+          "id": "signature_confirmation",
+          "label": "I confirm that all information in this notice is true and correct, and I am signing this notice personally.",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "id": "hearth_page_notice",
+          "label": "Hearth & Page Notice",
+          "type": "info",
+          "content": "This notice was prepared using Hearth & Page. You must serve a copy on all parties (or their lawyers) and file it with the court together with Form 6B as proof of service. This document does not replace legal advice."
+        }
+      ]
+    }
+  ]
+}
