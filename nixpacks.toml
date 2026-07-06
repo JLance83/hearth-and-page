@@ -6,3 +6,6 @@ cmds = ["npm install --production", "cp fill_pdf.py dist/fill_pdf.py || true", "
 
 [start]
 cmd = "NODE_ENV=production node dist/index.cjs"
+
+[variables]
+PORT = "8080"
