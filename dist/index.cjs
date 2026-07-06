@@ -26,8 +26,8 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 // ──────────────────────────────────────────────
 // Supabase REST API
 // ──────────────────────────────────────────────
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://omuwicdbeuavojrnddwe.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9tdXdpY2RiZXVhdm9qcm5kZHdlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjY1MDYxMiwiZXhwIjoyMDk4MjI2NjEyfQ.bQhktT5DCmLQwF6GPBcrR-pF1auBpjAZu_4gOU-EJL8';
+const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://omuwicdbeuavojrnddwe.supabase.co').trim();
+const SUPABASE_KEY = (process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9tdXdpY2RiZXVhdm9qcm5kZHdlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjY1MDYxMiwiZXhwIjoyMDk4MjI2NjEyfQ.bQhktT5DCmLQwF6GPBcrR-pF1auBpjAZu_4gOU-EJL8').trim();
 
 console.log('[DB] Supabase endpoint:', SUPABASE_URL);
 
