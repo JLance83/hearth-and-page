@@ -1591,28 +1591,35 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
 
     const doc = await dbGet('case_documents', { id: `eq.${docId}`, case_id: `eq.${caseId}`, user_id: `eq.${userId}` });
     if (!doc) return res.status(404).json({ message: 'Document not found' });
-    if (!doc.file_data) return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
+    // toCamel converts file_data -> fileData
+    const fileData = doc.fileData || doc.file_data;
+    const fileName = doc.filename || doc.fileName || 'document';
+    const fileType = doc.fileType || doc.file_type || 'image/jpeg';
+    if (!fileData) {
+      console.log('[parse] no file_data on doc', docId, '| keys:', Object.keys(doc).join(','));
+      return res.json({ fields: [], docTypeLabel: fileName });
+    }
 
     // Build the base64 data URL for GPT-4o Vision
-    const mimeType = doc.file_type || 'image/jpeg';
+    const mimeType = fileType;
     const isImage  = mimeType.startsWith('image/');
     if (!isImage) {
       // PDFs and Word docs — return empty for now, image-only support
-      return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
+      return res.json({ fields: [], docTypeLabel: fileName });
     }
 
     const openAiToken = process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY;
-    console.log('[parse] token present:', !!openAiToken, '| doc id:', docId, '| file_type:', mimeType, '| file_data len:', (doc.file_data || '').length);
+    console.log('[parse] token present:', !!openAiToken, '| doc id:', docId, '| file_type:', mimeType, '| file_data len:', fileData.length);
     if (!openAiToken) {
       console.error('No OpenAI token found in env vars');
-      return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
+      return res.json({ fields: [], docTypeLabel: fileName });
     }
 
     // Resize image to max 1024px — keeps payload small and GPT-4o reads it fine
-    let imageBase64 = doc.file_data;
+    let imageBase64 = fileData;
     try {
       const sharp = require('sharp');
-      const imgBuf = Buffer.from(doc.file_data, 'base64');
+      const imgBuf = Buffer.from(fileData, 'base64');
       const resized = await sharp(imgBuf)
         .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 85 })
