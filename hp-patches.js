@@ -316,6 +316,54 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
   };
 })();
 
+// --- SCJ-Compliant PDF Filename Generator ---
+// Format: [Form Label] – [Applicant/Respondent] – [Last Name] – [DD-MM-YYYY]
+// Matches Superior Court of Justice Case Center naming convention (June 2026 notice)
+window.__hp_scjFilename = async function(formLabel, caseId, role) {
+  try {
+    var today = new Date();
+    var dd    = String(today.getDate()).padStart(2, '0');
+    var mm    = String(today.getMonth() + 1).padStart(2, '0');
+    var yyyy  = today.getFullYear();
+    var dateStr = dd + '-' + mm + '-' + yyyy;
+    var party = role || 'Applicant';
+
+    // Try to get applicant last name from form_data
+    var lastName = '';
+    try {
+      if (caseId) {
+        var RAILWAY_EP = 'https://api-production-2334.up.railway.app';
+        var r = await fetch(RAILWAY_EP + '/api/cases/' + caseId + '/form-data', {
+          headers: window.__authHdr ? window.__authHdr() : {}
+        });
+        if (r.ok) {
+          var rows = await r.json();
+          // Look for applicant full name field
+          var nameRow = rows.find(function(row) {
+            return row.field_key === 'applicantFullName' ||
+                   row.field_key === 'applicant_full_name' ||
+                   row.field_key === 'fullName';
+          });
+          if (nameRow && nameRow.field_value) {
+            var parts = String(nameRow.field_value).trim().split(/\s+/);
+            lastName = parts[parts.length - 1] || '';
+          }
+        }
+      }
+    } catch(e) { /* fall through to no-name version */ }
+
+    // Build SCJ-compliant filename
+    var parts = [formLabel, party];
+    if (lastName) parts.push(lastName);
+    parts.push(dateStr);
+    // Clean each segment, join with en-dash, add .pdf
+    return parts.map(function(p) { return p.replace(/[/\\:*?"<>|]/g, ''); }).join(' \u2013 ') + '.pdf';
+  } catch(e) {
+    // Fallback to basic name if anything goes wrong
+    return 'HearthAndPage-' + formLabel.replace(/\s+/g, '-') + '.pdf';
+  }
+};
+
 // --- Export Panel (called by FormEngine when user hits "Review & Export") ----
 // window.__openExportPanel(caseId, formId) -- shows a modal with Download PDF
 // button for paid users, or an upsell prompt for free users.
@@ -472,7 +520,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
               var url  = URL.createObjectURL(blob);
               var a    = document.createElement('a');
               a.href     = url;
-              a.download = 'HearthAndPage-' + label.replace(/\s+/g, '-') + '.pdf';
+              a.download = await window.__hp_scjFilename(label, resolvedCaseId, 'Applicant');
               document.body.appendChild(a);
               a.click();
               setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 3000);
@@ -510,7 +558,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
         var url2  = URL.createObjectURL(blob2);
         var a2    = document.createElement('a');
         a2.href     = url2;
-        a2.download = 'HearthAndPage-' + label.replace(/\s+/g, '-') + '.pdf';
+        a2.download = await window.__hp_scjFilename(label, resolvedCaseId, 'Applicant');
         document.body.appendChild(a2);
         a2.click();
         setTimeout(function() { URL.revokeObjectURL(url2); a2.remove(); }, 3000);
@@ -3441,7 +3489,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
         var url  = URL.createObjectURL(blob);
         var a    = document.createElement('a');
         a.href     = url;
-        a.download = 'HearthAndPage-' + formLabel.replace(/\s+/g, '-') + '.pdf';
+        a.download = await window.__hp_scjFilename(formLabel, window.__hp_currentCaseId, 'Applicant');
         document.body.appendChild(a);
         a.click();
         setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 3000);
