@@ -6548,3 +6548,461 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   };
 
 })();
+
+// ─── PHASE D: EVIDENCE STORAGE PANEL ─────────────────────────────────────────
+// Full evidence management: categories, labels, descriptions, search, preview
+// Floating "Evidence" button on /#/case/:id/* routes (Plus plan only)
+// ─────────────────────────────────────────────────────────────────────────────
+(function() {
+  var RAILWAY_EP = 'https://api-production-2334.up.railway.app';
+
+  var CATEGORIES = [
+    { key: 'financial',      label: 'Financial',       icon: '💰', color: '#22895E' },
+    { key: 'communications', label: 'Communications',  icon: '💬', color: '#2563EB' },
+    { key: 'photos',         label: 'Photos',          icon: '📷', color: '#7C3AED' },
+    { key: 'court_orders',   label: 'Court Orders',    icon: '⚖️',  color: '#C9903A' },
+    { key: 'medical',        label: 'Medical',         icon: '🏥', color: '#DC2626' },
+    { key: 'other',          label: 'Other',           icon: '📎', color: '#6B7280' }
+  ];
+
+  function getCat(key) {
+    return CATEGORIES.find(function(c) { return c.key === key; }) || CATEGORIES[CATEGORIES.length - 1];
+  }
+
+  function fmtSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function fmtDate(ts) {
+    if (!ts) return '';
+    var d = new Date(typeof ts === 'number' ? ts : parseInt(ts));
+    return d.toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function isImage(fileType) {
+    return fileType && fileType.startsWith('image/');
+  }
+
+  function isPDF(fileType) {
+    return fileType === 'application/pdf';
+  }
+
+  // ── CSS ──────────────────────────────────────────────────────────────────────
+  (function injectEvidenceStyles() {
+    if (document.getElementById('hp-ev-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'hp-ev-styles';
+    s.textContent = [
+      '.hp-ev-btn{position:fixed;bottom:140px;right:24px;z-index:9000;display:flex;align-items:center;gap:8px;',
+      'padding:10px 16px;background:#7C3AED;color:#fff;border:none;border-radius:24px;font-size:13px;',
+      'font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(124,58,237,0.4);font-family:inherit;}',
+      '.hp-ev-btn:hover{background:#6D28D9;}',
+      '.hp-ev-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;',
+      'align-items:stretch;justify-content:flex-end;}',
+      '.hp-ev-panel{width:min(520px,100vw);background:#0f1117;display:flex;flex-direction:column;',
+      'height:100vh;overflow:hidden;border-left:1px solid #2a2f3e;font-family:inherit;}',
+      '.hp-ev-header{padding:20px 24px 16px;border-bottom:1px solid #2a2f3e;flex-shrink:0;}',
+      '.hp-ev-header h2{color:#fff;font-size:18px;font-weight:700;margin:0 0 4px;}',
+      '.hp-ev-header p{color:#8892a0;font-size:12px;margin:0;}',
+      '.hp-ev-toolbar{padding:12px 24px;border-bottom:1px solid #2a2f3e;display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;}',
+      '.hp-ev-search{flex:1;min-width:160px;background:#161920;border:1px solid #2a2f3e;border-radius:8px;',
+      'padding:8px 12px;color:#fff;font-size:13px;font-family:inherit;outline:none;}',
+      '.hp-ev-search:focus{border-color:#7C3AED;}',
+      '.hp-ev-search::placeholder{color:#4a5568;}',
+      '.hp-ev-cat-filter{display:flex;gap:6px;flex-wrap:wrap;padding:0 24px 10px;flex-shrink:0;}',
+      '.hp-ev-cat-chip{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;',
+      'border:1.5px solid #2a2f3e;background:transparent;color:#8892a0;font-family:inherit;}',
+      '.hp-ev-cat-chip.active{color:#fff;border-color:transparent;}',
+      '.hp-ev-list{flex:1;overflow-y:auto;padding:12px 16px 80px;}',
+      '.hp-ev-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;',
+      'padding:60px 20px;color:#4a5568;text-align:center;}',
+      '.hp-ev-empty .icon{font-size:40px;margin-bottom:12px;}',
+      '.hp-ev-card{background:#161920;border:1px solid #2a2f3e;border-radius:10px;margin-bottom:8px;',
+      'overflow:hidden;transition:border-color .15s;}',
+      '.hp-ev-card:hover{border-color:#3d4558;}',
+      '.hp-ev-card-top{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;}',
+      '.hp-ev-card-icon{font-size:20px;flex-shrink:0;margin-top:2px;}',
+      '.hp-ev-card-body{flex:1;min-width:0;}',
+      '.hp-ev-card-name{color:#e2e8f0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+      '.hp-ev-card-meta{display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap;}',
+      '.hp-ev-cat-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;color:#fff;}',
+      '.hp-ev-card-size{font-size:11px;color:#6b7280;}',
+      '.hp-ev-card-date{font-size:11px;color:#6b7280;}',
+      '.hp-ev-card-desc{font-size:11px;color:#8892a0;margin-top:4px;font-style:italic;}',
+      '.hp-ev-card-actions{display:flex;gap:6px;flex-shrink:0;}',
+      '.hp-ev-action-btn{background:transparent;border:1px solid #2a2f3e;border-radius:6px;',
+      'padding:5px 8px;color:#8892a0;cursor:pointer;font-size:11px;font-family:inherit;}',
+      '.hp-ev-action-btn:hover{border-color:#7C3AED;color:#a78bfa;}',
+      '.hp-ev-action-btn.danger:hover{border-color:#ef4444;color:#ef4444;}',
+      '.hp-ev-preview{background:#0a0c12;border-top:1px solid #2a2f3e;padding:12px 14px;display:none;}',
+      '.hp-ev-preview img{max-width:100%;border-radius:6px;max-height:280px;object-fit:contain;}',
+      '.hp-ev-edit-form{background:#0a0c12;border-top:1px solid #2a2f3e;padding:12px 14px;display:none;}',
+      '.hp-ev-edit-form input,.hp-ev-edit-form textarea,.hp-ev-edit-form select{',
+      'width:100%;background:#161920;border:1px solid #2a2f3e;border-radius:6px;',
+      'padding:7px 10px;color:#e2e8f0;font-size:12px;font-family:inherit;margin-bottom:8px;box-sizing:border-box;outline:none;}',
+      '.hp-ev-edit-form input:focus,.hp-ev-edit-form textarea:focus,.hp-ev-edit-form select:focus{border-color:#7C3AED;}',
+      '.hp-ev-edit-form select option{background:#161920;}',
+      '.hp-ev-save-edit{background:#7C3AED;color:#fff;border:none;border-radius:6px;',
+      'padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;}',
+      '.hp-ev-save-edit:hover{background:#6D28D9;}',
+      '.hp-ev-upload-bar{position:absolute;bottom:0;left:0;right:0;padding:14px 16px;',
+      'background:#0f1117;border-top:1px solid #2a2f3e;}',
+      '.hp-ev-upload-btn{width:100%;background:#7C3AED;color:#fff;border:none;border-radius:8px;',
+      'padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}',
+      '.hp-ev-upload-btn:hover{background:#6D28D9;}',
+      '.hp-ev-uploading{color:#8892a0;font-size:12px;text-align:center;padding:8px;}',
+      '.hp-ev-close-btn{background:transparent;border:none;color:#6b7280;cursor:pointer;',
+      'font-size:20px;line-height:1;padding:4px;margin-left:auto;}',
+      '.hp-ev-close-btn:hover{color:#fff;}',
+      '.hp-ev-count{font-size:11px;color:#6b7280;padding:0 24px 8px;flex-shrink:0;}',
+    ].join('');
+    document.head.appendChild(s);
+  })();
+
+  // ── State ────────────────────────────────────────────────────────────────────
+  var evState = {
+    caseId: null,
+    docs: [],
+    filter: 'all',
+    search: '',
+    isPlus: false
+  };
+
+  // ── API helpers ──────────────────────────────────────────────────────────────
+  function evFetch(path, opts) {
+    return fetch(RAILWAY_EP + path, Object.assign({
+      headers: Object.assign({ 'Content-Type': 'application/json' }, window.__authHdr ? window.__authHdr() : {})
+    }, opts || {}));
+  }
+
+  async function loadDocs() {
+    var r = await evFetch('/api/cases/' + evState.caseId + '/documents');
+    if (!r.ok) return;
+    evState.docs = await r.json();
+  }
+
+  // ── Filter / search ──────────────────────────────────────────────────────────
+  function filteredDocs() {
+    return evState.docs.filter(function(d) {
+      var catOk = evState.filter === 'all' || d.category === evState.filter;
+      var q = evState.search.toLowerCase();
+      var searchOk = !q ||
+        (d.fileName || '').toLowerCase().includes(q) ||
+        (d.label || '').toLowerCase().includes(q) ||
+        (d.description || '').toLowerCase().includes(q) ||
+        (d.category || '').toLowerCase().includes(q);
+      return catOk && searchOk;
+    });
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+  function renderEvidencePanel() {
+    var panel = document.getElementById('hp-ev-panel-root');
+    if (!panel) return;
+    var filtered = filteredDocs();
+
+    // Category filter chips
+    var catHtml = '<button class="hp-ev-cat-chip' + (evState.filter === 'all' ? ' active" style="background:#7C3AED;border-color:#7C3AED' : '') + '" data-cat="all">All (' + evState.docs.length + ')</button>';
+    CATEGORIES.forEach(function(c) {
+      var count = evState.docs.filter(function(d) { return d.category === c.key; }).length;
+      if (count === 0) return;
+      var isActive = evState.filter === c.key;
+      catHtml += '<button class="hp-ev-cat-chip' + (isActive ? ' active' : '') + '" data-cat="' + c.key + '"' +
+        (isActive ? ' style="background:' + c.color + ';border-color:' + c.color + '"' : '') + '>' +
+        c.icon + ' ' + c.label + ' (' + count + ')</button>';
+    });
+    panel.querySelector('.hp-ev-cat-filter').innerHTML = catHtml;
+    panel.querySelector('.hp-ev-count').textContent = filtered.length + ' of ' + evState.docs.length + ' document' + (evState.docs.length === 1 ? '' : 's');
+
+    // Document cards
+    var listEl = panel.querySelector('.hp-ev-list');
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div class="hp-ev-empty"><div class="icon">' +
+        (evState.docs.length === 0 ? '📂' : '🔍') + '</div><p>' +
+        (evState.docs.length === 0 ? 'No documents uploaded yet.<br>Tap the button below to add your first file.' : 'No documents match your search.') +
+        '</p></div>';
+    } else {
+      var html = '';
+      filtered.forEach(function(d) {
+        var cat = getCat(d.category);
+        var docIcon = isImage(d.fileType) ? '🖼️' : isPDF(d.fileType) ? '📄' : '📎';
+        html += '<div class="hp-ev-card" data-doc-id="' + d.id + '">' +
+          '<div class="hp-ev-card-top">' +
+            '<div class="hp-ev-card-icon">' + docIcon + '</div>' +
+            '<div class="hp-ev-card-body">' +
+              '<div class="hp-ev-card-name" title="' + (d.fileName || '') + '">' + (d.label || d.fileName || 'Untitled') + '</div>' +
+              '<div class="hp-ev-card-meta">' +
+                '<span class="hp-ev-cat-badge" style="background:' + cat.color + '">' + cat.icon + ' ' + cat.label + '</span>' +
+                '<span class="hp-ev-card-size">' + fmtSize(d.fileSize) + '</span>' +
+                '<span class="hp-ev-card-date">' + fmtDate(d.uploadedAt) + '</span>' +
+              '</div>' +
+              (d.description ? '<div class="hp-ev-card-desc">' + d.description + '</div>' : '') +
+            '</div>' +
+            '<div class="hp-ev-card-actions">' +
+              (isImage(d.fileType) ? '<button class="hp-ev-action-btn hp-ev-preview-btn" data-doc-id="' + d.id + '" title="Preview">👁</button>' : '') +
+              '<button class="hp-ev-action-btn hp-ev-edit-btn" data-doc-id="' + d.id + '" title="Edit">✏️</button>' +
+              '<button class="hp-ev-action-btn hp-ev-dl-btn" data-doc-id="' + d.id + '" data-name="' + (d.fileName || 'file') + '" title="Download">⬇</button>' +
+              '<button class="hp-ev-action-btn danger hp-ev-del-btn" data-doc-id="' + d.id + '" title="Delete">🗑</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="hp-ev-preview" id="hp-ev-preview-' + d.id + '"></div>' +
+          '<div class="hp-ev-edit-form" id="hp-ev-edit-' + d.id + '">' +
+            '<select class="hp-ev-cat-select" data-doc-id="' + d.id + '">' +
+              CATEGORIES.map(function(c) {
+                return '<option value="' + c.key + '"' + (d.category === c.key ? ' selected' : '') + '>' + c.icon + ' ' + c.label + '</option>';
+              }).join('') +
+            '</select>' +
+            '<input class="hp-ev-label-input" type="text" placeholder="Label (e.g. Bank statement March 2026)" value="' + (d.label || '') + '" data-doc-id="' + d.id + '" />' +
+            '<textarea class="hp-ev-desc-input" placeholder="Notes (optional)" rows="2" data-doc-id="' + d.id + '">' + (d.description || '') + '</textarea>' +
+            '<button class="hp-ev-save-edit" data-doc-id="' + d.id + '">Save</button>' +
+          '</div>' +
+        '</div>';
+      });
+      listEl.innerHTML = html;
+    }
+
+    // Wire category chips
+    panel.querySelectorAll('.hp-ev-cat-chip').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        evState.filter = this.dataset.cat;
+        renderEvidencePanel();
+      });
+    });
+
+    // Wire preview buttons
+    panel.querySelectorAll('.hp-ev-preview-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = this.dataset.docId;
+        var previewEl = document.getElementById('hp-ev-preview-' + docId);
+        if (previewEl.style.display === 'block') { previewEl.style.display = 'none'; return; }
+        previewEl.innerHTML = '<div style="color:#8892a0;font-size:12px;padding:4px">Loading preview…</div>';
+        previewEl.style.display = 'block';
+        try {
+          var r = await evFetch('/api/cases/' + evState.caseId + '/documents/' + docId);
+          var data = await r.json();
+          if (data.fileData && data.fileType) {
+            previewEl.innerHTML = '<img src="data:' + data.fileType + ';base64,' + data.fileData + '" alt="Preview" />';
+          } else {
+            previewEl.innerHTML = '<div style="color:#8892a0;font-size:12px;padding:4px">Preview not available</div>';
+          }
+        } catch(e) { previewEl.innerHTML = '<div style="color:#ef4444;font-size:12px;padding:4px">Failed to load preview</div>'; }
+      });
+    });
+
+    // Wire edit buttons
+    panel.querySelectorAll('.hp-ev-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var docId = this.dataset.docId;
+        var editEl = document.getElementById('hp-ev-edit-' + docId);
+        editEl.style.display = editEl.style.display === 'block' ? 'none' : 'block';
+      });
+    });
+
+    // Wire save edit buttons
+    panel.querySelectorAll('.hp-ev-save-edit').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = this.dataset.docId;
+        var card = panel.querySelector('.hp-ev-card[data-doc-id="' + docId + '"]');
+        var category = card.querySelector('.hp-ev-cat-select').value;
+        var label = card.querySelector('.hp-ev-label-input').value.trim();
+        var description = card.querySelector('.hp-ev-desc-input').value.trim();
+        this.textContent = 'Saving…';
+        try {
+          await evFetch('/api/cases/' + evState.caseId + '/documents/' + docId, {
+            method: 'PATCH',
+            body: JSON.stringify({ label, category, description })
+          });
+          // Update local state
+          var doc = evState.docs.find(function(d) { return String(d.id) === String(docId); });
+          if (doc) { doc.label = label; doc.category = category; doc.description = description; }
+          document.getElementById('hp-ev-edit-' + docId).style.display = 'none';
+          renderEvidencePanel();
+        } catch(e) { this.textContent = 'Error — retry'; }
+      });
+    });
+
+    // Wire download buttons
+    panel.querySelectorAll('.hp-ev-dl-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = this.dataset.docId;
+        var name = this.dataset.name;
+        this.textContent = '⏳';
+        try {
+          var r = await evFetch('/api/cases/' + evState.caseId + '/documents/' + docId);
+          var data = await r.json();
+          if (data.fileData) {
+            var byteStr = atob(data.fileData);
+            var ab = new ArrayBuffer(byteStr.length);
+            var ia = new Uint8Array(ab);
+            for (var i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+            var blob = new Blob([ab], { type: data.fileType || 'application/octet-stream' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url; a.download = name;
+            document.body.appendChild(a); a.click();
+            setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 2000);
+          }
+        } catch(e) {}
+        this.textContent = '⬇';
+      });
+    });
+
+    // Wire delete buttons
+    panel.querySelectorAll('.hp-ev-del-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = this.dataset.docId;
+        if (!confirm('Delete this document? This cannot be undone.')) return;
+        try {
+          await evFetch('/api/cases/' + evState.caseId + '/documents/' + docId, { method: 'DELETE' });
+          evState.docs = evState.docs.filter(function(d) { return String(d.id) !== String(docId); });
+          renderEvidencePanel();
+        } catch(e) { alert('Delete failed. Please try again.'); }
+      });
+    });
+  }
+
+  // ── Upload handler ───────────────────────────────────────────────────────────
+  async function handleUpload(file) {
+    var panel = document.getElementById('hp-ev-panel-root');
+    var statusEl = panel ? panel.querySelector('.hp-ev-uploading') : null;
+    if (statusEl) statusEl.textContent = 'Uploading ' + file.name + '…';
+    try {
+      var fd = new FormData();
+      fd.append('file', file);
+      // Default category from extension
+      var ext = file.name.split('.').pop().toLowerCase();
+      var defaultCat = 'other';
+      if (['jpg','jpeg','png','gif','webp','heic','heif'].includes(ext)) defaultCat = 'photos';
+      if (file.name.toLowerCase().includes('statement') || file.name.toLowerCase().includes('bank')) defaultCat = 'financial';
+      fd.append('category', defaultCat);
+
+      var r = await fetch(RAILWAY_EP + '/api/cases/' + evState.caseId + '/documents', {
+        method: 'POST',
+        headers: window.__authHdr ? window.__authHdr() : {},
+        body: fd
+      });
+      if (!r.ok) throw new Error('Upload failed');
+      var newDoc = await r.json();
+      evState.docs.unshift(newDoc);
+      if (statusEl) statusEl.textContent = '';
+      renderEvidencePanel();
+    } catch(e) {
+      if (statusEl) statusEl.textContent = 'Upload failed — please try again';
+    }
+  }
+
+  // ── Open panel ───────────────────────────────────────────────────────────────
+  async function openEvidencePanel(caseId) {
+    if (document.getElementById('hp-ev-panel-root')) return;
+    evState.caseId = caseId;
+    evState.filter = 'all';
+    evState.search = '';
+
+    // Check Plus plan
+    var isPlus = false;
+    if (window.__hp_currentUser) {
+      var u = window.__hp_currentUser;
+      isPlus = (u.subscriptionStatus === 'active' || u.subscription_status === 'active') && (u.plan === 'plus');
+    } else if (window.__hp_plan === 'plus' && window.__hp_sub_status === 'active') {
+      isPlus = true;
+    }
+    evState.isPlus = isPlus;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'hp-ev-overlay';
+    overlay.id = 'hp-ev-panel-root';
+
+    overlay.innerHTML =
+      '<div class="hp-ev-panel" style="position:relative;">' +
+        '<div class="hp-ev-header">' +
+          '<div style="display:flex;align-items:center;">' +
+            '<div>' +
+              '<h2>📂 Evidence Storage</h2>' +
+              '<p>Securely store photos, documents, and communications for your case.</p>' +
+            '</div>' +
+            '<button class="hp-ev-close-btn" id="hp-ev-close">✕</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="hp-ev-toolbar">' +
+          '<input class="hp-ev-search" type="text" placeholder="Search documents…" id="hp-ev-search-input" />' +
+        '</div>' +
+        '<div class="hp-ev-cat-filter"></div>' +
+        '<div class="hp-ev-count"></div>' +
+        '<div class="hp-ev-list"><div class="hp-ev-empty"><div class="icon">⏳</div><p>Loading…</p></div></div>' +
+        (isPlus ?
+          '<div class="hp-ev-upload-bar">' +
+            '<div class="hp-ev-uploading"></div>' +
+            '<button class="hp-ev-upload-btn" id="hp-ev-upload-btn">+ Upload Document or Photo</button>' +
+            '<input type="file" id="hp-ev-file-input" style="display:none" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf,.doc,.docx,.txt" />' +
+          '</div>' :
+          '<div class="hp-ev-upload-bar"><p style="color:#C9903A;font-size:13px;text-align:center;margin:0;">Evidence storage is available on the <strong>Plus plan</strong> ($19.99/mo).</p></div>'
+        ) +
+      '</div>';
+
+    document.body.appendChild(overlay);
+
+    // Close handlers
+    document.getElementById('hp-ev-close').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    // Search
+    document.getElementById('hp-ev-search-input').addEventListener('input', function() {
+      evState.search = this.value;
+      renderEvidencePanel();
+    });
+
+    // Upload
+    if (isPlus) {
+      document.getElementById('hp-ev-upload-btn').addEventListener('click', function() {
+        document.getElementById('hp-ev-file-input').click();
+      });
+      document.getElementById('hp-ev-file-input').addEventListener('change', function() {
+        if (this.files && this.files[0]) handleUpload(this.files[0]);
+        this.value = '';
+      });
+    }
+
+    // Load and render
+    await loadDocs();
+    renderEvidencePanel();
+  }
+
+  // ── Floating button ──────────────────────────────────────────────────────────
+  function injectEvidenceBtn(caseId) {
+    if (document.getElementById('hp-ev-fab')) return;
+    var btn = document.createElement('button');
+    btn.id = 'hp-ev-fab';
+    btn.className = 'hp-ev-btn';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Evidence';
+    btn.addEventListener('click', function() { openEvidencePanel(caseId); });
+    document.body.appendChild(btn);
+  }
+
+  function removeEvidenceBtn() {
+    var b = document.getElementById('hp-ev-fab');
+    if (b) b.remove();
+    var p = document.getElementById('hp-ev-panel-root');
+    if (p) p.remove();
+  }
+
+  // ── Route handler ────────────────────────────────────────────────────────────
+  var __evLastHash = '';
+  function onEvHashChange() {
+    var hash = window.location.hash;
+    if (hash === __evLastHash) return;
+    __evLastHash = hash;
+    var caseMatch = hash.match(/#\/case\/(\d+)/);
+    if (caseMatch) {
+      setTimeout(function() { injectEvidenceBtn(caseMatch[1]); }, 1200);
+    } else {
+      removeEvidenceBtn();
+    }
+  }
+
+  window.addEventListener('hashchange', onEvHashChange);
+  setTimeout(onEvHashChange, 2000);
+
+})();

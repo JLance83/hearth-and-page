@@ -1489,10 +1489,12 @@ app.get('/api/cases/:caseId/documents', requireAuth, async (req, res) => {
     const list = docs.map(d => ({
       id: d.id,
       fileName: d.filename || d.fileName,
-      fileType: d.fileType,
-      fileSize: d.fileSize,
+      fileType: d.file_type || d.fileType,
+      fileSize: d.file_size || d.fileSize,
       label: d.label,
-      uploadedAt: d.createdAt
+      category: d.category || null,
+      description: d.description || null,
+      uploadedAt: d.created_at || d.createdAt
     }));
     res.json(list);
   } catch(e) { res.status(500).json({ message: 'Failed to load documents' }); }
@@ -1508,6 +1510,9 @@ app.post('/api/cases/:caseId/documents', requireAuth, upload.single('file'), asy
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
     const fileData = req.file.buffer.toString('base64');
     const now = Date.now();
+    const label = req.body.label || null;
+    const category = req.body.category || null;
+    const description = req.body.description || null;
     const row = await dbInsert('case_documents', {
       case_id: caseId,
       user_id: userId,
@@ -1515,10 +1520,12 @@ app.post('/api/cases/:caseId/documents', requireAuth, upload.single('file'), asy
       file_type: req.file.mimetype,
       file_size: req.file.size,
       file_data: fileData,
-      label: null,
+      label,
+      category,
+      description,
       created_at: now
     });
-    res.json({ id: row.id, fileName: row.filename || row.fileName, fileType: row.fileType, fileSize: row.fileSize, uploadedAt: row.createdAt });
+    res.json({ id: row.id, fileName: row.filename || row.fileName, fileType: row.file_type || row.fileType, fileSize: row.file_size || row.fileSize, label: row.label, category: row.category, description: row.description, uploadedAt: row.created_at || row.createdAt });
   } catch(e) {
     console.error('Document upload error:', e.message);
     res.status(500).json({ error: e.message || 'Upload failed' });
@@ -1535,8 +1542,11 @@ app.get('/api/cases/:caseId/documents/:docId', requireAuth, async (req, res) => 
     if (!doc) return res.status(404).json({ message: 'Document not found' });
     res.json({
       id: doc.id, fileName: doc.filename || doc.fileName,
-      fileType: doc.fileType, fileSize: doc.fileSize,
-      fileData: doc.fileData, label: doc.label, uploadedAt: doc.createdAt
+      fileType: doc.file_type || doc.fileType, fileSize: doc.file_size || doc.fileSize,
+      fileData: doc.file_data || doc.fileData,
+      label: doc.label, category: doc.category || null,
+      description: doc.description || null,
+      uploadedAt: doc.created_at || doc.createdAt
     });
   } catch(e) { res.status(500).json({ message: 'Failed to load document' }); }
 });
@@ -1562,8 +1572,12 @@ app.patch('/api/cases/:caseId/documents/:docId', requireAuth, async (req, res) =
     const userId = req.user.id;
     const doc = await dbGet('case_documents', { id: `eq.${docId}`, case_id: `eq.${caseId}`, user_id: `eq.${userId}` });
     if (!doc) return res.status(404).json({ message: 'Document not found' });
-    const { label } = req.body;
-    await dbUpdate('case_documents', { id: `eq.${docId}` }, { label: label || null });
+    const { label, category, description } = req.body;
+    const updates = {};
+    if (label !== undefined) updates.label = label || null;
+    if (category !== undefined) updates.category = category || null;
+    if (description !== undefined) updates.description = description || null;
+    await dbUpdate('case_documents', { id: `eq.${docId}` }, updates);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ message: 'Label update failed' }); }
 });
