@@ -2561,42 +2561,40 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
         caseType = 'form10-answer,form6b-service,' + caseType;
       }
 
-      // Show confirmation screen
-      var c = card();
-      c.innerHTML = [
-        '<div style="text-align:center;padding:8px 0 24px;">',
-          '<div style="font-size:52px;margin-bottom:16px;">' + route.icon + '</div>',
-          '<div style="font-size:11px;color:#A8B4D0;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;">We\'ve found the right forms</div>',
-          '<h2 style="color:#f9fafb;font-size:20px;margin:0 0 10px;font-weight:700;">' + route.label + '</h2>',
-          '<p style="color:#9ca3af;font-size:14px;margin:0 0 24px;line-height:1.6;">We\'ll create your case and load the forms you need. You can fill them out in any order and come back any time — your answers are saved automatically.</p>',
-          '<div style="background:rgba(30,45,78,0.25);border:1px solid rgba(30,45,78,0.40);border-radius:10px;padding:14px 16px;margin-bottom:28px;text-align:left;">',
-            '<div style="font-size:12px;color:#A8B4D0;font-weight:600;margin-bottom:6px;">Forms in this path</div>',
-            '<div style="color:#6b7280;font-size:13px;line-height:1.7;">' + caseType.split(',').map(function(ct) {
-              var parts = ct.split('-');
-              return '• ' + (parts[0] || '').replace('form','Form ').trim() + ' — ' + parts.slice(1).join(' ').replace(/-/g,' ');
-            }).join('<br>') + '</div>',
-          '</div>',
-        '</div>',
-      ].join('');
+      // ── Show the package screen as the conversion hook ──────────────────
+      // Store pending package details so we can create the case after subscribe
+      var pkgObj = window.__hp_packageScreen && window.__hp_packageScreen.PACKAGES
+        ? (window.__hp_packageScreen.PACKAGES.find(function(p){ return p.id === window.__hp_packageScreen.inferPackage(caseType); }) ||
+           window.__hp_packageScreen.PACKAGES.find(function(p){ return p.id === 'PKG-FULL-APP'; }))
+        : null;
 
-      var goBtn = document.createElement('button');
-      goBtn.style.cssText = 'background:#1E2D4E;color:#fff;border:none;border-radius:10px;padding:15px 28px;font-size:16px;font-weight:700;cursor:pointer;width:100%;transition:background 0.15s;';
-      goBtn.textContent = 'Create my case →';
-      goBtn.addEventListener('mouseenter', function() { goBtn.style.background='#2a3a5c'; });
-      goBtn.addEventListener('mouseleave', function() { goBtn.style.background='#1E2D4E'; });
-      goBtn.addEventListener('click', function() {
-        overlay.remove();
+      window.__hp_pendingPackage = {
+        title: route.label,
+        caseType: caseType,
+        pkgId: pkgObj ? pkgObj.id : null
+      };
+
+      var isPaid = (function() {
+        var u = window.__hp_currentUser;
+        if (!u) return false;
+        return (u.subscriptionStatus === 'active' || u.subscriptionStatus === 'past_due') && u.plan !== 'free';
+      })();
+
+      overlay.remove();
+
+      if (isPaid) {
+        // Paid user — create case immediately (no gate)
         createFirstCase(route.label, caseType);
-      });
-      c.appendChild(goBtn);
+        return;
+      }
 
-      var changeMind = document.createElement('button');
-      changeMind.style.cssText = 'background:transparent;border:none;color:#4b5563;font-size:13px;cursor:pointer;margin-top:16px;display:block;width:100%;text-align:center;';
-      changeMind.textContent = '← Start over';
-      changeMind.addEventListener('click', showWelcome);
-      c.appendChild(changeMind);
-
-      setScreen(c);
+      // Free user — show the full package screen with a subscribe CTA
+      if (window.__hp_packageScreen && window.__hp_packageScreen.mountForQuiz) {
+        window.__hp_packageScreen.mountForQuiz(caseType, route.label);
+      } else {
+        // Fallback: go straight to subscription page
+        window.location.hash = '#/subscription';
+      }
     }
 
     // ── Boot ──────────────────────────────────────────────────────────────
@@ -4333,8 +4331,369 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
     return _origFetch.apply(this, arguments);
   };
 
+  // ── Package Screen for Quiz (free-user conversion hook) ──────────────────
+  // Shows the package screen BEFORE case creation, with a subscribe CTA.
+  // caseType is the comma-separated form string from the quiz.
+  function mountForQuiz(caseType, routeLabel) {
+    var existing = document.getElementById('hp-pkg-screen');
+    if (existing) existing.remove();
+
+    var pkg = PACKAGES.find(function(p){ return p.id === inferPackage(caseType); })
+           || PACKAGES.find(function(p){ return p.id === 'PKG-FULL-APP'; });
+
+    var selectedId = pkg.id;
+
+    // ── Outer shell ────────────────────────────────────────────────────────
+    var shell = el('div', {
+      id: 'hp-pkg-screen',
+      style: {
+        position:'fixed', inset:'0', background: BG,
+        zIndex:'2147483647', overflowY:'auto',
+        fontFamily:'"Inter",system-ui,sans-serif', color: WHITE
+      }
+    });
+
+    var wrap = el('div', { style: { maxWidth:'680px', margin:'0 auto', padding:'40px 24px 80px' } });
+
+    // Back button
+    var backBtn = el('button', {
+      style: { background:'none', border:'none', color: PB, cursor:'pointer', fontSize:'13px',
+               display:'flex', alignItems:'center', gap:'6px', marginBottom:'32px', padding:'0' },
+      html: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Back',
+      on: { click: function(){ shell.remove(); } }
+    });
+
+    // Header
+    var hdr = el('div', { style: { marginBottom:'32px' } });
+    var stepBadge = el('div', {
+      text: 'Your forms are ready',
+      style: { fontSize:'11px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.08em',
+               color: GOLD, marginBottom:'10px' }
+    });
+    var title = el('h1', {
+      text: 'Here’s what we’ll prepare for you',
+      style: { fontSize:'24px', fontWeight:'700', color: WHITE, margin:'0 0 8px' }
+    });
+    var subtitle = el('p', {
+      text: 'Based on your answers, these are the Ontario court forms your situation requires. Subscribe to start filling them out.',
+      style: { fontSize:'14px', color: PB, margin:'0', lineHeight:'1.6' }
+    });
+    hdr.appendChild(stepBadge);
+    hdr.appendChild(title);
+    hdr.appendChild(subtitle);
+
+    // Recommended package card
+    var recLabel = el('div', {
+      text: 'RECOMMENDED FOR YOUR SITUATION',
+      style: { fontSize:'10px', fontWeight:'700', letterSpacing:'0.1em', color: TEAL, marginBottom:'12px' }
+    });
+
+    var recCard = el('div', {
+      id: 'hp-pkg-rec-card',
+      style: { background: SURF, borderRadius:'14px', border:'2px solid ' + TEAL,
+               padding:'20px 24px', marginBottom:'24px' }
+    });
+
+    function buildRecCard(p) {
+      recCard.innerHTML = '';
+      var topRow = el('div', { style: { display:'flex', alignItems:'center', gap:'14px', marginBottom:'12px' } });
+      var icon = el('div', {
+        text: p.icon,
+        style: { fontSize:'28px', lineHeight:'1', flexShrink:'0', width:'44px', height:'44px',
+                 display:'flex', alignItems:'center', justifyContent:'center',
+                 background: NAV, borderRadius:'10px' }
+      });
+      var info = el('div');
+      var pkgTitle = el('div', { text: p.label, style: { fontSize:'17px', fontWeight:'700', color: WHITE, marginBottom:'4px' } });
+      var pkgDesc  = el('div', { text: p.description, style: { fontSize:'13px', color: PB, lineHeight:'1.5' } });
+      info.appendChild(pkgTitle);
+      info.appendChild(pkgDesc);
+      topRow.appendChild(icon);
+      topRow.appendChild(info);
+      recCard.appendChild(topRow);
+
+      var divider = el('div', { style: { height:'1px', background:'rgba(168,180,208,0.12)', margin:'14px 0' } });
+      recCard.appendChild(divider);
+
+      var formsLabel = el('div', {
+        text: p.formLabels.length + ' forms included in your package:',
+        style: { fontSize:'11px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.07em',
+                 color: GOLD, marginBottom:'10px' }
+      });
+      recCard.appendChild(formsLabel);
+
+      p.formLabels.forEach(function(lbl) {
+        var row = el('div', { style: { display:'flex', alignItems:'center', gap:'8px', marginBottom:'7px' } });
+        row.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="' + TEAL + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+        var txt = el('span', { text: lbl, style: { fontSize:'13px', color: WHITE } });
+        row.appendChild(txt);
+        recCard.appendChild(row);
+      });
+    }
+    buildRecCard(pkg);
+
+    // Change package link
+    var changeRow = el('div', { style: { marginBottom:'24px', textAlign:'center' } });
+    var changeBtn = el('button', {
+      text: 'Not right? Choose a different package',
+      style: { background:'none', border:'none', color: PB, cursor:'pointer',
+               fontSize:'13px', textDecoration:'underline', textDecorationColor:'rgba(168,180,208,0.4)' }
+    });
+    changeRow.appendChild(changeBtn);
+
+    // Package picker (hidden by default)
+    var pickerWrap = el('div', { id: 'hp-pkg-picker', style: { display:'none', marginBottom:'24px' } });
+    var pickerLabel = el('div', {
+      text: 'Choose your package:',
+      style: { fontSize:'12px', fontWeight:'700', textTransform:'uppercase',
+               letterSpacing:'0.07em', color: PB, marginBottom:'14px' }
+    });
+    pickerWrap.appendChild(pickerLabel);
+
+    PACKAGES.forEach(function(p) {
+      var pCard = el('div', {
+        'data-pkg': p.id,
+        style: {
+          background: p.id === selectedId ? NAV : SURF,
+          border: '1.5px solid ' + (p.id === selectedId ? TEAL : 'rgba(168,180,208,0.15)'),
+          borderRadius:'10px', padding:'14px 18px', marginBottom:'8px',
+          cursor:'pointer', display:'flex', alignItems:'center', gap:'12px',
+          transition:'border-color 0.15s'
+        },
+        on: {
+          click: function() {
+            pickerWrap.querySelectorAll('[data-pkg]').forEach(function(c){
+              c.style.border = '1.5px solid rgba(168,180,208,0.15)';
+              c.style.background = SURF;
+            });
+            pCard.style.border = '1.5px solid ' + TEAL;
+            pCard.style.background = NAV;
+            selectedId = p.id;
+            // Update pending package
+            window.__hp_pendingPackage = window.__hp_pendingPackage || {};
+            window.__hp_pendingPackage.pkgId = p.id;
+            buildRecCard(PACKAGES.find(function(x){ return x.id === p.id; }));
+            pickerWrap.style.display = 'none';
+          }
+        }
+      });
+      pCard.innerHTML = '<span style="font-size:20px;width:30px;flex-shrink:0;">' + p.icon + '</span>' +
+        '<div><div style="font-size:14px;font-weight:600;color:' + WHITE + ';margin-bottom:2px;">' + p.label + '</div>' +
+        '<div style="font-size:12px;color:' + PB + ';">' + p.formLabels.length + ' forms</div></div>';
+      pickerWrap.appendChild(pCard);
+    });
+
+    changeBtn.addEventListener('click', function() {
+      pickerWrap.style.display = pickerWrap.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // Lock notice
+    var lockBox = el('div', {
+      style: { background: 'rgba(201,144,58,0.10)', border: '1px solid rgba(201,144,58,0.30)',
+               borderRadius:'12px', padding:'16px 20px', marginBottom:'24px',
+               display:'flex', gap:'12px', alignItems:'flex-start' }
+    });
+    lockBox.innerHTML =
+      '<svg width="20" height="20" style="flex-shrink:0;margin-top:1px;" viewBox="0 0 24 24" fill="none" stroke="' + GOLD + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>' +
+        '<path d="M7 11V7a5 5 0 0 1 10 0v4"/>' +
+      '</svg>' +
+      '<div>' +
+        '<div style="font-size:13px;font-weight:700;color:' + GOLD + ';margin-bottom:4px;">Subscribe to unlock these forms</div>' +
+        '<div style="font-size:13px;color:' + PB + ';line-height:1.6;">A subscription gives you access to all ' + pkg.formLabels.length + ' forms in this package — fill them out at home, save your progress, and download court-ready PDFs.</div>' +
+      '</div>';
+
+    // Pricing row
+    var pricingRow = el('div', {
+      style: { display:'flex', gap:'12px', marginBottom:'16px', flexWrap:'wrap' }
+    });
+
+    function makePriceCard(planId, planName, price, period, features, highlight) {
+      var priceEnvKey = planId === 'standard' ? 'VITE_STRIPE_PRICE_STANDARD' : 'VITE_STRIPE_PRICE_PLUS';
+      var priceId = (window.__hp_env && window.__hp_env[priceEnvKey]) || '';
+
+      var card = el('div', {
+        style: {
+          flex:'1', minWidth:'220px',
+          background: highlight ? NAV : SURF,
+          border: '1.5px solid ' + (highlight ? TEAL : 'rgba(168,180,208,0.15)'),
+          borderRadius:'12px', padding:'18px 20px',
+          display:'flex', flexDirection:'column', gap:'12px'
+        }
+      });
+
+      var nameRow = el('div', { style: { display:'flex', alignItems:'center', justifyContent:'space-between' } });
+      nameRow.innerHTML = '<span style="font-size:14px;font-weight:700;color:' + WHITE + ';">' + planName + '</span>' +
+        (highlight ? '<span style="font-size:10px;font-weight:700;background:' + TEAL_D + ';color:#fff;padding:2px 8px;border-radius:20px;letter-spacing:0.05em;">POPULAR</span>' : '');
+      card.appendChild(nameRow);
+
+      var priceEl = el('div', {
+        html: '<span style="font-size:26px;font-weight:800;color:' + WHITE + ';">' + price + '</span>' +
+              '<span style="font-size:13px;color:' + PB + ';">' + period + '</span>'
+      });
+      card.appendChild(priceEl);
+
+      var featList = el('div', { style: { fontSize:'12px', color: PB, lineHeight:'1.8' } });
+      featList.innerHTML = features.map(function(f){
+        return '<div style="display:flex;align-items:center;gap:6px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="' + TEAL + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' + f + '</div>';
+      }).join('');
+      card.appendChild(featList);
+
+      var btn = el('button', {
+        text: 'Choose ' + planName + ' →',
+        style: {
+          background: highlight ? TEAL_D : NAV, color:'#fff',
+          border:'none', borderRadius:'8px', padding:'12px 16px',
+          fontSize:'13px', fontWeight:'700', cursor:'pointer',
+          transition:'background 0.15s', marginTop:'auto'
+        },
+        on: {
+          mouseenter: function(){ btn.style.background = TEAL; },
+          mouseleave: function(){ btn.style.background = highlight ? TEAL_D : NAV; },
+          click: function() {
+            // Save selected package ID before leaving
+            window.__hp_pendingPackage = window.__hp_pendingPackage || {};
+            window.__hp_pendingPackage.pkgId = selectedId;
+
+            // Get price ID from the patched env
+            var pid = (function(){
+              try {
+                // Try to grab from the React bundle's fF object via a global
+                var scripts = document.querySelectorAll('script[src*="index-"]');
+                // Direct lookup in window.__hp_env (set below)
+                return window.__hp_env && window.__hp_env[priceEnvKey];
+              } catch(e){ return ''; }
+            })() || '';
+
+            if (!pid) {
+              // Fallback: navigate to React subscription page
+              shell.remove();
+              window.location.hash = '#/subscription';
+              return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Opening checkout…';
+
+            fetch(window.__hp_rw + '/api/stripe/checkout', {
+              method: 'POST',
+              headers: Object.assign({'Content-Type':'application/json'}, window.__authHdr ? window.__authHdr() : {}),
+              body: JSON.stringify({ priceId: pid })
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(d) {
+              if (d.url) {
+                window.open(d.url, '_blank') || (window.location.href = d.url);
+                // Show "I've paid" prompt on the package screen
+                btn.disabled = false;
+                btn.textContent = 'I\'ve paid — activate my plan →';
+                btn.style.background = GOLD;
+                btn.removeEventListener('mouseenter', arguments.callee);
+                btn.onclick = function() {
+                  btn.disabled = true;
+                  btn.textContent = 'Activating…';
+                  fetch(window.__hp_rw + '/api/stripe/sync', {
+                    method: 'POST',
+                    headers: Object.assign({'Content-Type':'application/json'}, window.__authHdr ? window.__authHdr() : {})
+                  })
+                  .then(function(r){ return r.json(); })
+                  .then(function(sd) {
+                    if (sd.synced) {
+                      // Now create the case
+                      shell.remove();
+                      var pp = window.__hp_pendingPackage || {};
+                      createFirstCase(pp.title || routeLabel, pp.caseType || caseType);
+                    } else {
+                      btn.disabled = false;
+                      btn.textContent = 'Payment not found yet — try again';
+                    }
+                  })
+                  .catch(function(){
+                    btn.disabled = false;
+                    btn.textContent = 'Could not activate — try again';
+                  });
+                };
+              } else {
+                btn.disabled = false;
+                btn.textContent = 'Choose ' + planName + ' →';
+                // Fallback to subscription page
+                shell.remove();
+                window.location.hash = '#/subscription';
+              }
+            })
+            .catch(function(){
+              btn.disabled = false;
+              btn.textContent = 'Choose ' + planName + ' →';
+              shell.remove();
+              window.location.hash = '#/subscription';
+            });
+          }
+        }
+      });
+      card.appendChild(btn);
+      return card;
+    }
+
+    pricingRow.appendChild(makePriceCard(
+      'standard', 'Standard', '$9.99', '/month CAD',
+      ['All 35 Ontario court forms', 'Court-ready PDF download', 'Save progress anytime', 'Unlimited cases'],
+      false
+    ));
+    pricingRow.appendChild(makePriceCard(
+      'plus', 'Plus', '$19.99', '/month CAD',
+      ['Everything in Standard', 'Smart document upload', 'Evidence file storage', 'Priority support'],
+      true
+    ));
+
+    var billingNote = el('p', {
+      text: 'Billed monthly. Cancel anytime. No contracts.',
+      style: { fontSize:'11px', color:'rgba(168,180,208,0.5)', textAlign:'center', margin:'0 0 28px' }
+    });
+
+    // Fine print
+    var finePrint = el('p', {
+      text: 'Hearth & Page · hearthandpage.ca',
+      style: { textAlign:'center', fontSize:'10px', color:'rgba(168,180,208,0.3)',
+               marginTop:'24px', letterSpacing:'0.04em' }
+    });
+
+    // Assemble
+    wrap.appendChild(backBtn);
+    wrap.appendChild(hdr);
+    wrap.appendChild(recLabel);
+    wrap.appendChild(recCard);
+    wrap.appendChild(changeRow);
+    wrap.appendChild(pickerWrap);
+    wrap.appendChild(lockBox);
+    wrap.appendChild(pricingRow);
+    wrap.appendChild(billingNote);
+    wrap.appendChild(finePrint);
+    shell.appendChild(wrap);
+    document.body.appendChild(shell);
+  }
+
   // Expose for testing
-  window.__hp_packageScreen = { PACKAGES: PACKAGES, inferPackage: inferPackage, mount: mountPackageScreen };
+  window.__hp_packageScreen = { PACKAGES: PACKAGES, inferPackage: inferPackage, mount: mountPackageScreen, mountForQuiz: mountForQuiz };
+
+  // Expose env shim so the inline pricing cards can read Stripe price IDs
+  window.__hp_env = {
+    VITE_STRIPE_PRICE_STANDARD: 'price_1Tduf0DyokC7Tv7bDRAZBk57',
+    VITE_STRIPE_PRICE_PLUS:     'price_1TduyXDyokC7Tv7bKKoeeh1v'
+  };
+
+  // Expose auth helpers for the inline checkout
+  (function pollForHelpers() {
+    var attempts = 0;
+    var timer = setInterval(function() {
+      attempts++;
+      if (window.__authHdr && window._RW) {
+        window.__hp_rw = window._RW;
+        clearInterval(timer);
+      } else if (attempts > 40) {
+        clearInterval(timer);
+      }
+    }, 250);
+  })();
 
 })();
 
