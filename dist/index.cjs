@@ -1666,39 +1666,26 @@ For dates use YYYY-MM-DD format. For monetary values use numbers only (no $ sign
       ]
     });
 
-    const https = require('https');
-    const apiHost = 'api.openai.com';
-    const response = await new Promise((resolve, reject) => {
-      const options = {
-        hostname: apiHost,
-        path: '/v1/chat/completions',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openAiToken}`,
-          'Content-Length': Buffer.byteLength(body)
-        }
-      };
-      const httpReq = https.request(options, (httpRes) => {
-        let data = '';
-        httpRes.on('data', chunk => data += chunk);
-        httpRes.on('end', () => {
-          try { resolve({ status: httpRes.statusCode, body: JSON.parse(data) }); }
-          catch(e) { reject(new Error('Invalid JSON from OpenAI')); }
-        });
-      });
-      httpReq.on('error', reject);
-      httpReq.setTimeout(30000, () => { httpReq.destroy(); reject(new Error('OpenAI timeout')); });
-      httpReq.write(body);
-      httpReq.end();
+    // Use global fetch (Node 18+) for OpenAI call
+    console.log('[parse] calling OpenAI Vision with image size:', imageBase64.length, 'chars');
+    const oaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openAiToken}`
+      },
+      body: body,
+      signal: AbortSignal.timeout(45000)
     });
 
-    if (response.status !== 200) {
-      console.error('OpenAI error:', response.body);
+    if (!oaiResponse.ok) {
+      const errText = await oaiResponse.text();
+      console.error('OpenAI error:', oaiResponse.status, errText.slice(0, 200));
       return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
     }
 
-    const content = response.body.choices?.[0]?.message?.content || '{}';
+    const oaiJson = await oaiResponse.json();
+    const content = oaiJson.choices?.[0]?.message?.content || '{}';
     // Strip markdown code fences if present
     const cleaned = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
     let parsed;
