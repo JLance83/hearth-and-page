@@ -5922,6 +5922,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   // ─── Inject Dashboard Button into Case Header/Actions ─────────────────────
   function injectDeadlineNavBtn(caseId) {
+    if (window.__hp_noFabs) return; // unified Documents drawer handles this
     if (document.getElementById('hp-dl-nav-btn')) return;
 
     var btn = document.createElement('button');
@@ -6233,6 +6234,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   }
 
   function renderInvitePanel(caseId) {
+    if (window.__hp_noFabs) return; // unified Documents drawer handles this
     if (currentInviteCaseId === caseId && inviteFab) return; // already mounted for this case
     removeInvitePanel();
     currentInviteCaseId = caseId;
@@ -6258,6 +6260,17 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         loadCollabStatus(caseId);
       }
     });
+  }
+
+  // ── Open collab content inside a provided container (for unified drawer) ──
+  function openCollabInContainer(caseId, container) {
+    currentInviteCaseId = caseId;
+    // Use a temporary div as the invitePanel target
+    invitePanel = container;
+    inviteFab = { parentNode: null, remove: function(){} }; // stub
+    invitePanelOpen = true;
+    renderInvitePanelContent();
+    loadCollabStatus(caseId);
   }
 
   function renderInvitePanelContent() {
@@ -6543,6 +6556,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   window.__hp_collab = {
     renderJoinOverlay: renderJoinOverlay,
     renderInvitePanel: renderInvitePanel,
+    openCollabInContainer: openCollabInContainer,
     injectSharedCaseBadges: injectSharedCaseBadges,
     checkPendingInvite: checkPendingInvite
   };
@@ -6972,6 +6986,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   // ── Floating button ──────────────────────────────────────────────────────────
   function injectEvidenceBtn(caseId) {
+    if (window.__hp_noFabs) return; // unified Documents drawer handles this
     if (document.getElementById('hp-ev-fab')) return;
     var btn = document.createElement('button');
     btn.id = 'hp-ev-fab';
@@ -7004,5 +7019,262 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   window.addEventListener('hashchange', onEvHashChange);
   setTimeout(onEvHashChange, 2000);
+
+  // Expose for unified Documents drawer
+  window.__hp_evidence = {
+    open: openEvidencePanel
+  };
+
+})();
+
+// ─── UNIFIED DOCUMENTS DRAWER ─────────────────────────────────────────────────
+// Intercepts the "Documents" button in the wizard toolbar and opens a tabbed
+// drawer with Evidence, Deadlines, and Collaborate tabs — replacing the three
+// floating FABs entirely.
+// ─────────────────────────────────────────────────────────────────────────────
+(function() {
+
+  // ── Set the no-FABs flag immediately so none of the 3 modules inject floating buttons ──
+  window.__hp_noFabs = true;
+
+  var TABS = [
+    { id: 'evidence',   label: 'Evidence',    icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' },
+    { id: 'deadlines',  label: 'Deadlines',   icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' },
+    { id: 'collaborate', label: 'Collaborate', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' }
+  ];
+
+  var NAVY   = '#1B2A4A';
+  var SURF   = '#131929';
+  var BORDER = '#243154';
+  var GOLD   = '#C9903A';
+  var POWDER = '#A8B4D0';
+
+  var drawerOpen    = false;
+  var activeTab     = 'evidence';
+  var drawerCaseId  = null;
+  var drawerRoot    = null;
+  var drawerContent = null;
+
+  // ── CSS ─────────────────────────────────────────────────────────────────────
+  (function injectStyles() {
+    if (document.getElementById('hp-docsdrawer-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'hp-docsdrawer-styles';
+    s.textContent = [
+      /* overlay */
+      '#hp-docsdrawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99990;display:flex;justify-content:flex-end;}',
+      /* drawer */
+      '#hp-docsdrawer-panel{width:min(540px,100vw);background:' + SURF + ';display:flex;flex-direction:column;height:100%;border-left:1px solid ' + BORDER + ';animation:hpDrawerIn 0.24s ease;}',
+      '@keyframes hpDrawerIn{from{transform:translateX(100%)}to{transform:translateX(0)}}',
+      /* header */
+      '#hp-docsdrawer-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid ' + BORDER + ';flex-shrink:0;}',
+      '#hp-docsdrawer-header h2{color:#fff;font-size:16px;font-weight:700;margin:0;letter-spacing:-0.01em;}',
+      '#hp-docsdrawer-close{background:transparent;border:none;color:' + POWDER + ';font-size:20px;cursor:pointer;line-height:1;padding:4px 8px;border-radius:6px;}',
+      '#hp-docsdrawer-close:hover{background:rgba(168,180,208,0.1);}',
+      /* tabs */
+      '#hp-docsdrawer-tabs{display:flex;border-bottom:1px solid ' + BORDER + ';flex-shrink:0;padding:0 8px;}',
+      '.hp-ddt{display:flex;align-items:center;gap:6px;padding:12px 14px;font-size:13px;font-weight:600;color:' + POWDER + ';border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.15s,border-color 0.15s;}',
+      '.hp-ddt:hover{color:#fff;}',
+      '.hp-ddt.active{color:' + GOLD + ';border-bottom-color:' + GOLD + ';}',
+      /* content */
+      '#hp-docsdrawer-body{flex:1;overflow-y:auto;position:relative;}'
+    ].join('');
+    document.head.appendChild(s);
+  })();
+
+  // ── Build the drawer shell ───────────────────────────────────────────────────
+  function buildDrawer(caseId) {
+    if (drawerRoot) drawerRoot.remove();
+
+    drawerRoot = document.createElement('div');
+    drawerRoot.id = 'hp-docsdrawer-overlay';
+
+    var panel = document.createElement('div');
+    panel.id = 'hp-docsdrawer-panel';
+
+    // Header
+    var hdr = document.createElement('div');
+    hdr.id = 'hp-docsdrawer-header';
+    hdr.innerHTML = '<h2>Case Documents</h2><button id="hp-docsdrawer-close" aria-label="Close">✕</button>';
+
+    // Tabs
+    var tabBar = document.createElement('div');
+    tabBar.id = 'hp-docsdrawer-tabs';
+    TABS.forEach(function(t) {
+      var btn = document.createElement('button');
+      btn.className = 'hp-ddt' + (t.id === activeTab ? ' active' : '');
+      btn.dataset.tab = t.id;
+      btn.innerHTML = t.icon + '<span>' + t.label + '</span>';
+      btn.addEventListener('click', function() { switchTab(t.id, caseId); });
+      tabBar.appendChild(btn);
+    });
+
+    // Body
+    drawerContent = document.createElement('div');
+    drawerContent.id = 'hp-docsdrawer-body';
+
+    panel.appendChild(hdr);
+    panel.appendChild(tabBar);
+    panel.appendChild(drawerContent);
+    drawerRoot.appendChild(panel);
+    document.body.appendChild(drawerRoot);
+
+    // Close handlers
+    document.getElementById('hp-docsdrawer-close').addEventListener('click', closeDrawer);
+    drawerRoot.addEventListener('click', function(e) {
+      if (e.target === drawerRoot) closeDrawer();
+    });
+  }
+
+  // ── Switch tabs ─────────────────────────────────────────────────────────────
+  function switchTab(tabId, caseId) {
+    activeTab = tabId;
+
+    // Update tab active state
+    document.querySelectorAll('.hp-ddt').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.tab === tabId);
+    });
+
+    // Clear body
+    drawerContent.innerHTML = '';
+
+    if (tabId === 'evidence') {
+      mountEvidenceTab(caseId);
+    } else if (tabId === 'deadlines') {
+      mountDeadlinesTab(caseId);
+    } else if (tabId === 'collaborate') {
+      mountCollabTab(caseId);
+    }
+  }
+
+  // ── Evidence tab ─────────────────────────────────────────────────────────────
+  function mountEvidenceTab(caseId) {
+    drawerContent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;color:' + POWDER + ';font-size:14px;">Loading evidence...</div>';
+
+    // Wait for the evidence module to be ready, then open the panel content
+    // The evidence module renders its own full overlay — we'll let it do that
+    // but scoped to the drawer body. We re-use openEvidencePanel which renders
+    // into its own overlay; for the drawer we instead call the inner render fn.
+    function tryMount() {
+      if (window.__hp_evidence && window.__hp_evidence.open) {
+        // openEvidencePanel renders a full-screen overlay; close drawer and open it
+        closeDrawer();
+        window.__hp_evidence.open(caseId);
+      } else {
+        setTimeout(tryMount, 300);
+      }
+    }
+    tryMount();
+  }
+
+  // ── Deadlines tab ────────────────────────────────────────────────────────────
+  function mountDeadlinesTab(caseId) {
+    drawerContent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;color:' + POWDER + ';font-size:14px;">Loading deadlines...</div>';
+
+    function tryMount() {
+      if (window.__hp_deadlines && window.__hp_deadlines.mount) {
+        drawerContent.innerHTML = '';
+        window.__hp_deadlines.mount(drawerContent, caseId);
+      } else {
+        setTimeout(tryMount, 300);
+      }
+    }
+    tryMount();
+  }
+
+  // ── Collaborate tab ──────────────────────────────────────────────────────────
+  function mountCollabTab(caseId) {
+    drawerContent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;color:' + POWDER + ';font-size:14px;">Loading collaboration...</div>';
+
+    // Add styles needed for the collab panel content if not already present
+    if (!document.getElementById('hp-collab-inline-style')) {
+      // The collab panel css (#hp-invite-panel etc.) is injected when the module loads —
+      // we just need to override position:fixed for the panel when inside the drawer
+      var st = document.createElement('style');
+      st.id = 'hp-collab-inline-style';
+      st.textContent = [
+        '#hp-docsdrawer-body #hp-invite-panel{',
+        '  position:relative!important;bottom:auto!important;right:auto!important;',
+        '  width:100%!important;display:block!important;box-shadow:none!important;',
+        '  border-radius:0!important;border:none!important;background:transparent!important;',
+        '  padding:20px!important;',
+        '}'
+      ].join('');
+      document.head.appendChild(st);
+    }
+
+    function tryMount() {
+      if (window.__hp_collab && window.__hp_collab.openCollabInContainer) {
+        drawerContent.innerHTML = '';
+        window.__hp_collab.openCollabInContainer(caseId, drawerContent);
+      } else {
+        setTimeout(tryMount, 300);
+      }
+    }
+    tryMount();
+  }
+
+  // ── Open drawer ──────────────────────────────────────────────────────────────
+  function openDrawer(caseId, tab) {
+    drawerCaseId = caseId;
+    activeTab    = tab || 'evidence';
+    drawerOpen   = true;
+
+    buildDrawer(caseId);
+    switchTab(activeTab, caseId);
+  }
+
+  function closeDrawer() {
+    drawerOpen = false;
+    if (drawerRoot) {
+      drawerRoot.remove();
+      drawerRoot    = null;
+      drawerContent = null;
+    }
+  }
+
+  // ── Intercept Documents button ───────────────────────────────────────────────
+  var interceptorActive = false;
+
+  function interceptDocsButton() {
+    if (interceptorActive) return;
+    var btn = document.querySelector('[data-testid="button-wizard-documents"]');
+    if (!btn) return;
+
+    interceptorActive = true;
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      // Extract case ID from the current hash
+      var m = window.location.hash.match(/#\/case\/(\d+)/);
+      if (!m) return;
+      openDrawer(m[1], 'evidence');
+    }, true); // capture phase so we beat the React handler
+  }
+
+  // Re-run interceptor on every hash change (React remounts the button on navigation)
+  function setupInterceptor() {
+    interceptorActive = false;
+    setTimeout(interceptDocsButton, 800);
+  }
+
+  window.addEventListener('hashchange', setupInterceptor);
+  setTimeout(interceptDocsButton, 2000); // initial page load
+
+  // MutationObserver to catch the button being added to the DOM
+  var docObserver = new MutationObserver(function() {
+    if (!interceptorActive) {
+      var btn = document.querySelector('[data-testid="button-wizard-documents"]');
+      if (btn) interceptDocsButton();
+    }
+  });
+  docObserver.observe(document.body, { childList: true, subtree: true });
+
+  // Expose for external access
+  window.__hp_docsDrawer = {
+    open: openDrawer,
+    close: closeDrawer
+  };
 
 })();
