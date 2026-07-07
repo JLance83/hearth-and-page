@@ -1602,6 +1602,7 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
     }
 
     const openAiToken = process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY;
+    console.log('[parse] token present:', !!openAiToken, '| doc id:', docId, '| file_type:', mimeType, '| file_data len:', (doc.file_data || '').length);
     if (!openAiToken) {
       console.error('No OpenAI token found in env vars');
       return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
