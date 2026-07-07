@@ -7279,6 +7279,15 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     // Don't inject twice
     if (document.getElementById('hp-rtab-evidence')) return true;
 
+    // Make tab bar horizontally scrollable on mobile
+    tabBar.style.cssText += ';overflow-x:auto;max-width:100%;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;';
+    if (!document.getElementById('hp-tabbar-scroll-style')) {
+      var ss = document.createElement('style');
+      ss.id = 'hp-tabbar-scroll-style';
+      ss.textContent = 'div.rounded-xl.bg-muted::-webkit-scrollbar{display:none}';
+      document.head.appendChild(ss);
+    }
+
     TABS.forEach(function(t) {
       var btn = document.createElement('button');
       btn.id = 'hp-rtab-' + t.id;
