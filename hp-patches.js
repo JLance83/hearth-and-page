@@ -7020,9 +7020,73 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   window.addEventListener('hashchange', onEvHashChange);
   setTimeout(onEvHashChange, 2000);
 
+  // ── Inline mount for unified drawer (renders inside a provided container) ──
+  async function openEvidenceInContainer(caseId, container) {
+    // Remove any existing full-screen evidence panel
+    var existing = document.getElementById('hp-ev-panel-root');
+    if (existing) existing.remove();
+
+    evState.caseId = caseId;
+    evState.filter = 'all';
+    evState.search = '';
+
+    var isPlus = false;
+    if (window.__hp_currentUser) {
+      var u = window.__hp_currentUser;
+      isPlus = (u.subscriptionStatus === 'active' || u.subscription_status === 'active') && (u.plan === 'plus');
+    } else if (window.__hp_plan === 'plus' && window.__hp_sub_status === 'active') {
+      isPlus = true;
+    }
+    evState.isPlus = isPlus;
+
+    // Build the panel HTML directly inside container; give it hp-ev-panel-root id
+    // so renderEvidencePanel() can find it
+    container.innerHTML = '';
+    var inner = document.createElement('div');
+    inner.id = 'hp-ev-panel-root';
+    inner.style.cssText = 'display:flex;flex-direction:column;height:100%;';
+    inner.innerHTML =
+      '<div class="hp-ev-toolbar" style="padding:12px 16px;">' +
+        '<input class="hp-ev-search" type="text" placeholder="Search documents\u2026" id="hp-ev-search-input" />' +
+      '</div>' +
+      '<div class="hp-ev-cat-filter" style="padding:0 16px 8px;"></div>' +
+      '<div class="hp-ev-count" style="padding:0 16px 4px;font-size:12px;color:#8892a0;"></div>' +
+      '<div class="hp-ev-list" style="flex:1;overflow-y:auto;padding:0 16px 8px;"><div class="hp-ev-empty"><div class="icon">⏳</div><p>Loading\u2026</p></div></div>' +
+      (isPlus ?
+        '<div class="hp-ev-upload-bar">' +
+          '<div class="hp-ev-uploading"></div>' +
+          '<button class="hp-ev-upload-btn" id="hp-ev-upload-btn">+ Upload Document or Photo</button>' +
+          '<input type="file" id="hp-ev-file-input" style="display:none" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf,.doc,.docx,.txt" />' +
+        '</div>' :
+        '<div class="hp-ev-upload-bar"><p style="color:#C9903A;font-size:13px;text-align:center;margin:0;">Evidence storage is available on the <strong>Plus plan</strong> ($19.99/mo).</p></div>'
+      );
+    container.appendChild(inner);
+
+    // Wire search
+    document.getElementById('hp-ev-search-input').addEventListener('input', function() {
+      evState.search = this.value;
+      renderEvidencePanel();
+    });
+
+    // Wire upload
+    if (isPlus) {
+      document.getElementById('hp-ev-upload-btn').addEventListener('click', function() {
+        document.getElementById('hp-ev-file-input').click();
+      });
+      document.getElementById('hp-ev-file-input').addEventListener('change', function() {
+        if (this.files && this.files[0]) handleUpload(this.files[0]);
+        this.value = '';
+      });
+    }
+
+    await loadDocs();
+    renderEvidencePanel();
+  }
+
   // Expose for unified Documents drawer
   window.__hp_evidence = {
-    open: openEvidencePanel
+    open: openEvidencePanel,
+    openInContainer: openEvidenceInContainer
   };
 
 })();
@@ -7149,17 +7213,11 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   // ── Evidence tab ─────────────────────────────────────────────────────────────
   function mountEvidenceTab(caseId) {
-    drawerContent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;color:' + POWDER + ';font-size:14px;">Loading evidence...</div>';
+    drawerContent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;color:' + POWDER + ';font-size:14px;">Loading evidence…</div>';
 
-    // Wait for the evidence module to be ready, then open the panel content
-    // The evidence module renders its own full overlay — we'll let it do that
-    // but scoped to the drawer body. We re-use openEvidencePanel which renders
-    // into its own overlay; for the drawer we instead call the inner render fn.
     function tryMount() {
-      if (window.__hp_evidence && window.__hp_evidence.open) {
-        // openEvidencePanel renders a full-screen overlay; close drawer and open it
-        closeDrawer();
-        window.__hp_evidence.open(caseId);
+      if (window.__hp_evidence && window.__hp_evidence.openInContainer) {
+        window.__hp_evidence.openInContainer(caseId, drawerContent);
       } else {
         setTimeout(tryMount, 300);
       }
