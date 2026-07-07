@@ -1582,17 +1582,135 @@ app.patch('/api/cases/:caseId/documents/:docId', requireAuth, async (req, res) =
   } catch(e) { res.status(500).json({ message: 'Label update failed' }); }
 });
 
-// POST /api/cases/:caseId/documents/:docId/parse  (basic field extraction stub)
+// POST /api/cases/:caseId/documents/:docId/parse  — GPT-4o Vision Smart Auto-fill
 app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, res) => {
   try {
     const caseId = parseInt(req.params.caseId);
-    const docId = parseInt(req.params.docId);
+    const docId  = parseInt(req.params.docId);
     const userId = req.user.id;
+
     const doc = await dbGet('case_documents', { id: `eq.${docId}`, case_id: `eq.${caseId}`, user_id: `eq.${userId}` });
     if (!doc) return res.status(404).json({ message: 'Document not found' });
-    // Stub: return empty fields (no OCR engine available in this environment)
-    res.json({ fields: [], docTypeLabel: doc.filename });
-  } catch(e) { res.status(500).json({ message: 'Parse failed' }); }
+    if (!doc.file_data) return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
+
+    // Build the base64 data URL for GPT-4o Vision
+    const mimeType = doc.file_type || 'image/jpeg';
+    const isImage  = mimeType.startsWith('image/');
+    if (!isImage) {
+      // PDFs and Word docs — return empty for now, image-only support
+      return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
+    }
+
+    const openAiToken = process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY;
+    if (!openAiToken) {
+      console.error('No OpenAI token found in env vars');
+      return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
+    }
+
+    // Resize image to max 1024px — keeps payload small and GPT-4o reads it fine
+    let imageBase64 = doc.file_data;
+    try {
+      const sharp = require('sharp');
+      const imgBuf = Buffer.from(doc.file_data, 'base64');
+      const resized = await sharp(imgBuf)
+        .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      imageBase64 = resized.toString('base64');
+      console.log(`Image resized: ${imgBuf.length} → ${resized.length} bytes`);
+    } catch(e) {
+      console.warn('Image resize failed, using original:', e.message);
+    }
+
+    const systemPrompt = `You are a document field extractor for a Canadian family law intake application.
+Analyze the provided image and:
+1. Identify the document type (e.g. driver's licence, pay stub, Notice of Assessment, bank statement, court order, birth certificate, passport, marriage certificate, etc.)
+2. Extract all fields that are relevant to Ontario family law forms.
+
+For a DRIVER'S LICENCE extract: full_name, date_of_birth, address_street, address_city, address_province, address_postal_code, licence_number, expiry_date, sex
+For a PAY STUB extract: employer_name, employee_name, pay_period_start, pay_period_end, gross_pay, net_pay, annual_salary, hourly_rate
+For a NOTICE OF ASSESSMENT (NOA) extract: full_name, sin_last3 (last 3 digits only), tax_year, total_income, net_income, taxable_income
+For a BANK STATEMENT extract: account_holder_name, bank_name, account_number_last4, statement_period_start, statement_period_end
+For a BIRTH CERTIFICATE extract: child_full_name, child_date_of_birth, child_sex, parent1_name, parent2_name, registration_number
+For a PASSPORT extract: full_name, date_of_birth, nationality, passport_number, expiry_date
+For a MARRIAGE CERTIFICATE extract: spouse1_name, spouse2_name, marriage_date, marriage_location
+For a COURT ORDER extract: court_file_number, order_date, applicant_name, respondent_name
+
+Return ONLY valid JSON in this exact format:
+{
+  "docType": "drivers_licence",
+  "docTypeLabel": "Driver's Licence",
+  "fields": [
+    { "key": "full_name", "label": "Full Name", "value": "John Smith", "section": "applicant", "confidence": "high" },
+    { "key": "date_of_birth", "label": "Date of Birth", "value": "1985-06-15", "section": "applicant", "confidence": "high" }
+  ]
+}
+
+Confidence levels: "high" = clearly readable, "medium" = partially visible/inferred, "low" = uncertain.
+Do not invent or guess values. If a field is not clearly visible, omit it.
+For dates use YYYY-MM-DD format. For monetary values use numbers only (no $ signs).`;
+
+    const body = JSON.stringify({
+      model: 'gpt-4o',
+      max_tokens: 1000,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: 'high' } },
+            { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
+          ]
+        }
+      ]
+    });
+
+    const https = require('https');
+    const apiHost = 'api.openai.com';
+    const response = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: apiHost,
+        path: '/v1/chat/completions',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openAiToken}`,
+          'Content-Length': Buffer.byteLength(body)
+        }
+      };
+      const httpReq = https.request(options, (httpRes) => {
+        let data = '';
+        httpRes.on('data', chunk => data += chunk);
+        httpRes.on('end', () => {
+          try { resolve({ status: httpRes.statusCode, body: JSON.parse(data) }); }
+          catch(e) { reject(new Error('Invalid JSON from OpenAI')); }
+        });
+      });
+      httpReq.on('error', reject);
+      httpReq.setTimeout(30000, () => { httpReq.destroy(); reject(new Error('OpenAI timeout')); });
+      httpReq.write(body);
+      httpReq.end();
+    });
+
+    if (response.status !== 200) {
+      console.error('OpenAI error:', response.body);
+      return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
+    }
+
+    const content = response.body.choices?.[0]?.message?.content || '{}';
+    // Strip markdown code fences if present
+    const cleaned = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+    let parsed;
+    try { parsed = JSON.parse(cleaned); } catch(e) { parsed = { fields: [], docTypeLabel: doc.filename }; }
+
+    const fields  = Array.isArray(parsed.fields) ? parsed.fields : [];
+    const docTypeLabel = parsed.docTypeLabel || doc.filename || 'document';
+
+    res.json({ fields, docTypeLabel });
+  } catch(e) {
+    console.error('Parse error:', e.message);
+    res.json({ fields: [], docTypeLabel: 'document' });
+  }
 });
 
 
