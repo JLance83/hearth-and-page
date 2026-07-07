@@ -1753,8 +1753,8 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
       body: JSON.stringify({ priceId: priceId, successUrl: window.location.href + '?checkout=success', cancelUrl: window.location.href })
     })
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (d && d.url) window.location.href = d.url; else alert('Could not open checkout. Please try again.'); })
-    .catch(function(){ alert('Could not open checkout. Please try again.'); });
+    .then(function(d){ if (d && d.url) window.location.href = d.url; else alert('We couldn\'t open the checkout page. If your card was declined, check with your bank that online purchases are enabled — this is common with debit Visa and Mastercard. No charge has been made. Please try again or use a different card.'); })
+    .catch(function(){ alert('We couldn\'t connect to our payment processor. Please check your internet connection and try again. If the issue continues, your bank may be blocking the transaction — contact them to enable online purchases.'); });
   }
 
   // Handle Stripe checkout success redirect
@@ -1775,7 +1775,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
     banner.id = 'hp-pastdue-banner';
     banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#1E2D4E;color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-family:inherit;gap:12px;';
     banner.innerHTML =
-      '<span>\u26a0\ufe0f Your last payment failed. Please update your card to keep access.</span>' +
+      '<span>\u26a0\ufe0f Your last payment couldn\'t be processed. This is common with debit Visa/Mastercard — your bank may need to enable online purchases. Update your card to keep access.</span>' +
       '<a id="hp-pastdue-fix" href="#" style="color:#ffd0d8;font-weight:700;white-space:nowrap;text-decoration:none;">Update Card &rarr;</a>';
     document.body.prepend(banner);
     document.body.style.paddingTop = (parseInt(document.body.style.paddingTop || '0') + 44) + 'px';
@@ -1997,7 +1997,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
 
             (status === 'past_due' ?
               '<div style="background:#3d1020;border:1px solid #1E2D4E;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#ffd0d8;">'+
-                '&#9888;&#65039; Your last payment failed. Update your card to keep access.'+
+                '&#9888;&#65039; Your last payment couldn\'t be processed. This is common with debit Visa/Mastercard — your bank may need to enable online purchases. Update your card to restore access.'+
               '</div>' : ''
             )+
 
@@ -4605,12 +4605,12 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
                       createFirstCase(pp.title || routeLabel, pp.caseType || caseType);
                     } else {
                       btn.disabled = false;
-                      btn.textContent = 'Payment not found yet — try again';
+                      btn.textContent = 'Payment not confirmed yet — give it a moment and try again';
                     }
                   })
                   .catch(function(){
                     btn.disabled = false;
-                    btn.textContent = 'Could not activate — try again';
+                    btn.textContent = 'Could not activate — please try again or contact support';
                   });
                 };
               } else {
@@ -4624,6 +4624,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
             .catch(function(){
               btn.disabled = false;
               btn.textContent = 'Choose ' + planName + ' →';
+              alert('We couldn\'t open checkout. If your card was declined, check with your bank that online purchases are enabled \u2014 this is common with debit Visa/Mastercard. No charge has been made.');
               shell.remove();
               window.location.hash = '#/subscription';
             });

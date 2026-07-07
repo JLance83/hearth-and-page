@@ -1099,9 +1099,42 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         }
         break;
       }
-      case 'invoice.payment_failed':
+      case 'invoice.payment_failed': {
         await dbUpdate('users', { stripe_customer_id: `eq.${obj.customer}` }, { subscriptionStatus: 'past_due' });
+        // Send a helpful payment failure email
+        try {
+          const failedUser = await dbGet('users', { stripe_customer_id: `eq.${obj.customer}` });
+          if (failedUser && failedUser.email) {
+            const userName = failedUser.name ? failedUser.name.split(' ')[0] : 'there';
+            const portalUrl = (process.env.APP_URL || 'https://hearthandpage.ca') + '/#/account';
+            await sendViaResend({
+              from: 'Hearth & Page <support@hearthandpage.ca>',
+              to: [failedUser.email],
+              subject: 'Action needed — your Hearth & Page payment could not be processed',
+              html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;background:#fff;">
+  <h2 style="color:#C9903A;margin-bottom:8px;">Payment could not be processed</h2>
+  <p style="color:#374151;font-size:15px;">Hi ${userName},</p>
+  <p style="color:#374151;font-size:15px;">We weren't able to process your last Hearth &amp; Page subscription payment. Your account has been moved to a grace period — you still have access for now, but please update your payment details soon to avoid any interruption.</p>
+  <div style="background:#fff8ed;border-left:4px solid #C9903A;border-radius:4px;padding:16px 20px;margin:24px 0;">
+    <p style="color:#7a3e00;font-size:14px;margin:0 0 8px;font-weight:600;">Common reasons a card is declined:</p>
+    <ul style="color:#7a3e00;font-size:14px;margin:0;padding-left:20px;">
+      <li>Your bank requires online purchases to be enabled (very common with debit Visa &amp; Mastercard)</li>
+      <li>The card has expired or the billing details have changed</li>
+      <li>Your bank flagged the transaction — a quick call to them resolves this</li>
+    </ul>
+  </div>
+  <p style="color:#374151;font-size:15px;"><strong>No additional charges were made.</strong> We'll retry the payment automatically.</p>
+  <a href="${portalUrl}" style="display:inline-block;background:#C9903A;color:#fff;padding:13px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;margin:8px 0 24px;">Update my payment method &rarr;</a>
+  <p style="color:#6b7280;font-size:13px;">If you have any questions, reply to this email and we'll help sort it out.</p>
+  <p style="color:#9ca3af;font-size:12px;margin-top:32px;">Hearth &amp; Page &mdash; hearthandpage.ca</p>
+</div>`
+            });
+          }
+        } catch (pfEmailErr) {
+          console.error('[webhook] Payment failed email error:', pfEmailErr.message);
+        }
         break;
+      }
     }
   } catch (e) { console.error('[webhook] Handler error:', e.message); }
   res.json({ received: true });
