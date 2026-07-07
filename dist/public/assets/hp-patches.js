@@ -5922,6 +5922,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   // ─── Inject Dashboard Button into Case Header/Actions ─────────────────────
   function injectDeadlineNavBtn(caseId) {
+    if (window.__hp_noFabs) return;
     if (document.getElementById('hp-dl-nav-btn')) return;
 
     var btn = document.createElement('button');
@@ -6233,6 +6234,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   }
 
   function renderInvitePanel(caseId) {
+    if (window.__hp_noFabs) return;
     if (currentInviteCaseId === caseId && inviteFab) return; // already mounted for this case
     removeInvitePanel();
     currentInviteCaseId = caseId;
@@ -6984,6 +6986,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   // ── Floating button ──────────────────────────────────────────────────────────
   function injectEvidenceBtn(caseId) {
+    if (window.__hp_noFabs) return;
     if (document.getElementById('hp-ev-fab')) return;
     var btn = document.createElement('button');
     btn.id = 'hp-ev-fab';
@@ -7088,3 +7091,272 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
 })();
 
+
+// ─── REVIEW PAGE: Evidence / Deadlines / Collaborate tabs ────────────────────
+// Injects three additional tabs into the Answers | Documents tab bar on
+// /#/case/:id/review, matching the exact same pill style. Removes the three
+// floating FABs so everything lives in one place.
+// ─────────────────────────────────────────────────────────────────────────────
+(function() {
+
+  var ACTIVE_CLS   = 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-background text-foreground shadow-sm';
+  var INACTIVE_CLS = 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-muted-foreground hover:text-foreground';
+
+  var TABS = [
+    {
+      id: 'evidence',
+      label: 'Evidence',
+      icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
+    },
+    {
+      id: 'deadlines',
+      label: 'Deadlines',
+      icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'
+    },
+    {
+      id: 'collaborate',
+      label: 'Collaborate',
+      icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+    }
+  ];
+
+  var currentCaseId  = null;
+  var activeCustomTab = null; // 'evidence' | 'deadlines' | 'collaborate' | null
+  var contentPanel   = null; // our injected content div
+  var injected       = false;
+
+  // ── Find the React tab bar ────────────────────────────────────────────────
+  function findTabBar() {
+    // The tab bar wraps the Answers + Documents buttons
+    var allDivs = document.querySelectorAll('div.rounded-xl.bg-muted');
+    for (var i = 0; i < allDivs.length; i++) {
+      var d = allDivs[i];
+      // Must contain exactly the Answers and Documents buttons (2 children)
+      var btns = d.querySelectorAll('button');
+      if (btns.length >= 2) {
+        var labels = Array.from(btns).map(function(b) { return b.textContent.trim(); });
+        if (labels.includes('Answers') && labels.includes('Documents')) {
+          return d;
+        }
+      }
+    }
+    return null;
+  }
+
+  // ── Find the React content area below the tabs ────────────────────────────
+  function findReactContent(tabBar) {
+    // It's the next sibling element after the tab bar's parent chain
+    var el = tabBar;
+    while (el && el.nextElementSibling === null) el = el.parentElement;
+    return el ? el.nextElementSibling : null;
+  }
+
+  // ── Show/hide native React content ───────────────────────────────────────
+  function setReactContentVisible(visible) {
+    var tabBar = findTabBar();
+    if (!tabBar) return;
+    var el = tabBar.nextElementSibling;
+    if (el) el.style.display = visible ? '' : 'none';
+    // Also look for a sibling further up
+    var parent = tabBar.parentElement;
+    if (parent) {
+      Array.from(parent.children).forEach(function(child) {
+        if (child !== tabBar && child !== contentPanel) {
+          child.style.display = visible ? '' : 'none';
+        }
+      });
+    }
+  }
+
+  // ── Inject content panel below tab bar ───────────────────────────────────
+  function ensureContentPanel(tabBar) {
+    if (contentPanel && contentPanel.parentNode) return contentPanel;
+    contentPanel = document.createElement('div');
+    contentPanel.id = 'hp-review-panel';
+    contentPanel.style.cssText = 'margin-top:0;min-height:400px;';
+    // Insert right after tabBar's parent if tabBar is direct child of a container
+    var parent = tabBar.parentElement;
+    if (parent) {
+      // Insert after the tabBar
+      tabBar.insertAdjacentElement('afterend', contentPanel);
+    }
+    return contentPanel;
+  }
+
+  // ── Switch to a custom tab ────────────────────────────────────────────────
+  function activateCustomTab(tabId, caseId) {
+    activeCustomTab = tabId;
+
+    // Style all injected buttons
+    TABS.forEach(function(t) {
+      var btn = document.getElementById('hp-rtab-' + t.id);
+      if (btn) btn.className = (t.id === tabId) ? ACTIVE_CLS : INACTIVE_CLS;
+    });
+
+    // Also de-style the native Answers/Documents buttons
+    var tabBar = findTabBar();
+    if (tabBar) {
+      tabBar.querySelectorAll('button').forEach(function(b) {
+        if (!b.id || !b.id.startsWith('hp-rtab-')) {
+          // native button — make it look inactive
+          b.className = INACTIVE_CLS;
+        }
+      });
+    }
+
+    // Hide React content, show our panel
+    setReactContentVisible(false);
+    var panel = ensureContentPanel(tabBar);
+    panel.style.display = 'block';
+    panel.innerHTML = '<div style="padding:40px 0;text-align:center;color:#8892a0;font-size:14px;">Loading…</div>';
+
+    if (tabId === 'evidence') mountEvidenceTab(caseId, panel);
+    else if (tabId === 'deadlines') mountDeadlinesTab(caseId, panel);
+    else if (tabId === 'collaborate') mountCollabTab(caseId, panel);
+  }
+
+  // ── Deactivate custom tabs (user clicked Answers or Documents) ────────────
+  function deactivateCustomTabs() {
+    activeCustomTab = null;
+    TABS.forEach(function(t) {
+      var btn = document.getElementById('hp-rtab-' + t.id);
+      if (btn) btn.className = INACTIVE_CLS;
+    });
+    if (contentPanel) contentPanel.style.display = 'none';
+    setReactContentVisible(true);
+  }
+
+  // ── Evidence content ──────────────────────────────────────────────────────
+  function mountEvidenceTab(caseId, panel) {
+    function tryMount() {
+      if (window.__hp_evidence && window.__hp_evidence.openInContainer) {
+        window.__hp_evidence.openInContainer(caseId, panel);
+      } else {
+        setTimeout(tryMount, 300);
+      }
+    }
+    tryMount();
+  }
+
+  // ── Deadlines content ─────────────────────────────────────────────────────
+  function mountDeadlinesTab(caseId, panel) {
+    function tryMount() {
+      if (window.__hp_deadlines && window.__hp_deadlines.mount) {
+        panel.innerHTML = '';
+        window.__hp_deadlines.mount(panel, caseId);
+      } else {
+        setTimeout(tryMount, 300);
+      }
+    }
+    tryMount();
+  }
+
+  // ── Collaborate content ───────────────────────────────────────────────────
+  function mountCollabTab(caseId, panel) {
+    function tryMount() {
+      if (window.__hp_collab && window.__hp_collab.openCollabInContainer) {
+        panel.innerHTML = '';
+        // Style override so the collab panel renders inline
+        if (!document.getElementById('hp-collab-inline-style')) {
+          var st = document.createElement('style');
+          st.id = 'hp-collab-inline-style';
+          st.textContent = '#hp-review-panel #hp-invite-panel{position:relative!important;bottom:auto!important;right:auto!important;width:100%!important;display:block!important;box-shadow:none!important;border-radius:12px!important;background:rgba(30,45,78,0.4)!important;padding:24px!important;}';
+          document.head.appendChild(st);
+        }
+        window.__hp_collab.openCollabInContainer(caseId, panel);
+      } else {
+        setTimeout(tryMount, 300);
+      }
+    }
+    tryMount();
+  }
+
+  // ── Main injection ────────────────────────────────────────────────────────
+  function injectTabs(caseId) {
+    var tabBar = findTabBar();
+    if (!tabBar) return false;
+
+    // Don't inject twice
+    if (document.getElementById('hp-rtab-evidence')) return true;
+
+    TABS.forEach(function(t) {
+      var btn = document.createElement('button');
+      btn.id = 'hp-rtab-' + t.id;
+      btn.className = INACTIVE_CLS;
+      btn.innerHTML = t.icon + '<span>' + t.label + '</span>';
+      btn.addEventListener('click', function() {
+        activateCustomTab(t.id, caseId);
+      });
+      tabBar.appendChild(btn);
+    });
+
+    // Hook native Answers/Documents buttons to deactivate custom tabs
+    tabBar.querySelectorAll('button').forEach(function(b) {
+      if (!b.id || !b.id.startsWith('hp-rtab-')) {
+        b.addEventListener('click', deactivateCustomTabs);
+      }
+    });
+
+    injected = true;
+    return true;
+  }
+
+  // ── Remove injected tabs (when leaving review page) ───────────────────────
+  function cleanup() {
+    TABS.forEach(function(t) {
+      var btn = document.getElementById('hp-rtab-' + t.id);
+      if (btn) btn.remove();
+    });
+    if (contentPanel) { contentPanel.remove(); contentPanel = null; }
+    setReactContentVisible(true);
+    activeCustomTab = null;
+    injected = false;
+  }
+
+  // ── Suppress the floating FABs — everything lives in the tab bar now ──────
+  window.__hp_noFabs = true;
+
+  // ── Route handler ─────────────────────────────────────────────────────────
+  var lastHash = '';
+
+  function onHashChange() {
+    var hash = window.location.hash || '';
+    if (hash === lastHash) return;
+    lastHash = hash;
+
+    var reviewMatch = hash.match(/#\/case\/(\d+)\/review/);
+    if (reviewMatch) {
+      currentCaseId = reviewMatch[1];
+      injected = false;
+      // Poll until React has rendered the tab bar
+      var attempts = 0;
+      function tryInject() {
+        if (injectTabs(currentCaseId)) return;
+        if (++attempts < 20) setTimeout(tryInject, 200);
+      }
+      setTimeout(tryInject, 400);
+      return;
+    }
+
+    // Left the review page
+    cleanup();
+  }
+
+  window.addEventListener('hashchange', onHashChange);
+  setTimeout(onHashChange, 1000);
+
+  // MutationObserver re-injects if React re-renders the tab bar
+  var obs = new MutationObserver(function() {
+    var hash = window.location.hash || '';
+    if (!hash.match(/#\/case\/\d+\/review/)) return;
+    if (!document.getElementById('hp-rtab-evidence')) {
+      injected = false;
+      if (currentCaseId) injectTabs(currentCaseId);
+    }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+
+  // Also suppress the individual FAB guards
+  // (belt-and-suspenders — __hp_noFabs above handles the injection functions)
+
+})();
