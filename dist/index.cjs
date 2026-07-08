@@ -301,7 +301,7 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.2.0-autofill-keymapped', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.3.0-autofill-keymapped', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
 app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.0.0', db: 'supabase' }));
 
 // ── Auth ──
@@ -1701,26 +1701,28 @@ For dates use YYYY-MM-DD format. For monetary values use numbers only (no $ sign
     const rawFields  = Array.isArray(parsed.fields) ? parsed.fields : [];
     const docTypeLabel = parsed.docTypeLabel || doc.filename || 'document';
 
-    // Map GPT-4o generic keys → wizard fieldKey names so auto-fill populates the form
+    // Map GPT-4o generic keys → exact wizard field keys (section + key as used in ZE component)
+    // React wizard stores state as: state[section][key] and reads: data[field.key]
+    // Applicant section field keys: fullName, dob, address, unit, city, province, postalCode, phone, email
     const AUTOFILL_KEY_MAP = {
-      // Applicant identity
-      'full_name':          { key: 'applicantFullName',  section: 'applicant' },
-      'date_of_birth':      { key: 'applicantDob',       section: 'applicant' },
-      'address_street':     { key: 'applicantAddress',   section: 'applicant' },
-      'address_unit':       { key: 'applicantUnit',      section: 'applicant' },
-      'address_city':       { key: 'applicantCity',      section: 'applicant' },
-      'address_province':   { key: 'applicantProvince',  section: 'applicant' },
-      'address_postal_code':{ key: 'applicantPostalCode',section: 'applicant' },
-      'phone':              { key: 'applicantPhone',     section: 'applicant' },
-      'email':              { key: 'applicantEmail',     section: 'applicant' },
-      // Financial / income
-      'annual_income':      { key: 'annualIncome',       section: 'financial' },
-      'employer_name':      { key: 'employerName',       section: 'financial' },
-      'sin':                { key: 'sinNumber',          section: 'financial' },
-      // Keep licence / expiry as evidence metadata (no wizard field)
+      // Applicant identity — keys must match exactly what the React wizard uses
+      'full_name':          { key: 'fullName',    section: 'applicant' },
+      'date_of_birth':      { key: 'dob',         section: 'applicant' },
+      'address_street':     { key: 'address',     section: 'applicant' },
+      'address_unit':       { key: 'unit',        section: 'applicant' },
+      'address_city':       { key: 'city',        section: 'applicant' },
+      'address_province':   { key: 'province',    section: 'applicant' },
+      'address_postal_code':{ key: 'postalCode',  section: 'applicant' },
+      'phone':              { key: 'phone',       section: 'applicant' },
+      'email':              { key: 'email',       section: 'applicant' },
+      // Financial / income (Form 13 wizard section)
+      'annual_income':      { key: 'totalIncome', section: 'f13_employment' },
+      'employer_name':      { key: 'employerName',section: 'f13_employment' },
+      // Non-form metadata — drop these
       'licence_number':     null,
       'expiry_date':        null,
       'sex':                null,
+      'sin':                null,
     };
 
     const fields = rawFields.map(f => {
