@@ -7371,3 +7371,102 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   // (belt-and-suspenders — __hp_noFabs above handles the injection functions)
 
 })();
+
+// ─── Inject Form 6B into React quick-search (t8 array patch) ─────────────────
+// The React bundle's t8 search list doesn't include Form 6B (added post-build).
+// We patch window by intercepting the module's r8() search function once loaded.
+(function() {
+  var EXTRA_FORMS = [
+    { id: 'form6b-service', badge: 'Form 6B', title: 'Affidavit of Service',
+      tag: 'Required after serving documents',
+      keywords: ['service', 'affidavit', 'served', '6b', 'proof of service'] }
+  ];
+
+  // Wait for the React search input to appear, then patch
+  function patchSearch() {
+    // Find the script bundle's module scope — look for r8 on window or module
+    // Strategy: wrap the existing search textbox onChange to intercept results
+    var input = document.querySelector('[data-testid="input-form-search"], input[placeholder*="form"], input[placeholder*="Form"]');
+    if (!input) return false;
+
+    // Already patched
+    if (input.__hp_search_patched) return true;
+    input.__hp_search_patched = true;
+
+    // Watch the results container — when it renders, append our extra forms if they match the query
+    var resultsObs = new MutationObserver(function() {
+      var query = (input.value || '').toLowerCase().trim();
+      if (!query) return;
+
+      // Check if any extra form matches
+      var matches = EXTRA_FORMS.filter(function(f) {
+        return f.badge.toLowerCase().includes(query) ||
+               f.title.toLowerCase().includes(query) ||
+               f.tag.toLowerCase().includes(query) ||
+               f.keywords.some(function(k) { return k.includes(query); });
+      });
+      if (!matches.length) return;
+
+      // Find results list
+      var list = document.querySelector('[data-testid^="button-search-result"]');
+      if (!list) {
+        // Check for "No forms found" — replace with our results
+        var noResults = Array.from(document.querySelectorAll('p')).find(function(p) {
+          return p.textContent.includes('No forms found');
+        });
+        if (noResults) {
+          var container = noResults.closest('div');
+          if (container && !container.__hp_injected) {
+            container.__hp_injected = true;
+            container.innerHTML = '';
+            matches.forEach(function(f) {
+              var btn = document.createElement('button');
+              btn.className = 'w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-card transition-colors border-b border-card-border';
+              btn.setAttribute('data-testid', 'button-search-result-' + f.id);
+              btn.innerHTML =
+                '<div class="flex-shrink-0 flex items-center justify-center h-9 w-9 rounded-lg bg-primary/10">' +
+                  '<svg class="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
+                '</div>' +
+                '<div class="flex-1 min-w-0">' +
+                  '<p class="text-sm font-medium text-foreground">' + f.title + '</p>' +
+                  '<p class="text-xs text-muted-foreground">' + f.badge + ' \u00b7 ' + f.tag + '</p>' +
+                '</div>' +
+                '<svg class="h-4 w-4 text-muted-foreground flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';
+
+              btn.addEventListener('click', function() {
+                // Navigate to add-form flow for this case or the form selector
+                var hash = window.location.hash || '';
+                var caseMatch = hash.match(/#\/case\/(\d+)/);
+                if (caseMatch) {
+                  window.location.hash = '#/case/' + caseMatch[1] + '/wizard/ON-F6B';
+                } else {
+                  window.location.hash = '#/forms/ON-F6B';
+                }
+              });
+              container.appendChild(btn);
+            });
+          }
+        }
+      }
+    });
+
+    var searchContainer = input.closest('[class*="search"], [class*="Search"]') || input.parentElement.parentElement;
+    if (searchContainer) {
+      resultsObs.observe(searchContainer, { childList: true, subtree: true });
+    }
+    return true;
+  }
+
+  var attempts = 0;
+  function tryPatch() {
+    if (patchSearch()) return;
+    if (++attempts < 30) setTimeout(tryPatch, 500);
+  }
+  setTimeout(tryPatch, 1000);
+
+  // Re-run on hash change (new page load)
+  window.addEventListener('hashchange', function() {
+    attempts = 0;
+    setTimeout(tryPatch, 800);
+  });
+})();
