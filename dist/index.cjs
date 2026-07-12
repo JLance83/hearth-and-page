@@ -1625,8 +1625,7 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
           const page = await pdfDoc.getPage(pageNum);
           const textContent = await page.getTextContent();
-          extractedText += textContent.items.map(item => item.str).join(' ') + '
-';
+          extractedText += textContent.items.map(item => item.str).join(' ') + '\n';
         }
         if (extractedText.trim().length > 20) {
           pdfText = extractedText.slice(0, 6000);
