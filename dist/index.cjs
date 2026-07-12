@@ -301,7 +301,7 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.2-pdf-direct', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.3-pdftotext', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
 app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.0.0', db: 'supabase' }));
 
 // ── Auth ──
@@ -1612,9 +1612,30 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
     let imageBase64s = []; // array — PDFs may yield multiple pages, we use first 2
 
     if (isPDF) {
-      // Send PDF directly to GPT-4o via OpenAI Files API (no rendering needed)
-      // GPT-4o supports native PDF input as of 2024 — zero dependencies required
-      isPDFDirect = true; // flag to use different message format below
+      // Use pdftotext (poppler-utils, standard on most Linux) for text extraction
+      // Fall back to base64 vision if pdftotext unavailable
+      try {
+        const os   = require('os');
+        const path = require('path');
+        const { execSync } = require('child_process');
+        const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'hppdf-'));
+        const pdfPath = path.join(tmpDir, 'input.pdf');
+        fs.writeFileSync(pdfPath, Buffer.from(fileData, 'base64'));
+        try {
+          const text = execSync(`pdftotext -layout "${pdfPath}" -`, { timeout: 15000 }).toString();
+          if (text && text.trim().length > 20) {
+            pdfText = text.slice(0, 6000); // cap at ~1500 tokens
+            console.log('[parse] pdftotext extracted', pdfText.length, 'chars');
+          }
+        } catch(e) {
+          console.warn('[parse] pdftotext failed:', e.message);
+        } finally {
+          try { fs.rmSync(tmpDir, { recursive: true }); } catch(_) {}
+        }
+      } catch(e) {
+        console.warn('[parse] PDF text extraction setup failed:', e.message);
+      }
+      isPDFDirect = true;
     } else {
       // Image — resize directly
       let img = fileData;
@@ -1629,6 +1650,7 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
 
     // ── Build GPT-4o Vision messages ────────────────────────────────────────
     let isPDFDirect = false; // set above if PDF bypass path was taken
+    let pdfText = null; // extracted text from PDF via pdftotext
     const systemPrompt = `You are a document field extractor for a Canadian family law intake application.
 Analyze the provided image(s) and:
 1. Identify the document type
@@ -1659,25 +1681,24 @@ Return ONLY valid JSON:
   ]
 }`;
 
-    // Build content array — PDF direct or rendered images
+    // Build content array — text extraction (PDF), images (photos), or fallback
     let userContent;
-    if (isPDFDirect) {
-      // Send raw PDF as base64 — GPT-4o supports application/pdf natively
+    if (isPDFDirect && pdfText) {
+      // Best path: send extracted text — accurate, fast, cheap
       userContent = [
-        {
-          type: 'image_url',
-          image_url: {
-            url: `data:application/pdf;base64,${fileData}`,
-            detail: 'high'
-          }
-        },
-        { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
+        { type: 'text', text: 'Here is the extracted text from the document:\n\n' + pdfText + '\n\nExtract all available fields and return the JSON.' }
       ];
-    } else {
+      console.log('[parse] using text extraction path');
+    } else if (imageBase64s.length > 0) {
+      // Image path: vision
       userContent = [
         ...imageBase64s.map(b64 => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}`, detail: 'high' } })),
         { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
       ];
+      console.log('[parse] using vision path');
+    } else {
+      console.warn('[parse] no usable content — returning empty');
+      return res.json({ fields: [], docTypeLabel: fileName });
     }
 
     const body = JSON.stringify({
