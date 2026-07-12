@@ -301,7 +301,7 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.3-pdftotext', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.4-pdfjs-text', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
 app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.0.0', db: 'supabase' }));
 
 // ── Auth ──
@@ -1609,31 +1609,31 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
 
     // ── Convert to base64 image(s) ──────────────────────────────────────────
     const isPDF = fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
-    let imageBase64s = []; // array — PDFs may yield multiple pages, we use first 2
+    let imageBase64s = []; // array — image paths use this
+    let isPDFDirect = false;
+    let pdfText = null;
 
     if (isPDF) {
-      // Use pdftotext (poppler-utils, standard on most Linux) for text extraction
-      // Fall back to base64 vision if pdftotext unavailable
+      // Use pdfjs-dist v3 (pure JS, no system deps) for text extraction
       try {
-        const os   = require('os');
-        const path = require('path');
-        const { execSync } = require('child_process');
-        const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'hppdf-'));
-        const pdfPath = path.join(tmpDir, 'input.pdf');
-        fs.writeFileSync(pdfPath, Buffer.from(fileData, 'base64'));
-        try {
-          const text = execSync(`pdftotext -layout "${pdfPath}" -`, { timeout: 15000 }).toString();
-          if (text && text.trim().length > 20) {
-            pdfText = text.slice(0, 6000); // cap at ~1500 tokens
-            console.log('[parse] pdftotext extracted', pdfText.length, 'chars');
-          }
-        } catch(e) {
-          console.warn('[parse] pdftotext failed:', e.message);
-        } finally {
-          try { fs.rmSync(tmpDir, { recursive: true }); } catch(_) {}
+        const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = false;
+        const pdfBytes = new Uint8Array(Buffer.from(fileData, 'base64'));
+        const pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+        let extractedText = '';
+        const numPages = Math.min(pdfDoc.numPages, 3);
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+          const page = await pdfDoc.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          extractedText += textContent.items.map(item => item.str).join(' ') + '
+';
+        }
+        if (extractedText.trim().length > 20) {
+          pdfText = extractedText.slice(0, 6000);
+          console.log('[parse] pdfjs extracted', pdfText.length, 'chars from', numPages, 'pages');
         }
       } catch(e) {
-        console.warn('[parse] PDF text extraction setup failed:', e.message);
+        console.warn('[parse] pdfjs text extraction failed:', e.message);
       }
       isPDFDirect = true;
     } else {
@@ -1649,8 +1649,7 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
     }
 
     // ── Build GPT-4o Vision messages ────────────────────────────────────────
-    let isPDFDirect = false; // set above if PDF bypass path was taken
-    let pdfText = null; // extracted text from PDF via pdftotext
+
     const systemPrompt = `You are a document field extractor for a Canadian family law intake application.
 Analyze the provided image(s) and:
 1. Identify the document type
