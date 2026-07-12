@@ -301,7 +301,7 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.0-doc-parse', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.1-pdfjs', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
 app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.0.0', db: 'supabase' }));
 
 // ── Auth ──
@@ -1612,35 +1612,40 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
     let imageBase64s = []; // array — PDFs may yield multiple pages, we use first 2
 
     if (isPDF) {
-      // Use pdftoppm (poppler) to render PDF pages to JPEG
-      const os   = require('os');
-      const path = require('path');
-      const { execSync } = require('child_process');
-      const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'hppdf-'));
-      const pdfPath = path.join(tmpDir, 'input.pdf');
-      fs.writeFileSync(pdfPath, Buffer.from(fileData, 'base64'));
+      // Use pdfjs-dist (pure JS, no system deps) + canvas to render PDF pages
       try {
-        // -r 150 = 150dpi, -jpeg, first 2 pages only (-f 1 -l 2)
-        execSync(`pdftoppm -r 150 -jpeg -f 1 -l 2 "${pdfPath}" "${path.join(tmpDir, 'page')}"`, { timeout: 20000 });
-        const pages = fs.readdirSync(tmpDir).filter(f => f.startsWith('page') && f.endsWith('.jpg')).sort();
-        for (const p of pages.slice(0, 2)) {
-          const buf = fs.readFileSync(path.join(tmpDir, p));
-          // Resize to max 1024px with sharp
+        const { createCanvas } = require('canvas');
+        const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+        // Disable worker for Node environment
+        pdfjsLib.GlobalWorkerOptions.workerSrc = false;
+
+        const pdfBytes = Buffer.from(fileData, 'base64');
+        const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBytes) });
+        const pdfDoc = await loadingTask.promise;
+        const numPages = Math.min(pdfDoc.numPages, 2); // first 2 pages only
+
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+          const page = await pdfDoc.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 1.5 }); // ~150dpi equivalent
+          const canvas = createCanvas(viewport.width, viewport.height);
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          // Convert to JPEG buffer, resize to max 1024px with sharp
+          let imgBuf = canvas.toBuffer('image/jpeg', { quality: 0.85 });
           try {
             const sharp = require('sharp');
-            const resized = await sharp(buf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
-            imageBase64s.push(resized.toString('base64'));
-          } catch(e) {
-            imageBase64s.push(buf.toString('base64'));
-          }
+            imgBuf = await sharp(imgBuf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+          } catch(e) { console.warn('[parse] sharp resize failed:', e.message); }
+
+          imageBase64s.push(imgBuf.toString('base64'));
+          console.log('[parse] rendered PDF page', pageNum, '— size:', imgBuf.length, 'bytes');
         }
       } catch(e) {
-        console.warn('[parse] pdftoppm failed:', e.message);
-      } finally {
-        try { fs.rmSync(tmpDir, { recursive: true }); } catch(_) {}
+        console.warn('[parse] pdfjs render failed:', e.message);
       }
       if (imageBase64s.length === 0) {
-        console.warn('[parse] PDF rendered 0 pages — returning empty');
+        console.warn('[parse] PDF rendered 0 pages');
         return res.json({ fields: [], docTypeLabel: fileName, error: 'pdf_render_failed' });
       }
     } else {
