@@ -1,5 +1,5 @@
 [phases.setup]
-pkgs = ["nodejs_20", "python311"]
+pkgs = ["nodejs_20", "python311", "poppler_utils"]
 
 [phases.build]
 cmds = ["npm install --production", "cp fill_pdf.py dist/fill_pdf.py || true", "which python3 > dist/python3_path.txt && echo OK || true"]
@@ -9,4 +9,4 @@ cmd = "NODE_ENV=production node dist/index.cjs"
 
 [variables]
 PORT = "8080"
-# cache bust: 2026-07-07-v2
+# cache bust: 2026-07-12-v1

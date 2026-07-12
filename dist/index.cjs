@@ -1591,150 +1591,206 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
 
     const doc = await dbGet('case_documents', { id: `eq.${docId}`, case_id: `eq.${caseId}`, user_id: `eq.${userId}` });
     if (!doc) return res.status(404).json({ message: 'Document not found' });
-    // toCamel converts file_data -> fileData
+
     const fileData = doc.fileData || doc.file_data;
     const fileName = doc.filename || doc.fileName || 'document';
     const fileType = doc.fileType || doc.file_type || 'image/jpeg';
-    if (!fileData) {
-      console.log('[parse] no file_data on doc', docId, '| keys:', Object.keys(doc).join(','));
-      return res.json({ fields: [], docTypeLabel: fileName });
-    }
 
-    // Build the base64 data URL for GPT-4o Vision
-    const mimeType = fileType;
-    const isImage  = mimeType.startsWith('image/');
-    if (!isImage) {
-      // PDFs and Word docs — return empty for now, image-only support
+    if (!fileData) {
+      console.log('[parse] no file_data on doc', docId);
       return res.json({ fields: [], docTypeLabel: fileName });
     }
 
     const openAiToken = process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY;
-    console.log('[parse] token present:', !!openAiToken, '| doc id:', docId, '| file_type:', mimeType, '| file_data len:', fileData.length);
     if (!openAiToken) {
-      console.error('No OpenAI token found in env vars');
+      console.error('[parse] No OpenAI token');
       return res.json({ fields: [], docTypeLabel: fileName });
     }
 
-    // Resize image to max 1024px — keeps payload small and GPT-4o reads it fine
-    let imageBase64 = fileData;
-    try {
-      const sharp = require('sharp');
-      const imgBuf = Buffer.from(fileData, 'base64');
-      const resized = await sharp(imgBuf)
-        .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 85 })
-        .toBuffer();
-      imageBase64 = resized.toString('base64');
-      console.log(`Image resized: ${imgBuf.length} → ${resized.length} bytes`);
-    } catch(e) {
-      console.warn('Image resize failed, using original:', e.message);
+    // ── Convert to base64 image(s) ──────────────────────────────────────────
+    const isPDF = fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+    let imageBase64s = []; // array — PDFs may yield multiple pages, we use first 2
+
+    if (isPDF) {
+      // Use pdftoppm (poppler) to render PDF pages to JPEG
+      const os   = require('os');
+      const path = require('path');
+      const { execSync } = require('child_process');
+      const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'hppdf-'));
+      const pdfPath = path.join(tmpDir, 'input.pdf');
+      fs.writeFileSync(pdfPath, Buffer.from(fileData, 'base64'));
+      try {
+        // -r 150 = 150dpi, -jpeg, first 2 pages only (-f 1 -l 2)
+        execSync(`pdftoppm -r 150 -jpeg -f 1 -l 2 "${pdfPath}" "${path.join(tmpDir, 'page')}"`, { timeout: 20000 });
+        const pages = fs.readdirSync(tmpDir).filter(f => f.startsWith('page') && f.endsWith('.jpg')).sort();
+        for (const p of pages.slice(0, 2)) {
+          const buf = fs.readFileSync(path.join(tmpDir, p));
+          // Resize to max 1024px with sharp
+          try {
+            const sharp = require('sharp');
+            const resized = await sharp(buf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+            imageBase64s.push(resized.toString('base64'));
+          } catch(e) {
+            imageBase64s.push(buf.toString('base64'));
+          }
+        }
+      } catch(e) {
+        console.warn('[parse] pdftoppm failed:', e.message);
+      } finally {
+        try { fs.rmSync(tmpDir, { recursive: true }); } catch(_) {}
+      }
+      if (imageBase64s.length === 0) {
+        console.warn('[parse] PDF rendered 0 pages — returning empty');
+        return res.json({ fields: [], docTypeLabel: fileName, error: 'pdf_render_failed' });
+      }
+    } else {
+      // Image — resize directly
+      let img = fileData;
+      try {
+        const sharp = require('sharp');
+        const buf = Buffer.from(fileData, 'base64');
+        const resized = await sharp(buf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+        img = resized.toString('base64');
+      } catch(e) { console.warn('[parse] image resize failed:', e.message); }
+      imageBase64s.push(img);
     }
 
+    // ── Build GPT-4o Vision messages ────────────────────────────────────────
     const systemPrompt = `You are a document field extractor for a Canadian family law intake application.
-Analyze the provided image and:
-1. Identify the document type (e.g. driver's licence, pay stub, Notice of Assessment, bank statement, court order, birth certificate, passport, marriage certificate, etc.)
-2. Extract all fields that are relevant to Ontario family law forms.
+Analyze the provided image(s) and:
+1. Identify the document type
+2. Extract ALL fields relevant to Ontario family law forms
 
-For a DRIVER'S LICENCE extract: full_name, date_of_birth, address_street, address_city, address_province, address_postal_code, licence_number, expiry_date, sex
-For a PAY STUB extract: employer_name, employee_name, pay_period_start, pay_period_end, gross_pay, net_pay, annual_salary, hourly_rate
-For a NOTICE OF ASSESSMENT (NOA) extract: full_name, sin_last3 (last 3 digits only), tax_year, total_income, net_income, taxable_income
-For a BANK STATEMENT extract: account_holder_name, bank_name, account_number_last4, statement_period_start, statement_period_end
-For a BIRTH CERTIFICATE extract: child_full_name, child_date_of_birth, child_sex, parent1_name, parent2_name, registration_number
-For a PASSPORT extract: full_name, date_of_birth, nationality, passport_number, expiry_date
-For a MARRIAGE CERTIFICATE extract: spouse1_name, spouse2_name, marriage_date, marriage_location
-For a COURT ORDER extract: court_file_number, order_date, applicant_name, respondent_name
+DRIVER'S LICENCE: full_name, date_of_birth, address_street, address_city, address_province, address_postal_code, sex
+PASSPORT: full_name, date_of_birth, nationality, expiry_date
+NOTICE OF ASSESSMENT (NOA): full_name, tax_year, total_income, net_income, taxable_income, federal_tax_owing
+T4 SLIP: employer_name, employee_name, tax_year, employment_income, income_tax_deducted, cpp_contributions, ei_premiums, employee_cpp_contributions
+PAY STUB / PAYSTUB: employer_name, employee_name, pay_period_start, pay_period_end, pay_frequency, gross_pay, net_pay, ytd_gross, ytd_net, hourly_rate, hours_worked, regular_pay, overtime_pay, cpp_deduction, ei_deduction, income_tax_deduction, employer_address
+BANK STATEMENT: account_holder_name, bank_name, statement_period_start, statement_period_end, opening_balance, closing_balance, total_deposits, total_withdrawals
+BIRTH CERTIFICATE: child_full_name, child_date_of_birth, child_sex, parent1_name, parent2_name
+MARRIAGE CERTIFICATE: spouse1_name, spouse2_name, marriage_date, marriage_location
+COURT ORDER: court_file_number, order_date, applicant_name, respondent_name
+SEPARATION AGREEMENT: party1_name, party2_name, agreement_date, children_names, support_amount
 
-Return ONLY valid JSON in this exact format:
+For monetary values use numbers only (no $ or commas). Dates use YYYY-MM-DD.
+Confidence: "high" = clearly readable, "medium" = partially visible, "low" = uncertain.
+Do NOT invent values. If unclear, omit.
+
+Return ONLY valid JSON:
 {
-  "docType": "drivers_licence",
-  "docTypeLabel": "Driver's Licence",
+  "docType": "paystub",
+  "docTypeLabel": "Pay Stub",
   "fields": [
-    { "key": "full_name", "label": "Full Name", "value": "John Smith", "section": "applicant", "confidence": "high" },
-    { "key": "date_of_birth", "label": "Date of Birth", "value": "1985-06-15", "section": "applicant", "confidence": "high" }
+    { "key": "employer_name", "label": "Employer Name", "value": "City of Toronto", "confidence": "high" },
+    { "key": "gross_pay", "label": "Gross Pay", "value": "2125.00", "confidence": "high" }
   ]
-}
+}`;
 
-Confidence levels: "high" = clearly readable, "medium" = partially visible/inferred, "low" = uncertain.
-Do not invent or guess values. If a field is not clearly visible, omit it.
-For dates use YYYY-MM-DD format. For monetary values use numbers only (no $ signs).`;
+    // Build content array — include all rendered pages
+    const userContent = [
+      ...imageBase64s.map(b64 => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}`, detail: 'high' } })),
+      { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
+    ];
 
     const body = JSON.stringify({
       model: 'gpt-4o',
-      max_tokens: 1000,
+      max_tokens: 1200,
       messages: [
         { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: 'high' } },
-            { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
-          ]
-        }
+        { role: 'user', content: userContent }
       ]
     });
 
-    // Use global fetch (Node 18+) for OpenAI call
-    console.log('[parse] calling OpenAI Vision with image size:', imageBase64.length, 'chars');
+    console.log('[parse] calling OpenAI Vision | docType guess:', isPDF ? 'PDF' : 'image', '| pages:', imageBase64s.length);
     const oaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openAiToken}`
-      },
-      body: body,
-      signal: AbortSignal.timeout(45000)
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openAiToken}` },
+      body,
+      signal: AbortSignal.timeout(60000)
     });
 
     if (!oaiResponse.ok) {
       const errText = await oaiResponse.text();
-      console.error('OpenAI error:', oaiResponse.status, errText.slice(0, 200));
-      return res.json({ fields: [], docTypeLabel: doc.filename || 'document' });
+      console.error('[parse] OpenAI error:', oaiResponse.status, errText.slice(0, 200));
+      return res.json({ fields: [], docTypeLabel: fileName });
     }
 
-    const oaiJson = await oaiResponse.json();
-    const content = oaiJson.choices?.[0]?.message?.content || '{}';
-    // Strip markdown code fences if present
-    const cleaned = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+    const oaiJson   = await oaiResponse.json();
+    const rawContent = oaiJson.choices?.[0]?.message?.content || '{}';
+    const cleaned   = rawContent.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/i,'').trim();
     let parsed;
-    try { parsed = JSON.parse(cleaned); } catch(e) { parsed = { fields: [], docTypeLabel: doc.filename }; }
+    try { parsed = JSON.parse(cleaned); } catch(e) { parsed = { fields: [], docTypeLabel: fileName }; }
 
-    const rawFields  = Array.isArray(parsed.fields) ? parsed.fields : [];
-    const docTypeLabel = parsed.docTypeLabel || doc.filename || 'document';
+    const rawFields    = Array.isArray(parsed.fields) ? parsed.fields : [];
+    const docTypeLabel = parsed.docTypeLabel || fileName;
 
-    // Map GPT-4o generic keys → exact wizard field keys (section + key as used in ZE component)
-    // React wizard stores state as: state[section][key] and reads: data[field.key]
-    // Applicant section field keys: fullName, dob, address, unit, city, province, postalCode, phone, email
+    // ── Field key → wizard section/key mapping ───────────────────────────────
+    // Keys must match EXACTLY what the React wizard uses in form state
     const AUTOFILL_KEY_MAP = {
-      // Applicant identity — keys must match exactly what the React wizard uses
-      'full_name':          { key: 'fullName',    section: 'applicant' },
-      'date_of_birth':      { key: 'dob',         section: 'applicant' },
-      'address_street':     { key: 'address',     section: 'applicant' },
-      'address_unit':       { key: 'unit',        section: 'applicant' },
-      'address_city':       { key: 'city',        section: 'applicant' },
-      'address_province':   { key: 'province',    section: 'applicant' },
-      'address_postal_code':{ key: 'postalCode',  section: 'applicant' },
-      'phone':              { key: 'phone',       section: 'applicant' },
-      'email':              { key: 'email',       section: 'applicant' },
-      // Financial / income (Form 13 wizard section)
-      'annual_income':      { key: 'totalIncome', section: 'f13_employment' },
-      'employer_name':      { key: 'employerName',section: 'f13_employment' },
-      // Non-form metadata — drop these
-      'licence_number':     null,
-      'expiry_date':        null,
-      'sex':                null,
-      'sin':                null,
+      // ── Identity (all forms) ──
+      'full_name':               { key: 'fullName',           section: 'applicant',       label: 'Full Name' },
+      'employee_name':           { key: 'fullName',           section: 'applicant',       label: 'Full Name' },
+      'date_of_birth':           { key: 'dob',                section: 'applicant',       label: 'Date of Birth' },
+      'address_street':          { key: 'address',            section: 'applicant',       label: 'Street Address' },
+      'address_city':            { key: 'city',               section: 'applicant',       label: 'City' },
+      'address_province':        { key: 'province',           section: 'applicant',       label: 'Province' },
+      'address_postal_code':     { key: 'postalCode',         section: 'applicant',       label: 'Postal Code' },
+      // ── Employment & Income (Form 13 / 13.1) ──
+      'employer_name':           { key: 'employerName',       section: 'f13_employment',  label: 'Employer Name' },
+      'employer_address':        { key: 'employerAddress',    section: 'f13_employment',  label: 'Employer Address' },
+      'pay_frequency':           { key: 'payFrequency',       section: 'f13_employment',  label: 'Pay Frequency' },
+      'gross_pay':               { key: 'grossPay',           section: 'f13_employment',  label: 'Gross Pay (this period)' },
+      'net_pay':                 { key: 'netPay',             section: 'f13_employment',  label: 'Net Pay (this period)' },
+      'ytd_gross':               { key: 'ytdGross',           section: 'f13_employment',  label: 'YTD Gross Earnings' },
+      'ytd_net':                 { key: 'ytdNet',             section: 'f13_employment',  label: 'YTD Net Earnings' },
+      'hourly_rate':             { key: 'hourlyRate',         section: 'f13_employment',  label: 'Hourly Rate' },
+      'pay_period_start':        { key: 'payPeriodStart',     section: 'f13_employment',  label: 'Pay Period Start' },
+      'pay_period_end':          { key: 'payPeriodEnd',       section: 'f13_employment',  label: 'Pay Period End' },
+      // Deductions
+      'income_tax_deduction':    { key: 'incomeTaxDeducted',  section: 'f13_employment',  label: 'Income Tax Deducted' },
+      'cpp_deduction':           { key: 'cppDeducted',        section: 'f13_employment',  label: 'CPP Deducted' },
+      'ei_deduction':            { key: 'eiDeducted',         section: 'f13_employment',  label: 'EI Deducted' },
+      // ── T4 ──
+      'employment_income':       { key: 'annualEmploymentIncome', section: 'f13_income',  label: 'Annual Employment Income (T4 Box 14)' },
+      'income_tax_deducted':     { key: 'incomeTaxDeducted',  section: 'f13_employment',  label: 'Income Tax Deducted (T4 Box 22)' },
+      'cpp_contributions':       { key: 'cppDeducted',        section: 'f13_employment',  label: 'CPP Contributions' },
+      'ei_premiums':             { key: 'eiDeducted',         section: 'f13_employment',  label: 'EI Premiums' },
+      'tax_year':                { key: 'taxYear',            section: 'f13_income',      label: 'Tax Year' },
+      // ── NOA ──
+      'total_income':            { key: 'totalIncome',        section: 'f13_income',      label: 'Total Income (Line 15000)' },
+      'net_income':              { key: 'netIncome',          section: 'f13_income',      label: 'Net Income (Line 23600)' },
+      'taxable_income':          { key: 'taxableIncome',      section: 'f13_income',      label: 'Taxable Income (Line 26000)' },
+      'federal_tax_owing':       { key: 'federalTaxOwing',    section: 'f13_income',      label: 'Federal Tax Owing/Refund' },
+      // ── Children (birth certificate) ──
+      'child_full_name':         { key: 'childFullName',      section: 'children',        label: "Child's Full Name" },
+      'child_date_of_birth':     { key: 'childDob',           section: 'children',        label: "Child's Date of Birth" },
+      'parent1_name':            { key: 'fullName',           section: 'applicant',       label: 'Full Name' },
+      // ── Marriage certificate ──
+      'spouse1_name':            { key: 'fullName',           section: 'applicant',       label: 'Full Name' },
+      'spouse2_name':            { key: 'respondentFullName', section: 'respondent',      label: 'Respondent Full Name' },
+      'marriage_date':           { key: 'marriageDate',       section: 'marriage',        label: 'Date of Marriage' },
+      'marriage_location':       { key: 'marriageLocation',   section: 'marriage',        label: 'Place of Marriage' },
+      // ── Drop these — not useful in wizard ──
+      'sex':                     null,
+      'nationality':             null,
+      'expiry_date':             null,
+      'licence_number':          null,
+      'passport_number':         null,
+      'sin_last3':               null,
     };
 
     const fields = rawFields.map(f => {
       const mapping = AUTOFILL_KEY_MAP[f.key];
-      if (mapping === null) return null; // drop non-form fields
-      if (mapping) return { ...f, key: mapping.key, section: mapping.section };
-      return f; // unknown key — pass through as-is
+      if (mapping === null) return null;
+      if (mapping) return { ...f, key: mapping.key, section: mapping.section, label: mapping.label || f.label };
+      return f; // unknown key — pass through as-is for display
     }).filter(Boolean);
 
-    res.json({ fields, docTypeLabel });
+    console.log('[parse] extracted', fields.length, 'mapped fields from', docTypeLabel);
+    res.json({ fields, docTypeLabel, docType: parsed.docType || 'unknown' });
+
   } catch(e) {
-    console.error('Parse error:', e.message);
+    console.error('[parse] error:', e.message);
     res.json({ fields: [], docTypeLabel: 'document' });
   }
 });

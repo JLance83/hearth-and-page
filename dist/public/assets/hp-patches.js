@@ -6770,6 +6770,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
             '</div>' +
             '<div class="hp-ev-card-actions">' +
               (isImage(d.fileType) ? '<button class="hp-ev-action-btn hp-ev-preview-btn" data-doc-id="' + d.id + '" title="Preview">👁</button>' : '') +
+              '<button class="hp-ev-action-btn extract hp-ev-parse-btn" data-doc-id="' + d.id + '" title="Extract & Auto-fill">⚡ Extract</button>' +
               '<button class="hp-ev-action-btn hp-ev-edit-btn" data-doc-id="' + d.id + '" title="Edit">✏️</button>' +
               '<button class="hp-ev-action-btn hp-ev-dl-btn" data-doc-id="' + d.id + '" data-name="' + (d.fileName || 'file') + '" title="Download">⬇</button>' +
               '<button class="hp-ev-action-btn danger hp-ev-del-btn" data-doc-id="' + d.id + '" title="Delete">🗑</button>' +
@@ -6889,6 +6890,201 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         } catch(e) { alert('Delete failed. Please try again.'); }
       });
     });
+
+    // ── Wire Extract & Auto-fill buttons ──────────────────────────────────────
+    panel.querySelectorAll('.hp-ev-parse-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = this.dataset.docId;
+        var doc   = evState.docs.find(function(d) { return String(d.id) === String(docId); });
+        openParseConfirm(docId, doc ? (doc.label || doc.fileName || 'Document') : 'Document');
+      });
+    });
+  }
+
+  // ── Parse confirm sheet ───────────────────────────────────────────────────
+  async function openParseConfirm(docId, docName) {
+    if (document.getElementById('hp-parse-overlay')) return;
+
+    // Show loading sheet immediately
+    var overlay = document.createElement('div');
+    overlay.className = 'hp-parse-overlay';
+    overlay.id = 'hp-parse-overlay';
+    overlay.innerHTML =
+      '<div class="hp-parse-sheet" style="position:relative;">' +
+        '<div class="hp-parse-header">' +
+          '<h3>⚡ Extracting fields…</h3>' +
+          '<p>Reading your document with AI — this takes about 10 seconds</p>' +
+          '<button class="hp-parse-close" id="hp-parse-close">✕</button>' +
+        '</div>' +
+        '<div class="hp-parse-body"><div class="hp-parse-empty">Analyzing document…</div></div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('hp-parse-close').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    // Call the parse endpoint
+    var result;
+    try {
+      var r = await evFetch('/api/cases/' + evState.caseId + '/documents/' + docId + '/parse', { method: 'POST' });
+      result = await r.json();
+    } catch(e) {
+      result = { fields: [], docTypeLabel: docName };
+    }
+
+    var fields     = (result && Array.isArray(result.fields)) ? result.fields : [];
+    var docTypeLabel = (result && result.docTypeLabel) ? result.docTypeLabel : docName;
+
+    // Rebuild sheet with results
+    var bodyHtml = '';
+    if (fields.length === 0) {
+      bodyHtml = '<div class="hp-parse-empty">No fields could be extracted from this document.<br><br>' +
+        '<small style="color:#4a5568;">Make sure the document is clear and well-lit. Handwritten forms may not extract correctly.</small></div>';
+    } else {
+      fields.forEach(function(f, i) {
+        var conf = f.confidence || 'medium';
+        var confLabel = conf === 'high' ? 'High confidence' : conf === 'medium' ? 'Review' : 'Uncertain';
+        var sectionLabel = {
+          applicant: 'Your personal info',
+          respondent: 'Respondent info',
+          f13_employment: 'Employment & income',
+          f13_income: 'Income (tax)',
+          children: 'Children',
+          marriage: 'Marriage details'
+        }[f.section] || f.section || '';
+        bodyHtml +=
+          '<div class="hp-parse-field" data-field-idx="' + i + '">' +
+            '<div class="hp-parse-field-header">' +
+              '<span class="hp-parse-field-label">' + (f.label || f.key) + '</span>' +
+              '<span class="hp-parse-confidence ' + conf + '">' + confLabel + '</span>' +
+            '</div>' +
+            '<input type="text" value="' + (f.value || '').replace(/"/g, '&quot;') + '" data-key="' + f.key + '" data-section="' + (f.section || '') + '" />' +
+            (sectionLabel ? '<div class="hp-parse-section-tag">→ ' + sectionLabel + '</div>' : '') +
+          '</div>';
+      });
+    }
+
+    var existingSheet = overlay.querySelector('.hp-parse-sheet');
+    existingSheet.innerHTML =
+      '<div class="hp-parse-header" style="position:relative;">' +
+        '<h3>⚡ ' + docTypeLabel + ' — ' + fields.length + ' field' + (fields.length !== 1 ? 's' : '') + ' found</h3>' +
+        '<p>Review each field, make any edits, then tap Apply to My Forms</p>' +
+        '<button class="hp-parse-close" id="hp-parse-close2">✕</button>' +
+      '</div>' +
+      '<div class="hp-parse-body">' + bodyHtml + '</div>' +
+      (fields.length > 0 ?
+        '<div class="hp-parse-footer">' +
+          '<button class="hp-parse-cancel-btn" id="hp-parse-cancel">Cancel</button>' +
+          '<button class="hp-parse-apply-btn" id="hp-parse-apply">Apply to My Forms ✓</button>' +
+        '</div>' : '');
+
+    document.getElementById('hp-parse-close2') && document.getElementById('hp-parse-close2').addEventListener('click', function() { overlay.remove(); });
+    document.getElementById('hp-parse-cancel') && document.getElementById('hp-parse-cancel').addEventListener('click', function() { overlay.remove(); });
+
+    if (fields.length > 0) {
+      document.getElementById('hp-parse-apply').addEventListener('click', function() {
+        // Collect current (possibly edited) values from inputs
+        var toApply = [];
+        overlay.querySelectorAll('.hp-parse-field input').forEach(function(inp) {
+          var val = inp.value.trim();
+          if (val) toApply.push({ key: inp.dataset.key, section: inp.dataset.section, value: val });
+        });
+        applyParsedFields(toApply, overlay);
+      });
+    }
+  }
+
+  // ── Apply extracted fields into active wizard ────────────────────────────
+  function applyParsedFields(fields, overlay) {
+    var applied = 0;
+
+    fields.forEach(function(f) {
+      var key     = f.key;
+      var section = f.section;
+      var value   = f.value;
+      if (!key || !value) return;
+
+      // Strategy 1: write into window.__hp_autofill cache (wizard reads this on mount/step change)
+      if (!window.__hp_autofill_cache) window.__hp_autofill_cache = {};
+      if (!window.__hp_autofill_cache[section]) window.__hp_autofill_cache[section] = {};
+      window.__hp_autofill_cache[section][key] = value;
+
+      // Strategy 2: directly set value on any matching visible input/select/textarea
+      // Try: name="fieldKey", id="fieldKey", data-field-id="fieldKey", data-key="fieldKey"
+      var selectors = [
+        'input[name="' + key + '"]',
+        'input[id="' + key + '"]',
+        'input[data-field-id="' + key + '"]',
+        'input[data-key="' + key + '"]',
+        'textarea[name="' + key + '"]',
+        'select[name="' + key + '"]',
+        'select[id="' + key + '"]',
+        '[data-testid="input-' + key + '"]',
+        '[data-testid="' + key + '"]'
+      ];
+
+      var found = false;
+      selectors.forEach(function(sel) {
+        if (found) return;
+        var el = document.querySelector(sel);
+        if (!el) return;
+        // Set value
+        var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+        if (nativeInputValueSetter) {
+          nativeInputValueSetter.set.call(el, value);
+        } else {
+          el.value = value;
+        }
+        // Fire React synthetic events so state updates
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        found = true;
+        applied++;
+      });
+
+      // Strategy 3: Try React fiber — find input by label text nearby
+      if (!found) {
+        var allInputs = document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea');
+        allInputs.forEach(function(inp) {
+          if (found) return;
+          // Check associated label or placeholder
+          var labelEl = inp.id ? document.querySelector('label[for="' + inp.id + '"]') : null;
+          var labelText = (labelEl ? labelEl.textContent : '') + (inp.placeholder || '') + (inp.name || '');
+          // Match on key words in label — heuristic
+          var keyWords = key.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+          if (labelText.toLowerCase().includes(keyWords.replace(/\s+/g,''))) {
+            var niv = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+            if (niv) niv.set.call(inp, value); else inp.value = value;
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+            found = true;
+            applied++;
+          }
+        });
+      }
+    });
+
+    // Persist to case form_data via the autofill save endpoint if available
+    if (evState.caseId && window.__hp_autofill_cache) {
+      try {
+        evFetch('/api/cases/' + evState.caseId + '/autofill', {
+          method: 'POST',
+          body: JSON.stringify({ fields: window.__hp_autofill_cache })
+        }).catch(function() {});
+      } catch(_) {}
+    }
+
+    // Show success state
+    var sheet = overlay.querySelector('.hp-parse-sheet');
+    sheet.innerHTML =
+      '<div class="hp-parse-success">' +
+        '<div class="icon">✅</div>' +
+        '<h4>Fields Applied!</h4>' +
+        '<p>' + fields.length + ' field' + (fields.length !== 1 ? 's' : '') + ' extracted and saved to your profile.<br>' +
+        'They will auto-populate in your forms as you fill them out.</p>' +
+        '<button class="hp-parse-apply-btn" id="hp-parse-done" style="margin-top:16px;max-width:200px;">Done</button>' +
+      '</div>';
+    document.getElementById('hp-parse-done').addEventListener('click', function() { overlay.remove(); });
+    setTimeout(function() { if (document.getElementById('hp-parse-overlay')) { document.getElementById('hp-parse-overlay').remove(); } }, 4000);
   }
 
   // ── Upload handler ───────────────────────────────────────────────────────────
