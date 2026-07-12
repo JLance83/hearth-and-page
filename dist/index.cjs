@@ -301,7 +301,7 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.1-pdfjs', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.2-pdf-direct', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
 app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.0.0', db: 'supabase' }));
 
 // ── Auth ──
@@ -1612,42 +1612,9 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
     let imageBase64s = []; // array — PDFs may yield multiple pages, we use first 2
 
     if (isPDF) {
-      // Use pdfjs-dist (pure JS, no system deps) + canvas to render PDF pages
-      try {
-        const { createCanvas } = require('canvas');
-        const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-        // Disable worker for Node environment
-        pdfjsLib.GlobalWorkerOptions.workerSrc = false;
-
-        const pdfBytes = Buffer.from(fileData, 'base64');
-        const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBytes) });
-        const pdfDoc = await loadingTask.promise;
-        const numPages = Math.min(pdfDoc.numPages, 2); // first 2 pages only
-
-        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-          const page = await pdfDoc.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 1.5 }); // ~150dpi equivalent
-          const canvas = createCanvas(viewport.width, viewport.height);
-          const ctx = canvas.getContext('2d');
-          await page.render({ canvasContext: ctx, viewport }).promise;
-
-          // Convert to JPEG buffer, resize to max 1024px with sharp
-          let imgBuf = canvas.toBuffer('image/jpeg', { quality: 0.85 });
-          try {
-            const sharp = require('sharp');
-            imgBuf = await sharp(imgBuf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
-          } catch(e) { console.warn('[parse] sharp resize failed:', e.message); }
-
-          imageBase64s.push(imgBuf.toString('base64'));
-          console.log('[parse] rendered PDF page', pageNum, '— size:', imgBuf.length, 'bytes');
-        }
-      } catch(e) {
-        console.warn('[parse] pdfjs render failed:', e.message);
-      }
-      if (imageBase64s.length === 0) {
-        console.warn('[parse] PDF rendered 0 pages');
-        return res.json({ fields: [], docTypeLabel: fileName, error: 'pdf_render_failed' });
-      }
+      // Send PDF directly to GPT-4o via OpenAI Files API (no rendering needed)
+      // GPT-4o supports native PDF input as of 2024 — zero dependencies required
+      isPDFDirect = true; // flag to use different message format below
     } else {
       // Image — resize directly
       let img = fileData;
@@ -1661,6 +1628,7 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
     }
 
     // ── Build GPT-4o Vision messages ────────────────────────────────────────
+    let isPDFDirect = false; // set above if PDF bypass path was taken
     const systemPrompt = `You are a document field extractor for a Canadian family law intake application.
 Analyze the provided image(s) and:
 1. Identify the document type
@@ -1691,11 +1659,26 @@ Return ONLY valid JSON:
   ]
 }`;
 
-    // Build content array — include all rendered pages
-    const userContent = [
-      ...imageBase64s.map(b64 => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}`, detail: 'high' } })),
-      { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
-    ];
+    // Build content array — PDF direct or rendered images
+    let userContent;
+    if (isPDFDirect) {
+      // Send raw PDF as base64 — GPT-4o supports application/pdf natively
+      userContent = [
+        {
+          type: 'image_url',
+          image_url: {
+            url: `data:application/pdf;base64,${fileData}`,
+            detail: 'high'
+          }
+        },
+        { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
+      ];
+    } else {
+      userContent = [
+        ...imageBase64s.map(b64 => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}`, detail: 'high' } })),
+        { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
+      ];
+    }
 
     const body = JSON.stringify({
       model: 'gpt-4o',
