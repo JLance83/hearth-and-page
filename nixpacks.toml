@@ -9,4 +9,4 @@ cmd = "NODE_ENV=production node dist/index.cjs"
 
 [variables]
 PORT = "8080"
-# cache bust: 2026-07-12-v1
+# cache bust: 2026-07-12-v2-poppler
