@@ -639,22 +639,29 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   function attachPhoneFormat(input) {
     if (input.__hpPhoneAttached) return;
     input.__hpPhoneAttached = true;
+    // On each keystroke: only update the visual display locally (native setter)
+    // Do NOT trigger React change here — partial values like "(22" would get saved to DB mid-type
     input.addEventListener('input', function() {
       if (input.__hpFormatting) return; // prevent re-entry
       input.__hpFormatting = true;
       var pos = input.selectionStart;
       var oldLen = input.value.length;
       var formatted = formatPhone(input.value);
-      // Set cursor position before triggering React (which may re-render)
       var newLen = formatted.length;
       var newPos = Math.max(0, pos + (newLen - oldLen));
-      triggerReactChange(input, formatted);
+      // Use native setter only (no React event) so no save is triggered mid-typing
+      var nativeSet = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      nativeSet.call(input, formatted);
       try { input.setSelectionRange(newPos, newPos); } catch(e) {}
       input.__hpFormatting = false;
     });
+    // On blur: now trigger React change with the final formatted value
     input.addEventListener('blur', function() {
       var formatted = formatPhone(input.value);
       if (input.value !== formatted) {
+        triggerReactChange(input, formatted);
+      } else {
+        // Even if already formatted, trigger React so it registers the final value
         triggerReactChange(input, formatted);
       }
     });
@@ -1724,6 +1731,31 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   // Also set directly in case patches load before React bundle shield click
   window.__openSafetyOverlay = openSafetyOverlay;
 
+  // ── Robust shield click wiring ──────────────────────────────────────────────
+  // MutationObserver watches for the shield button in the navbar and ensures
+  // the click handler is always wired, even after React re-renders.
+  (function wireShieldButton() {
+    function attachShield() {
+      // Target by exact aria-label set in the React component
+      var btn = document.querySelector('button[aria-label="Safety & emergency"]');
+      if (!btn || btn.getAttribute('data-hp-shield-wired')) return;
+      btn.setAttribute('data-hp-shield-wired', '1');
+      // Use mousedown so we fire before React's onClick synthetic event
+      btn.addEventListener('mousedown', function() {
+        setTimeout(function() { openSafetyOverlay(); }, 50);
+      });
+      // Also handle touchstart for mobile
+      btn.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        setTimeout(function() { openSafetyOverlay(); }, 50);
+      }, { passive: false });
+    }
+    // Run immediately and on every DOM mutation
+    setTimeout(attachShield, 500);
+    var obs = new MutationObserver(function() { setTimeout(attachShield, 100); });
+    obs.observe(document.body, { childList: true, subtree: true });
+  })();
+
   // ── Pricing page text fix ───────────────────────────────────────────────────
   // Patch the in-app pricing/upgrade screen to show accurate form availability
   // instead of the outdated "Form 8, 35.1, 13 wizards" bullet.
@@ -1820,11 +1852,42 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   (function checkCheckoutReturn() {
     if (window.location.search.indexOf('checkout=success') === -1) return;
     var clean = window.location.href.replace(/[?&]checkout=success/, '');
-    if (!window.__hp_token) { window.history.replaceState({}, '', clean); return; }
-    fetch(_RW + '/api/stripe/sync', { method: 'POST', headers: __authHdr() })
-      .then(function(r){ return r.json(); })
-      .then(function() { window.history.replaceState({}, '', clean); window.location.reload(); })
-      .catch(function() { window.history.replaceState({}, '', clean); });
+
+    function doSync() {
+      fetch(_RW + '/api/stripe/sync', { method: 'POST', headers: __authHdr() })
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+          window.history.replaceState({}, '', clean);
+          // Update token with new plan info if returned
+          if (d && d.token) { window.__hp_token = d.token; }
+          // Show a success toast before reload
+          var toast = document.createElement('div');
+          toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a3a2a;color:#6fcf97;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:600;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
+          toast.textContent = '\u2714 Plan activated! Welcome to Plus.';
+          document.body.appendChild(toast);
+          setTimeout(function() { window.location.reload(); }, 1800);
+        })
+        .catch(function() { window.history.replaceState({}, '', clean); window.location.reload(); });
+    }
+
+    // Wait for token to be available (React app may take a moment to restore session)
+    if (window.__hp_token) {
+      doSync();
+    } else {
+      var attempts = 0;
+      var poll = setInterval(function() {
+        attempts++;
+        if (window.__hp_token) {
+          clearInterval(poll);
+          doSync();
+        } else if (attempts > 20) {
+          // Token never appeared — clean URL and reload anyway
+          clearInterval(poll);
+          window.history.replaceState({}, '', clean);
+          window.location.reload();
+        }
+      }, 300);
+    }
   })();
 
   // ── Past-due payment banner ───────────────────────────────────────────────────
@@ -4636,7 +4699,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
             btn.disabled = true;
             btn.textContent = 'Opening checkout…';
 
-            fetch(window.__hp_rw + '/api/stripe/checkout', {
+            fetch(window.__hp_rw + '/api/stripe/create-checkout', {
               method: 'POST',
               headers: Object.assign({'Content-Type':'application/json'}, window.__authHdr ? window.__authHdr() : {}),
               body: JSON.stringify({ priceId: pid })
@@ -6937,8 +7000,20 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     // Rebuild sheet with results
     var bodyHtml = '';
     if (fields.length === 0) {
-      bodyHtml = '<div class="hp-parse-empty">No fields could be extracted from this document.<br><br>' +
-        '<small style="color:#4a5568;">Make sure the document is clear and well-lit. Handwritten forms may not extract correctly.</small></div>';
+      var emptyMsg;
+      if (result && result._encrypted) {
+        emptyMsg = '<div class="hp-parse-empty" style="line-height:1.6;">' +
+          '<div style="font-size:2rem;margin-bottom:12px;">🔒</div>' +
+          '<strong>Password-Protected PDF</strong><br><br>' +
+          'This PDF is encrypted and can\'t be read directly.<br><br>' +
+          '<strong>Easy fix:</strong> Take a screenshot or photo of the paystub on your phone, then upload the image — the AI can extract all the same fields from a photo.<br><br>' +
+          '<small style="color:#8892a0;">Tip: On iPhone, open the PDF in the Files app and take a screenshot with Side + Volume Up.</small>' +
+          '</div>';
+      } else {
+        emptyMsg = '<div class="hp-parse-empty">No fields could be extracted from this document.<br><br>' +
+          '<small style="color:#4a5568;">Make sure the document is clear and well-lit. Try uploading a photo/screenshot instead of a PDF if the PDF is encrypted.</small></div>';
+      }
+      bodyHtml = emptyMsg;
     } else {
       fields.forEach(function(f, i) {
         var conf = f.confidence || 'medium';
@@ -7063,14 +7138,35 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       }
     });
 
-    // Persist to case form_data via the autofill save endpoint if available
-    if (evState.caseId && window.__hp_autofill_cache) {
-      try {
-        evFetch('/api/cases/' + evState.caseId + '/autofill', {
-          method: 'POST',
-          body: JSON.stringify({ fields: window.__hp_autofill_cache })
-        }).catch(function() {});
-      } catch(_) {}
+    // Persist to case form_data — build array for PUT /form-data bulk endpoint
+    // Also try the /autofill endpoint as a secondary path
+    var caseId = evState.caseId || (window.__hp_state && window.__hp_state.caseId);
+    if (caseId) {
+      // Build bulk array for the reliable PUT endpoint
+      var bulkRows = [];
+      fields.forEach(function(f) {
+        if (f.key && f.value !== null && f.value !== undefined && f.value !== '') {
+          bulkRows.push({ section: f.section || 'autofill', fieldKey: f.key, fieldValue: String(f.value) });
+        }
+      });
+      if (bulkRows.length > 0) {
+        // Primary: PUT /form-data bulk save (definitely exists)
+        evFetch('/api/cases/' + caseId + '/form-data', {
+          method: 'PUT',
+          body: JSON.stringify(bulkRows)
+        }).then(function(r) {
+          if (r && r.ok) console.log('[hp-extract] Saved', bulkRows.length, 'fields to DB via PUT');
+        }).catch(function(e) {
+          console.warn('[hp-extract] PUT form-data failed:', e);
+          // Fallback: POST /autofill
+          if (window.__hp_autofill_cache) {
+            evFetch('/api/cases/' + caseId + '/autofill', {
+              method: 'POST',
+              body: JSON.stringify({ fields: window.__hp_autofill_cache })
+            }).catch(function(){});
+          }
+        });
+      }
     }
 
     // Show success state
@@ -7078,9 +7174,9 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     sheet.innerHTML =
       '<div class="hp-parse-success">' +
         '<div class="icon">✅</div>' +
-        '<h4>Fields Applied!</h4>' +
-        '<p>' + fields.length + ' field' + (fields.length !== 1 ? 's' : '') + ' extracted and saved to your profile.<br>' +
-        'They will auto-populate in your forms as you fill them out.</p>' +
+        '<h4>Fields Saved!</h4>' +
+        '<p>' + fields.length + ' field' + (fields.length !== 1 ? 's' : '') + ' extracted and saved to your Answers.<br>' +
+        'Check the <strong>Answers tab</strong> to confirm — they\'re ready to use in all your forms.</p>' +
         '<button class="hp-parse-apply-btn" id="hp-parse-done" style="margin-top:16px;max-width:200px;">Done</button>' +
       '</div>';
     document.getElementById('hp-parse-done').addEventListener('click', function() { overlay.remove(); });
@@ -7676,4 +7772,277 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     attempts = 0;
     setTimeout(tryPatch, 800);
   });
+})();
+
+
+// ─── Wizard Encouragement Messages ────────────────────────────────────────────
+// Personalized, context-aware messages that appear at meaningful moments
+// in the form wizard — completing hard sections, hitting the halfway point,
+// and reaching the final step before export.
+(function() {
+  'use strict';
+
+  // ── Config ────────────────────────────────────────────────────────────────
+
+  // How long the card stays visible (ms) before fading out
+  var DISPLAY_MS   = 5000;
+  var FADE_MS      = 600;
+  var COOLDOWN_MS  = 90000; // minimum gap between messages (1.5 min)
+
+  // Keys of sections that should always trigger an empathy message
+  var HARD_SECTIONS = [
+    'violence', 'domestic', 'criminal', 'history', 'safety', 'protection',
+    'harm', 'abuse', 'custody', 'danger', 'criminal_history', 'care_history',
+    'f351_history', 'f351_violence', 'f351_care_history',
+    'prior order', 'prior orders', 'restraining', 'protection order'
+  ];
+
+  // Section-title keywords mapped to a specific empathy line
+  var SECTION_MESSAGES = {
+    'violence':          'That section asks hard questions. You answered them. That takes real courage.',
+    'domestic':          'That section asks hard questions. You answered them. That takes real courage.',
+    'criminal':          'These questions are difficult. You\'re doing the right thing by being honest.',
+    'history':           'Looking back is never easy. You\'re still moving forward.',
+    'custody':           'Parenting questions can be emotional. You\'re advocating for your child — that matters.',
+    'prior order':       'You\'ve been through this before. You know what\'s at stake — keep going.',
+    'restraining':       'Your safety matters. You\'re taking the right steps.',
+    'protection order':  'Your safety matters. You\'re taking the right steps.',
+    'care':              'These questions exist to protect your child. You\'re doing that right now.',
+    'affidavit':         'An affidavit is one of the most important documents you\'ll file. You\'re handling it.',
+  };
+
+  // Generic encouragements by position in the form
+  var HALFWAY_MESSAGES = [
+    'You\'re halfway through. Everything is saved — take a breath if you need one.',
+    'Past the halfway point. The hard part is behind you.',
+    'Halfway there. You\'re doing this.',
+  ];
+
+  var FINAL_STEP_MESSAGES = [
+    'This is the last section. You\'ve done the work — almost there.',
+    'Final step. Everything you\'ve entered is ready. You\'ve got this.',
+    'Last section. You made it through the whole form.',
+  ];
+
+  var GENERIC_PROGRESS = [
+    'You\'re making real progress. Keep going.',
+    'Every section you complete is one step closer to your day in court.',
+    'You\'re not alone in this. Hearth & Page is with you every step.',
+    'Take it one section at a time. You\'re doing great.',
+  ];
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  var _lastShownAt    = 0;
+  var _lastStepText   = '';
+  var _shownSections  = {};   // prevent repeating the same section message
+  var _styleInjected  = false;
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function getFirstName() {
+    try {
+      var u = window.__hp_currentUser || window.__hp_user || {};
+      var full = u.fullName || u.full_name || u.name || u.email || '';
+      if (!full) return '';
+      // Use first word only, title-case it
+      var first = full.split(/[\s@]/)[0];
+      return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+    } catch(e) { return ''; }
+  }
+
+  function injectStyles() {
+    if (_styleInjected) return;
+    _styleInjected = true;
+    var s = document.createElement('style');
+    s.textContent = [
+      '#hp-encourage-card{',
+      '  position:fixed;bottom:88px;left:50%;transform:translateX(-50%);',
+      '  z-index:9990;max-width:360px;width:calc(100% - 32px);',
+      '  background:linear-gradient(135deg,#1E2D4E 0%,#0d1520 100%);',
+      '  border:1px solid rgba(168,180,208,0.25);border-radius:16px;',
+      '  padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,0.45);',
+      '  display:flex;align-items:flex-start;gap:12px;',
+      '  animation:hp-enc-in 0.35s cubic-bezier(0.32,0.72,0,1);',
+      '  transition:opacity ' + (FADE_MS/1000) + 's ease;',
+      '}',
+      '#hp-encourage-card.hp-enc-fade{opacity:0;}',
+      '@keyframes hp-enc-in{from{transform:translateX(-50%) translateY(16px);opacity:0;}to{transform:translateX(-50%) translateY(0);opacity:1;}}',
+      '#hp-encourage-icon{font-size:22px;line-height:1;flex-shrink:0;margin-top:1px;}',
+      '#hp-encourage-body{flex:1;min-width:0;}',
+      '#hp-encourage-name{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;',
+      '  color:#A8B4D0;font-family:DM Sans,system-ui,sans-serif;margin-bottom:3px;}',
+      '#hp-encourage-msg{font-size:13.5px;font-weight:500;color:#ede8df;',
+      '  font-family:DM Sans,system-ui,sans-serif;line-height:1.45;}',
+      '#hp-encourage-sub{font-size:11px;color:rgba(237,232,223,0.50);',
+      '  font-family:DM Sans,system-ui,sans-serif;margin-top:3px;}',
+      '#hp-encourage-close{background:transparent;border:none;color:rgba(237,232,223,0.40);',
+      '  font-size:16px;cursor:pointer;padding:0 0 0 8px;line-height:1;flex-shrink:0;align-self:flex-start;margin-top:2px;}',
+      '#hp-encourage-close:hover{color:rgba(237,232,223,0.80);}',
+    ].join('');
+    document.head.appendChild(s);
+  }
+
+  function showCard(message, subtext, icon) {
+    // Respect cooldown
+    var now = Date.now();
+    if (now - _lastShownAt < COOLDOWN_MS) return;
+    _lastShownAt = now;
+
+    injectStyles();
+
+    // Remove any existing card
+    var existing = document.getElementById('hp-encourage-card');
+    if (existing) existing.remove();
+
+    var firstName = getFirstName();
+    var nameHtml = firstName
+      ? '<div id="hp-encourage-name">Hey ' + firstName + '</div>'
+      : '';
+
+    var card = document.createElement('div');
+    card.id = 'hp-encourage-card';
+    card.innerHTML =
+      '<div id="hp-encourage-icon">' + (icon || '💙') + '</div>' +
+      '<div id="hp-encourage-body">' +
+        nameHtml +
+        '<div id="hp-encourage-msg">' + message + '</div>' +
+        (subtext ? '<div id="hp-encourage-sub">' + subtext + '</div>' : '') +
+      '</div>' +
+      '<button id="hp-encourage-close" title="Dismiss">✕</button>';
+
+    document.body.appendChild(card);
+
+    // Dismiss on close button
+    document.getElementById('hp-encourage-close').addEventListener('click', function() {
+      dismissCard(card);
+    });
+
+    // Auto-dismiss
+    setTimeout(function() { dismissCard(card); }, DISPLAY_MS);
+  }
+
+  function dismissCard(card) {
+    if (!card || !card.parentNode) return;
+    card.classList.add('hp-enc-fade');
+    setTimeout(function() { if (card.parentNode) card.parentNode.removeChild(card); }, FADE_MS);
+  }
+
+  function pickRandom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  // ── Step change detection ─────────────────────────────────────────────────
+
+  function getStepInfo() {
+    // The wizard renders a subtitle like "Step 3 of 7" — find it in the DOM
+    var subtitleEls = document.querySelectorAll('p, span, div, h2, h3');
+    var stepText = '', sectionTitle = '';
+    var current = 0, total = 0;
+
+    for (var i = 0; i < subtitleEls.length; i++) {
+      var el = subtitleEls[i];
+      var t = el.textContent ? el.textContent.trim() : '';
+      if (/^Step \d+ of \d+$/i.test(t)) {
+        stepText = t;
+        var m = t.match(/Step (\d+) of (\d+)/i);
+        if (m) { current = parseInt(m[1]); total = parseInt(m[2]); }
+      }
+    }
+
+    // Get the section heading (h2 or h3 near the top of the wizard body)
+    var headings = document.querySelectorAll('h1, h2, h3');
+    for (var j = 0; j < headings.length; j++) {
+      var ht = headings[j].textContent ? headings[j].textContent.trim().toLowerCase() : '';
+      if (ht.length > 3 && ht.length < 80 && !ht.includes('hearth') && !ht.includes('page')) {
+        sectionTitle = ht;
+        break;
+      }
+    }
+
+    return { stepText: stepText, current: current, total: total, sectionTitle: sectionTitle };
+  }
+
+  function onStepChange() {
+    // Only run inside the wizard
+    if (!window.location.hash.includes('wizard')) return;
+
+    var info = getStepInfo();
+    if (!info.stepText || info.stepText === _lastStepText) return;
+    _lastStepText = info.stepText;
+
+    var current  = info.current;
+    var total    = info.total;
+    var section  = info.sectionTitle;
+    var sectionKey = section.replace(/[^a-z0-9]+/g, '_');
+
+    // ── Priority 1: Hard / sensitive section ─────────────────────────────
+    var hardMsg = null;
+    for (var keyword in SECTION_MESSAGES) {
+      if (section.indexOf(keyword) >= 0) {
+        hardMsg = SECTION_MESSAGES[keyword];
+        break;
+      }
+    }
+    if (hardMsg && !_shownSections[sectionKey]) {
+      _shownSections[sectionKey] = true;
+      showCard(hardMsg, 'You can pause anytime — your progress is saved.', '💙');
+      return;
+    }
+
+    // ── Priority 2: Final step ────────────────────────────────────────────
+    if (total > 0 && current === total && !_shownSections['__final__']) {
+      _shownSections['__final__'] = true;
+      showCard(pickRandom(FINAL_STEP_MESSAGES), 'Your forms will be ready to download after this.', '✅');
+      return;
+    }
+
+    // ── Priority 3: Halfway ───────────────────────────────────────────────
+    if (total >= 4 && current === Math.ceil(total / 2) && !_shownSections['__halfway__']) {
+      _shownSections['__halfway__'] = true;
+      showCard(pickRandom(HALFWAY_MESSAGES), 'Hearth & Page has your back.', '🏠');
+      return;
+    }
+
+    // ── Priority 4: Generic progress every ~3 steps ───────────────────────
+    if (current > 1 && current % 3 === 0 && !_shownSections['__generic_' + current + '__']) {
+      _shownSections['__generic_' + current + '__'] = true;
+      showCard(pickRandom(GENERIC_PROGRESS), null, '💙');
+    }
+  }
+
+  // Reset shown-sections cache when user opens a new case or form
+  window.addEventListener('hashchange', function() {
+    var hash = window.location.hash || '';
+    // New form opened — reset
+    if (hash.includes('wizard')) {
+      _lastStepText = '';
+      // Keep _shownSections so we don't repeat within same form
+      // but clear on new case navigation
+    } else {
+      // Navigated away from wizard — clear everything for fresh start
+      _shownSections = {};
+      _lastStepText  = '';
+    }
+    setTimeout(onStepChange, 600);
+  });
+
+  // Watch for DOM changes inside the wizard (step renders are DOM mutations)
+  var _encObserver = new MutationObserver(function() {
+    if (window.location.hash.includes('wizard')) {
+      setTimeout(onStepChange, 300);
+    }
+  });
+
+  function startEncObserver() {
+    if (document.body) {
+      _encObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startEncObserver);
+  } else {
+    startEncObserver();
+  }
+
 })();

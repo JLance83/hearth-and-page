@@ -301,7 +301,7 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.4-pdfjs-text', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.4.9-encrypted-pdf', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
 app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.0.0', db: 'supabase' }));
 
 // ── Auth ──
@@ -1582,6 +1582,52 @@ app.patch('/api/cases/:caseId/documents/:docId', requireAuth, async (req, res) =
   } catch(e) { res.status(500).json({ message: 'Label update failed' }); }
 });
 
+// GET /api/cases/:caseId/documents/:docId/debug  — check what's stored
+app.get('/api/cases/:caseId/documents/:docId/debug', requireAuth, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.caseId);
+    const docId  = parseInt(req.params.docId);
+    const userId = req.user.id;
+    const doc = await dbGet('case_documents', { id: `eq.${docId}`, case_id: `eq.${caseId}`, user_id: `eq.${userId}` });
+    if (!doc) return res.status(404).json({ message: 'Document not found' });
+    res.json({
+      id: doc.id,
+      keys: Object.keys(doc),
+      fileName: doc.filename || doc.fileName,
+      fileType: doc.file_type || doc.fileType,
+      hasFileData: !!(doc.fileData || doc.file_data),
+      fileDataLen: (doc.fileData || doc.file_data || '').length
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/cases/:caseId/autofill  — bulk-save extracted fields from document parse
+app.post('/api/cases/:caseId/autofill', requireAuth, async (req, res) => {
+  try {
+    const caseId = parseInt(req.params.caseId);
+    const { fields } = req.body; // { section: { key: value, ... }, ... }
+    if (!fields || typeof fields !== 'object') return res.status(400).json({ message: 'fields required' });
+    // Verify case belongs to this user
+    const c = await dbGet('cases', { id: `eq.${caseId}`, user_id: `eq.${req.user.id}` });
+    if (!c) return res.status(404).json({ message: 'Case not found' });
+
+    const saved = [];
+    for (const [section, sectionFields] of Object.entries(fields)) {
+      if (!sectionFields || typeof sectionFields !== 'object') continue;
+      for (const [fieldKey, fieldValue] of Object.entries(sectionFields)) {
+        if (fieldValue === null || fieldValue === undefined || fieldValue === '') continue;
+        await dbUpsert('form_data', { caseId: c.id, section, fieldKey, fieldValue: String(fieldValue), updatedAt: Date.now() });
+        saved.push({ section, fieldKey, fieldValue: String(fieldValue) });
+      }
+    }
+    console.log('[autofill] saved', saved.length, 'fields for case', caseId);
+    res.json({ saved: saved.length, fields: saved });
+  } catch(e) {
+    console.error('[autofill] error:', e.message);
+    res.status(500).json({ message: 'autofill failed', error: e.message });
+  }
+});
+
 // POST /api/cases/:caseId/documents/:docId/parse  — GPT-4o Vision Smart Auto-fill
 app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, res) => {
   try {
@@ -1615,6 +1661,7 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
 
     if (isPDF) {
       // Use pdfjs-dist v3 (pure JS, no system deps) for text extraction
+      let isEncryptedPDF = false;
       try {
         const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
         pdfjsLib.GlobalWorkerOptions.workerSrc = false;
@@ -1632,7 +1679,34 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
           console.log('[parse] pdfjs extracted', pdfText.length, 'chars from', numPages, 'pages');
         }
       } catch(e) {
-        console.warn('[parse] pdfjs text extraction failed:', e.message);
+        const errMsg = e.message || '';
+        console.warn('[parse] pdfjs text extraction failed:', errMsg);
+        // Detect password-protected PDFs
+        if (errMsg.toLowerCase().includes('password') || errMsg.toLowerCase().includes('encrypt')) {
+          isEncryptedPDF = true;
+          console.log('[parse] PDF is password-protected — cannot extract text');
+          return res.json({
+            fields: [],
+            docTypeLabel: fileName,
+            _encrypted: true,
+            message: 'This PDF is password-protected. Please take a screenshot or photo of the document and upload the image instead — the photo upload extracts information using visual recognition.'
+          });
+        }
+      }
+      if (!pdfText && !isEncryptedPDF) {
+        // Check raw bytes for Encrypt flag as fallback detection
+        try {
+          const rawBuf = Buffer.from(fileData, 'base64');
+          if (rawBuf.indexOf('/Encrypt') >= 0) {
+            console.log('[parse] PDF has /Encrypt flag — likely password protected');
+            return res.json({
+              fields: [],
+              docTypeLabel: fileName,
+              _encrypted: true,
+              message: 'This PDF is password-protected. Please take a screenshot or photo of the document and upload the image instead — the photo upload extracts information using visual recognition.'
+            });
+          }
+        } catch(_) {}
       }
       isPDFDirect = true;
     } else {
@@ -1694,6 +1768,21 @@ Return ONLY valid JSON:
         { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
       ];
       console.log('[parse] using vision path');
+    } else if (isPDFDirect && !pdfText) {
+      // PDF but pdfjs text extraction failed (scanned/image PDF or encoding issue)
+      // Fallback: send raw PDF bytes as base64 to GPT-4o — it can read PDFs natively
+      console.log('[parse] pdfjs text extraction failed, trying GPT-4o PDF vision fallback');
+      const rawBase64 = doc.fileData || doc.file_data || '';
+      if (!rawBase64) {
+        console.warn('[parse] no usable content — returning empty');
+        return res.json({ fields: [], docTypeLabel: fileName });
+      }
+      // Use GPT-4o file input — encode as data URL for the vision content array
+      userContent = [
+        { type: 'image_url', image_url: { url: `data:application/pdf;base64,${rawBase64}`, detail: 'high' } },
+        { type: 'text', text: 'This is a PDF document. Extract all available fields from it and return the JSON.' }
+      ];
+      console.log('[parse] using PDF vision fallback path (raw PDF base64 len:', rawBase64.length, ')');
     } else {
       console.warn('[parse] no usable content — returning empty');
       return res.json({ fields: [], docTypeLabel: fileName });
@@ -1718,15 +1807,18 @@ Return ONLY valid JSON:
 
     if (!oaiResponse.ok) {
       const errText = await oaiResponse.text();
-      console.error('[parse] OpenAI error:', oaiResponse.status, errText.slice(0, 200));
-      return res.json({ fields: [], docTypeLabel: fileName });
+      console.error('[parse] OpenAI error:', oaiResponse.status, errText.slice(0, 500));
+      return res.json({ fields: [], docTypeLabel: fileName, _error: 'openai_' + oaiResponse.status });
     }
 
     const oaiJson   = await oaiResponse.json();
     const rawContent = oaiJson.choices?.[0]?.message?.content || '{}';
     const cleaned   = rawContent.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/i,'').trim();
     let parsed;
-    try { parsed = JSON.parse(cleaned); } catch(e) { parsed = { fields: [], docTypeLabel: fileName }; }
+    try { parsed = JSON.parse(cleaned); } catch(e) {
+      console.error('[parse] JSON.parse failed. Raw content (first 500):', rawContent.slice(0, 500));
+      parsed = { fields: [], docTypeLabel: fileName };
+    }
 
     const rawFields    = Array.isArray(parsed.fields) ? parsed.fields : [];
     const docTypeLabel = parsed.docTypeLabel || fileName;
@@ -1794,7 +1886,7 @@ Return ONLY valid JSON:
     }).filter(Boolean);
 
     console.log('[parse] extracted', fields.length, 'mapped fields from', docTypeLabel);
-    res.json({ fields, docTypeLabel, docType: parsed.docType || 'unknown' });
+    res.json({ fields, docTypeLabel, docType: parsed.docType || 'unknown', _rawCount: rawFields.length });
 
   } catch(e) {
     console.error('[parse] error:', e.message);
