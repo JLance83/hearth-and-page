@@ -18,7 +18,7 @@ const os = require('os');
 // Config
 // ──────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_7xmsQDqc_DfXJZqjovXzezt7wsS5gr8Dc';
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = 'Hearth & Page <support@hearthandpage.ca>';
 const APP_URL = process.env.APP_URL || 'https://hearthandpage.ca';
 const NODE_ENV = process.env.NODE_ENV || 'development';

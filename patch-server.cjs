@@ -25,7 +25,7 @@ const emailRouteCode = `
 (function() {
   try {
     var https = require('https');
-    var RESEND_KEY = process.env.RESEND_API_KEY || 're_7xmsQDqc_DfXJZqjovXzezt7wsS5gr8Dc';
+    var RESEND_KEY = process.env.RESEND_API_KEY;
     var FROM = 'Hearth & Page <support@hearthandpage.ca>';
 
     // Find the Express app instance — it's exported or used in the server
