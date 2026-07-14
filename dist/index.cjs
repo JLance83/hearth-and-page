@@ -1184,7 +1184,11 @@ app.post('/api/stripe/sync', requireAuth, async (req, res) => {
     const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
     const userRow = await dbGet('users', { id: `eq.${req.user.id}` });
     if (!userRow || !userRow.stripeCustomerId) return res.json({ ok: true });
-    const subs = await stripe.subscriptions.list({ customer: userRow.stripeCustomerId, limit: 1, status: 'active' });
+    // Check active first, then fall back to all statuses (catches past_due, trialing, etc.)
+    let subs = await stripe.subscriptions.list({ customer: userRow.stripeCustomerId, limit: 1, status: 'active' });
+    if (subs.data.length === 0) {
+      subs = await stripe.subscriptions.list({ customer: userRow.stripeCustomerId, limit: 1 });
+    }
     if (subs.data.length > 0) {
       const sub = subs.data[0];
       const priceId = sub.items.data[0]?.price?.id;
