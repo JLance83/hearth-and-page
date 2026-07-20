@@ -1800,10 +1800,15 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   var TEAL   = '#A8B4D0';
   var TEAL_D = '#1E2D4E';
   var BURG   = '#1E2D4E';
-  var FREE_FORM_IDS = ['form8'];
+  var FREE_FORM_IDS = ['form8','form8general','form8a','form8adivorce'];
 
   // ── Upgrade Modal ─────────────────────────────────────────────────────────────
   function showUpgradeModal(reason) {
+    // Prefer the React upgrade wall (UpgradeWallHP) if available
+    if (window.__hp_upgradeWallReady) {
+      window.dispatchEvent(new CustomEvent('hp:upgrade-required'));
+      return;
+    }
     if (document.getElementById('hp-upgrade-modal')) return;
     var heading = reason === 'pdf'
       ? 'Subscribe to Download Your PDF'
