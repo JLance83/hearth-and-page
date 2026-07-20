@@ -329,7 +329,7 @@ app.post('/api/auth/register', async (req, res) => {
     const verifyExpires = Date.now() + 24 * 60 * 60 * 1000;
     await dbInsert('email_verify_tokens', { userId, token: verifyToken, expiresAt: verifyExpires });
     // Send verification email
-    const appUrl = 'https://www.perplexity.ai/computer/a/family-law-app-ZPvdw1QKTY.YulaIEUT7Fw';
+    const appUrl = APP_URL;
     const verifyUrl = appUrl + '#/verify?token=' + verifyToken;
     const name = firstName || 'there';
     sendViaResend({
@@ -538,7 +538,7 @@ app.post('/api/auth/resend-verify', requireAuth, async (req, res) => {
     const verifyToken = generateToken();
     const verifyExpires = Date.now() + 24 * 60 * 60 * 1000;
     await dbInsert('email_verify_tokens', { userId: user.id, token: verifyToken, expiresAt: verifyExpires });
-    const appUrl = 'https://www.perplexity.ai/computer/a/family-law-app-ZPvdw1QKTY.YulaIEUT7Fw';
+    const appUrl = APP_URL;
     const verifyUrl = appUrl + '#/verify?token=' + verifyToken;
     const name = user.firstName || 'there';
     await sendViaResend({

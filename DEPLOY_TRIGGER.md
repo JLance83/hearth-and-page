@@ -1,3 +1,1 @@
-# Hearth & Page Backend
-# Deployed: 2026-07-06 20:35 UTC
-# This file triggers Railway auto-deploy from GitHub
+Deploy triggered: Mon Jul 20 23:04:10 UTC 2026 — fix verification email URL
