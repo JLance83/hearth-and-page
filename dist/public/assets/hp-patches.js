@@ -713,7 +713,11 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     '.hp-field-error {',
     '  border-color: #1E2D4E !important;',
     '  animation: hp-field-pulse 0.7s ease-out 2;',
-    '}'
+    '}',
+    '[data-testid="button-safety"] { color: hsl(var(--foreground)) !important; opacity: 0.65 !important; }',
+    '[data-testid="button-safety"]:hover { opacity: 1 !important; }',
+    '[data-testid="button-nav-account"] { color: hsl(var(--foreground)) !important; opacity: 0.65 !important; }',
+    '[data-testid="button-nav-account"]:hover { opacity: 1 !important; }'
   ].join('\n');
   document.head.appendChild(style);
 
