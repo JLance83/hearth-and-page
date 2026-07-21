@@ -1013,7 +1013,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       '#hp-ef-save:disabled{opacity:0.5;cursor:default;}',
       '#hp-ef-cancel{background:transparent;color:rgba(237,232,223,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:0.625rem;padding:0.75rem 1rem;font-size:0.9375rem;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;transition:background 0.12s;}',
       '#hp-ef-cancel:hover{background:rgba(255,255,255,0.05);}',
-      '.hp-ef-current-tag{font-size:0.65rem;color:rgba(30,45,78,0.80);font-weight:500;margin-left:0.25rem;}',
+      '.hp-ef-current-tag{font-size:0.65rem;color:#ede8df;font-weight:600;margin-left:0.25rem;opacity:0.95;}',
       '.hp-ef-addbtn{display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.625rem;border-radius:6px;border:1px solid rgba(30,45,78,0.50);background:transparent;color:rgba(30,45,78,0.90);font-size:0.75rem;font-weight:500;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;transition:background 0.12s,border-color 0.12s;white-space:nowrap;}',
       '.hp-ef-addbtn:hover{background:rgba(30,45,78,0.25);border-color:rgba(30,45,78,0.80);}',
       '#hp-ef-saving-msg{font-size:0.8rem;color:rgba(30,45,78,0.90);text-align:center;padding:0.25rem 0;display:none;}',
@@ -1087,7 +1087,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
                 currentTag,
               '</div>',
               '<div style="font-size:0.875rem;font-weight:500;color:#ede8df;font-family:\'Playfair Display\',serif;">'+f.title+'</div>',
-              '<div style="font-size:0.75rem;color:rgba(237,232,223,0.5);margin-top:0.125rem;">'+f.tag+'</div>',
+              '<div style="font-size:0.75rem;color:rgba(237,232,223,0.70);margin-top:0.125rem;">'+f.tag+'</div>',
             '</div>',
           '</div>'
         ].join('');
