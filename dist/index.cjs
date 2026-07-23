@@ -283,6 +283,9 @@ app.use((req, res, next) => {
 // API Routes
 // ──────────────────────────────────────────────
 
+// Strip sensitive fields before sending user objects to client
+function sanitizeUser(u) { if (!u) return u; const { passwordHash, ...safe } = u; return safe; }
+
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString(), db: 'supabase', keyRole: SUPABASE_KEY.includes('service_role') ? 'service_role' : 'anon' }));
 app.post('/api/auth/login-debug', async (req, res) => {
   try {
@@ -347,7 +350,7 @@ app.post('/api/auth/register', async (req, res) => {
       text: 'Welcome to Hearth & Page, ' + name + '. Verify your email here: ' + verifyUrl
     }).catch(err => console.error('[auth] verify email send failed:', err.message));
     const user = await dbGet('users', { id: `eq.${userId}` });
-    res.json({ user, token, expiresAt, requiresVerification: true });
+    res.json({ user: sanitizeUser(user), token, expiresAt, requiresVerification: true });
   } catch (e) {
     console.error('[auth] register error:', e.message);
     res.status(500).json({ message: 'Registration failed' });
@@ -431,7 +434,7 @@ async function sendViaTwilio(to, body) {
   });
 }
 
-app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user: req.user }));
+app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user: sanitizeUser(req.user) }));
 
 app.patch('/api/auth/me', requireAuth, async (req, res) => {
   try {
@@ -439,7 +442,7 @@ app.patch('/api/auth/me', requireAuth, async (req, res) => {
     if (firstName !== undefined) await dbUpdate('users', { id: `eq.${req.user.id}` }, { firstName, updatedAt: Date.now() });
     if (email !== undefined) await dbUpdate('users', { id: `eq.${req.user.id}` }, { email: email.toLowerCase(), updatedAt: Date.now() });
     const user = await dbGet('users', { id: `eq.${req.user.id}` });
-    res.json({ user });
+    res.json({ user: sanitizeUser(user) });
   } catch (e) { res.status(500).json({ message: 'Update failed' }); }
 });
 
@@ -522,7 +525,7 @@ app.post('/api/auth/verify', async (req, res) => {
     await dbUpdate('users', { id: `eq.${row.userId}` }, { emailVerified: 1 });
     await dbUpdate('email_verify_tokens', { id: `eq.${row.id}` }, { usedAt: Date.now() });
     const user = await dbGet('users', { id: `eq.${row.userId}` });
-    res.json({ ok: true, user });
+    res.json({ ok: true, user: sanitizeUser(user) });
   } catch (e) {
     console.error('[auth] verify post error:', e.message);
     res.status(500).json({ message: 'Verification failed' });
@@ -1002,7 +1005,7 @@ app.get('/api/account', requireAuth, async (req, res) => {
   try {
     const user = await dbGet('users', { id: `eq.${req.user.id}` });
     const cases = await dbAll('cases', { user_id: `eq.${req.user.id}` });
-    res.json({ user, cases });
+    res.json({ user: sanitizeUser(user), cases });
   } catch (e) { res.status(500).json({ message: 'Failed to fetch account' }); }
 });
 
@@ -1203,7 +1206,7 @@ app.post('/api/stripe/sync', requireAuth, async (req, res) => {
       await dbUpdate('users', { id: `eq.${req.user.id}` }, { plan, subscriptionStatus: sub.status, subscriptionCurrentPeriodEnd: sub.current_period_end * 1000, stripeSubscriptionId: sub.id });
     }
     const updated = await dbGet('users', { id: `eq.${req.user.id}` });
-    res.json({ ok: true, user: updated });
+    res.json({ ok: true, user: sanitizeUser(updated) });
   } catch (e) { console.error('[stripe/sync] error:', e.message); res.json({ ok: true }); }
 });
 
