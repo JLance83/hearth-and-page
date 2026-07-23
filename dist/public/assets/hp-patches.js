@@ -8442,10 +8442,13 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         html += '</div>';
       });
       html += '<div class="hp-quiz-cta">';
-      html += '<button class="hp-quiz-cta-btn" id="hp-quiz-start-btn">Open my case to start filling</button>';
+      html += '<div id="hp-quiz-case-cta" style="margin-bottom:8px">';
+      html += '<div style="font-size:12px;color:#9ca3af;text-align:center;margin-bottom:8px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase">Next step</div>';
+      html += '<button class="hp-quiz-cta-btn" id="hp-quiz-start-btn" style="display:flex;align-items:center;justify-content:center;gap:8px">Continue to my case <span style="font-size:16px">→</span></button>';
+      html += '<p style="font-size:11px;color:#9ca3af;text-align:center;margin-top:6px;line-height:1.5">Select these forms inside your case using the search bar, then start filling</p>';
+      html += '</div>';
       html += '<button class="hp-quiz-cta-btn secondary" id="hp-quiz-restart-btn">Start over</button>';
       html += '</div>';
-      html += '<p style="font-size:11px;color:#9ca3af;text-align:center;margin-top:8px">These forms will be available to select inside your case</p>';
       html += '</div>';
       return html;
     }
@@ -8479,64 +8482,84 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     if (backBtn) backBtn.onclick = function() { state.step = Math.max(0, state.step-1); render(); };
 
     var startBtn = container.querySelector('#hp-quiz-start-btn');
-    if (startBtn) startBtn.onclick = async function() {
-      // Map quiz recommendations to app form IDs for search hint
-      var FORM_ID_MAP = {
-        'Form 8':   'form8-general',
-        'Form 8A':  'form8a-divorce',
-        'Form 10':  'form10-answer',
-        'Form 13':  'form13-financial',
-        'Form 13.1':'form13_1-financial-property',
-        'Form 14B': 'form14b-motion',
-        'Form 15':  'form15-motion-to-change',
-        'Form 15A': 'form15a-change-information',
-        'Form 20':  'form20-request-financial',
-        'Form 35.1':'form35-affidavit',
-        'Form 36':  'form36-divorce-affidavit',
-        'Form 36B': 'form36b-certificate-divorce',
-        'Form 6B':  'form6b-service',
-      };
+    if (startBtn) startBtn.onclick = function() {
+      // Find the user's existing case wizard link on the dashboard
+      // The app renders: <a href="/case/{id}/wizard" data-testid="link-continue-{id}">
+      var continueLink = document.querySelector('a[data-testid^="link-continue-"]');
 
-      // Get primary recommended form (first in results)
-      var primaryForm = state.results && state.results[0];
-      var primaryFormId = primaryForm ? (FORM_ID_MAP[primaryForm.num] || 'form8-general') : 'form8-general';
+      close(); // dismiss the modal
 
-      // Try to get existing cases to navigate to the active one
-      try {
-        var resp = await fetch('/api/cases', {
-          headers: { 'Authorization': 'Bearer ' + (document.cookie.match(/hp_token=([^;]+)/)||['',''])[1] || '' }
-        });
-        // Use apiRequest pattern — check for auth token in localStorage alternative
-        // Actually just navigate to dashboard and pre-fill the search bar
-      } catch(e) {}
-
-      close();
-
-      // Pre-fill the form search bar after navigation settles
       setTimeout(function() {
-        var searchInput = document.querySelector('[data-testid="input-form-search"], [data-testid="input-dashboard-search"]');
-        if (searchInput) {
-          // Trigger a synthetic input to pre-fill search with first recommended form
-          var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-          if (nativeInputValueSetter) {
-            nativeInputValueSetter.call(searchInput, primaryForm ? primaryForm.num : '');
-            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-            searchInput.dispatchEvent(new Event('change', { bubbles: true }));
-            searchInput.focus();
+        if (continueLink) {
+          // Navigate directly into the existing case wizard
+          var href = continueLink.getAttribute('href');
+          if (href) {
+            window.location.hash = href.replace(/^\/?#/, '').replace(/^\//, '');
+            // After arriving in the wizard, show a sticky reminder of recommended forms
+            setTimeout(function() { showFormReminder(state.results); }, 800);
           }
-          // Show a toast-style hint
-          var hint = document.createElement('div');
-          hint.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1E2D4E;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);max-width:320px';
-          hint.textContent = 'Select your forms from the list, then start your case';
-          document.body.appendChild(hint);
-          setTimeout(function() { hint.remove(); }, 4000);
         } else {
-          // If search bar not found, navigate to existing case wizard if we can detect it
-          var caseLink = document.querySelector('a[href*="/case/"][href*="/wizard"], [data-testid*="case-card"] a, [data-testid*="button-open-case"]');
-          if (caseLink) caseLink.click();
+          // No existing case — show a guided hint to create one using the form search
+          setTimeout(function() {
+            var searchInput = document.querySelector('[data-testid="input-dashboard-search"]');
+            if (searchInput) {
+              var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+              if (setter) {
+                setter.call(searchInput, state.results && state.results[0] ? state.results[0].num : 'Form 8');
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                searchInput.focus();
+              }
+            }
+            showFormReminder(state.results);
+          }, 400);
         }
-      }, 600);
+      }, 300);
     };
+
+    // Show a dismissible sticky banner reminding the user which forms to add
+    function showFormReminder(results) {
+      if (!results || !results.length) return;
+      var existing = document.getElementById('hp-form-reminder');
+      if (existing) existing.remove();
+
+      var formList = results.slice(0, 5).map(function(r) { return r.num; }).join(' · ');
+      var banner = document.createElement('div');
+      banner.id = 'hp-form-reminder';
+      banner.style.cssText = [
+        'position:fixed',
+        'bottom:70px',
+        'left:50%',
+        'transform:translateX(-50%)',
+        'background:#1E2D4E',
+        'color:#fff',
+        'padding:12px 16px',
+        'border-radius:12px',
+        'font-size:13px',
+        'font-weight:500',
+        'z-index:9998',
+        'text-align:center',
+        'box-shadow:0 4px 24px rgba(0,0,0,0.35)',
+        'max-width:340px',
+        'width:calc(100% - 48px)',
+        'line-height:1.5',
+        'display:flex',
+        'flex-direction:column',
+        'gap:6px',
+      ].join(';');
+
+      banner.innerHTML = [
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">',
+          '<span style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:#A8B4D0;font-weight:700">Quiz recommendation</span>',
+          '<button id="hp-reminder-close" style="background:none;border:none;color:#A8B4D0;cursor:pointer;font-size:16px;line-height:1;padding:0">✕</button>',
+        '</div>',
+        '<div style="font-weight:600;color:#fff">Add these forms: <span style="color:#A8B4D0">' + formList + '</span></div>',
+        '<div style="font-size:11px;color:#9ca3af">Use the "Add Forms" button or search above</div>',
+      ].join('');
+
+      document.body.appendChild(banner);
+      document.getElementById('hp-reminder-close').onclick = function() { banner.remove(); };
+      setTimeout(function() { if (banner.parentNode) banner.remove(); }, 12000);
+    }
 
     var restartBtn = container.querySelector('#hp-quiz-restart-btn');
     if (restartBtn) restartBtn.onclick = function() {
