@@ -8636,6 +8636,8 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
           window.__hpQuizRecommendations = state.results;
           // Build a Set of recommended form badge labels (e.g. "Form 8", "Form 13")
           window.__hpRecommendedForms = new Set(state.results.map(function(r) { return r.num; }));
+          // Inject CSS badges immediately so they show on the form selector without any JS timing issues
+          injectQuizPickCSS(state.results);
         }
         render();
       };
@@ -8742,74 +8744,63 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     styleEl.textContent = CSS_BADGE;
     document.head.appendChild(styleEl);
 
-    function makeBadge() {
-      var badge = document.createElement('span');
-      badge.className = 'hp-rec-badge';
-      badge.innerHTML = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 5l2.5 2.5L8 3"/></svg> Quiz pick';
-      return badge;
-    }
+    // CSS-driven Quiz pick badges — injected once when quiz results are stored.
+    // Targets button[data-testid="button-form-{id}"] and button[data-testid="button-search-result-{id}"]
+    // using ::after pseudo-elements so no JS timing / MutationObserver needed.
+    function injectQuizPickCSS(results) {
+      var old = document.getElementById('hp-quiz-pick-css');
+      if (old) old.remove();
+      if (!results || !results.length) return;
 
-    function badgeRecommendedForms() {
-      if (!window.__hpRecommendedForms || window.__hpRecommendedForms.size === 0) return;
-
-      // 1. Search dropdown results: data-testid="button-search-result-{id}"
-      var resultBtns = document.querySelectorAll('[data-testid^="button-search-result-"]');
-      resultBtns.forEach(function(btn) {
-        if (btn.dataset.hpBadged) return;
-        var formId = btn.getAttribute('data-testid').replace('button-search-result-', '');
-        var formEntry = (window.__hp_allForms || []).find(function(f) { return f.id === formId; });
-        var formBadge = formEntry ? formEntry.badge : null;
-        if (!formBadge) {
-          var badgeText = btn.querySelector('p:last-of-type');
-          if (badgeText) {
-            var parts = badgeText.textContent.split('·');
-            formBadge = parts[0] ? parts[0].trim() : null;
-          }
-        }
-        if (formBadge && window.__hpRecommendedForms.has(formBadge)) {
-          var b = makeBadge();
-          var titleP = btn.querySelector('p:first-of-type');
-          if (titleP) {
-            titleP.style.display = 'inline';
-            titleP.parentNode.insertBefore(b, titleP.nextSibling);
-            b.style.display = 'inline-flex';
-            b.style.marginTop = '2px';
-          }
-          btn.dataset.hpBadged = '1';
-        }
+      // Build a lookup: form badge label → form id  (e.g. "Form 8" → "form8-general")
+      var ALL = typeof ALL_FORMS !== 'undefined' ? ALL_FORMS : [];
+      var selectors = [];
+      results.forEach(function(r) {
+        var entry = ALL.find(function(f) { return f.badge === r.num; });
+        if (!entry) return;
+        // Target the card on new-case selector screen
+        selectors.push('[data-testid="button-form-' + entry.id + '"]');
+        // Target the dashboard search result dropdown
+        selectors.push('[data-testid="button-search-result-' + entry.id + '"]');
+        // Target quiz-mode recommended card on new-case screen
+        selectors.push('[data-testid="quiz-form-' + entry.id + '"]');
       });
 
-      // 2. New-case form selector cards (manual list): button elements with border-card-border class
-      //    These don't have a predictable data-testid, so match by badge text inside the card
-      var formBtns = document.querySelectorAll('button.rounded-xl');
-      formBtns.forEach(function(btn) {
-        if (btn.dataset.hpBadged) return;
-        // The badge label (e.g. "Form 8") is in a span with bg-card-border-ish styling
-        var badgeSpan = btn.querySelector('span, p');
-        if (!badgeSpan) return;
-        // Walk all text nodes to find something like "Form 8" or "Form 13"
-        var allText = btn.innerText || '';
-        var m = allText.match(/^(Form\s+[\d.]+[A-Z]?)/m);
-        if (!m) return;
-        var formBadge = m[1].replace(/\s+/, ' ').trim();
-        if (window.__hpRecommendedForms.has(formBadge)) {
-          // Add a "Quiz pick" badge after the form badge span
-          var b = makeBadge();
-          b.style.marginLeft = '6px';
-          // Find the badge element (first inline span or p with "Form X")
-          var spans = btn.querySelectorAll('span');
-          var inserted = false;
-          for (var i = 0; i < spans.length; i++) {
-            if (spans[i].textContent.trim().match(/^Form\s+[\d.]+/)) {
-              spans[i].parentNode.insertBefore(b, spans[i].nextSibling);
-              inserted = true;
-              break;
-            }
-          }
-          if (!inserted) btn.prepend(b);
-          btn.dataset.hpBadged = '1';
-        }
-      });
+      if (!selectors.length) return;
+
+      var css = [
+        // Badge pill via ::after on matching cards
+        selectors.map(function(s) { return s + '::after'; }).join(',
+') + ' {',
+        '  content: "\2713  Quiz pick";',
+        '  display: inline-flex;',
+        '  align-items: center;',
+        '  background: #1E2D4E;',
+        '  color: #A8B4D0;',
+        '  font-size: 10px;',
+        '  font-weight: 700;',
+        '  letter-spacing: 0.06em;',
+        '  text-transform: uppercase;',
+        '  padding: 2px 7px;',
+        '  border-radius: 4px;',
+        '  margin-left: 8px;',
+        '  vertical-align: middle;',
+        '  white-space: nowrap;',
+        '  position: relative;',
+        '  top: -1px;',
+        '}',
+        // Make cards that are recommended have a subtle left accent border
+        selectors.filter(function(s) { return s.indexOf('button-form-') !== -1; }).join(',
+') + ' {',
+        '  border-left: 3px solid #A8B4D0 !important;',
+        '}',
+      ].join('
+');
+
+      var style = document.createElement('style');
+      style.id = 'hp-quiz-pick-css';
+      style.textContent = css;
+      document.head.appendChild(style);
     }
 
     // Expose ALL_FORMS to window for id→badge lookup
@@ -8817,28 +8808,14 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       window.__hp_allForms = ALL_FORMS;
     }
 
-    // Watch for search result dropdowns appearing
+    // Lightweight observer: badge search dropdown results when they appear
     var _formBadgeObserver = new MutationObserver(function(mutations) {
-      var shouldBadge = false;
-      mutations.forEach(function(m) {
-        m.addedNodes.forEach(function(n) {
-          if (n.nodeType === 1) {
-            if (n.querySelector && (
-              n.querySelector('[data-testid^="button-search-result-"]') ||
-              n.getAttribute('data-testid') === 'form-search-bar'
-            )) shouldBadge = true;
-          }
-        });
-      });
-      if (shouldBadge) setTimeout(badgeRecommendedForms, 80);
-    });
-
-    // Also run on input events in the search bar (results appear after typing)
-    document.addEventListener('input', function(e) {
-      if (e.target && e.target.getAttribute('data-testid') === 'input-dashboard-search') {
-        setTimeout(badgeRecommendedForms, 200);
+      if (!window.__hpRecommendedForms || !window.__hpRecommendedForms.size) return;
+      // CSS already handles static cards — just ensure style tag is present
+      if (!document.getElementById('hp-quiz-pick-css') && window.__hpQuizRecommendations) {
+        injectQuizPickCSS(window.__hpQuizRecommendations);
       }
-    }, true);
+    });
 
     function startBadgeObserver() {
       _formBadgeObserver.observe(document.body, { childList: true, subtree: true });
