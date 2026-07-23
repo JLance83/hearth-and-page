@@ -1804,15 +1804,10 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   var TEAL   = '#A8B4D0';
   var TEAL_D = '#1E2D4E';
   var BURG   = '#1E2D4E';
-  var FREE_FORM_IDS = ['form8','form8general','form8a','form8adivorce'];
+  var FREE_FORM_IDS = ['form8'];
 
   // ── Upgrade Modal ─────────────────────────────────────────────────────────────
   function showUpgradeModal(reason) {
-    // Prefer the React upgrade wall (UpgradeWallHP) if available
-    if (window.__hp_upgradeWallReady) {
-      window.dispatchEvent(new CustomEvent('hp:upgrade-required'));
-      return;
-    }
     if (document.getElementById('hp-upgrade-modal')) return;
     var heading = reason === 'pdf'
       ? 'Subscribe to Download Your PDF'
@@ -8145,4 +8140,485 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   // Also run immediately in case the review is already rendered
   setTimeout(patchReviewScreen, 500);
   setTimeout(patchReviewScreen, 1500);
+})();
+
+// ─── QUICK WIN 1: "What Form Do I Need?" Quiz ────────────────────────────────
+// ─── QUICK WIN 2: Court Date & Deadline Calculator ───────────────────────────
+(function() {
+
+  // ── Quiz data ───────────────────────────────────────────────────────────────
+  var QUIZ_STEPS = [
+    {
+      id: 'situation',
+      question: 'What best describes your situation?',
+      options: [
+        { label: 'Separation or divorce',        value: 'divorce'   },
+        { label: 'Child custody or parenting',   value: 'custody'   },
+        { label: 'Child or spousal support',     value: 'support'   },
+        { label: 'Property division',            value: 'property'  },
+        { label: 'Protection / safety order',    value: 'safety'    },
+      ]
+    },
+    {
+      id: 'children',
+      question: 'Are children involved?',
+      options: [
+        { label: 'Yes, we have children together', value: 'yes' },
+        { label: 'No children',                    value: 'no'  },
+      ]
+    },
+    {
+      id: 'married',
+      question: 'Were you married or in a common-law relationship?',
+      options: [
+        { label: 'Married',      value: 'married'    },
+        { label: 'Common-law',   value: 'commonlaw'  },
+        { label: 'Not sure',     value: 'unsure'     },
+      ]
+    },
+    {
+      id: 'stage',
+      question: 'Where are you in the process?',
+      options: [
+        { label: 'Just starting — haven\'t filed anything', value: 'start'    },
+        { label: 'Already filed, need to respond',          value: 'respond'  },
+        { label: 'Have a court order, need to change it',   value: 'change'   },
+        { label: 'Need to enforce an existing order',       value: 'enforce'  },
+      ]
+    },
+  ];
+
+  // ── Form recommendations based on answers ───────────────────────────────────
+  function getRecommendations(answers) {
+    var s = answers.situation, c = answers.children,
+        m = answers.married,   st = answers.stage;
+    var forms = [];
+
+    // Application to start (Form 8 always needed for new applications)
+    if (st === 'start') {
+      forms.push({ num: 'Form 8',   label: 'Application (General)',          reason: 'Required to start any family court case' });
+    }
+    if (st === 'respond') {
+      forms.push({ num: 'Form 10',  label: 'Answer',                         reason: 'To respond to an application made against you' });
+    }
+    if (st === 'change') {
+      forms.push({ num: 'Form 15',  label: 'Motion to Change',               reason: 'To change an existing court order' });
+      forms.push({ num: 'Form 15A', label: 'Change Information Form',        reason: 'Required with Motion to Change' });
+    }
+    if (st === 'enforce') {
+      forms.push({ num: 'Form 20',  label: 'Request for Financial Statement', reason: 'To enforce a support order' });
+    }
+
+    // Children-specific
+    if (c === 'yes') {
+      forms.push({ num: 'Form 35.1', label: 'Affidavit in Support of Claim for Custody or Access', reason: 'Required whenever custody or access is claimed' });
+    }
+
+    // Support
+    if (s === 'support' || s === 'divorce') {
+      forms.push({ num: 'Form 13',  label: 'Financial Statement (Support Claims)', reason: 'Required for all support applications' });
+    }
+
+    // Property / divorce
+    if (s === 'divorce' && m === 'married') {
+      forms.push({ num: 'Form 36',  label: 'Affidavit for Divorce',          reason: 'Required to obtain a divorce order' });
+      forms.push({ num: 'Form 36B', label: 'Certificate of Divorce',         reason: 'Issued by court after divorce granted' });
+      if (s === 'property') {
+        forms.push({ num: 'Form 13.1', label: 'Financial Statement (Property)', reason: 'Required when claiming property division' });
+      }
+    }
+
+    // Safety
+    if (s === 'safety') {
+      forms.push({ num: 'Form 8',   label: 'Application (General)',          reason: 'Start your case' });
+      forms.push({ num: 'Form 14B', label: 'Motion without Notice (Urgent)', reason: 'For emergency protection orders' });
+    }
+
+    // Service / general
+    forms.push({ num: 'Form 6B', label: 'Affidavit of Service', reason: 'Required to prove you served the other party' });
+
+    // Deduplicate by form number
+    var seen = {};
+    return forms.filter(function(f) {
+      if (seen[f.num]) return false;
+      seen[f.num] = true;
+      return true;
+    });
+  }
+
+  // ── Deadline calculator data ─────────────────────────────────────────────────
+  function getDeadlines(hearingDate, stage) {
+    var d = new Date(hearingDate);
+    var deadlines = [];
+
+    function addDays(date, days) {
+      var r = new Date(date);
+      r.setDate(r.getDate() + days);
+      return r;
+    }
+    function fmtDate(date) {
+      return date.toLocaleDateString('en-CA', { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    function daysFrom(date) {
+      var diff = Math.round((date - new Date()) / 86400000);
+      if (diff < 0) return 'PAST DUE';
+      if (diff === 0) return 'TODAY';
+      return diff + ' days away';
+    }
+
+    // Standard Ontario family court timelines
+    var events = [
+      { label: 'File & serve your documents',          date: addDays(d, -30), urgent: true  },
+      { label: 'Serve the other party',                date: addDays(d, -25), urgent: true  },
+      { label: 'Other party\'s response deadline',     date: addDays(d, -15), urgent: false },
+      { label: 'Confirm the court date (if required)', date: addDays(d,  -3), urgent: true  },
+      { label: 'Your court hearing',                   date: d,               urgent: false },
+    ];
+
+    if (stage === 'change') {
+      events.unshift({ label: 'File motion to change', date: addDays(d, -45), urgent: true });
+    }
+    if (stage === 'respond') {
+      events = [
+        { label: 'File your Answer (Form 10)',        date: addDays(new Date(), 30), urgent: true  },
+        { label: 'Serve your Answer on applicant',   date: addDays(new Date(), 30), urgent: true  },
+        { label: 'Confirm the court date',            date: addDays(d,  -3),        urgent: true  },
+        { label: 'Your court hearing',                date: d,                      urgent: false },
+      ];
+    }
+
+    return events.map(function(e) {
+      return { label: e.label, date: fmtDate(e.date), status: daysFrom(e.date), urgent: e.urgent };
+    });
+  }
+
+  // ── Styles ──────────────────────────────────────────────────────────────────
+  var CSS = [
+    '.hp-quiz-overlay{position:fixed;inset:0;z-index:10000;background:rgba(10,18,40,0.88);display:flex;align-items:flex-end;justify-content:center;animation:hp-fadein 0.2s ease}',
+    '.hp-quiz-sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;padding:28px 24px 40px;box-shadow:0 -8px 40px rgba(0,0,0,0.3)}',
+    '.hp-quiz-sheet.dark{background:#1a2240;color:#e8e4dc}',
+    '.hp-quiz-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}',
+    '.hp-quiz-close{background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;line-height:1}',
+    '.hp-quiz-title{font-size:18px;font-weight:700;color:#1E2D4E}',
+    '.hp-quiz-sheet.dark .hp-quiz-title{color:#A8B4D0}',
+    '.hp-quiz-subtitle{font-size:13px;color:#6b7280;margin-top:2px}',
+    '.hp-quiz-step{margin-bottom:4px}',
+    '.hp-quiz-q{font-size:16px;font-weight:600;color:#1E2D4E;margin-bottom:14px;line-height:1.4}',
+    '.hp-quiz-sheet.dark .hp-quiz-q{color:#e8e4dc}',
+    '.hp-quiz-options{display:flex;flex-direction:column;gap:8px}',
+    '.hp-quiz-opt{background:#f4f5f7;border:2px solid transparent;border-radius:10px;padding:13px 16px;font-size:14px;font-weight:500;cursor:pointer;text-align:left;color:#1E2D4E;transition:all 0.15s}',
+    '.hp-quiz-opt:hover{border-color:#A8B4D0;background:#eef0f6}',
+    '.hp-quiz-sheet.dark .hp-quiz-opt{background:#243058;color:#e8e4dc}',
+    '.hp-quiz-sheet.dark .hp-quiz-opt:hover{border-color:#A8B4D0;background:#2d3d6a}',
+    '.hp-quiz-progress{display:flex;gap:6px;margin-bottom:20px}',
+    '.hp-quiz-dot{height:4px;flex:1;border-radius:2px;background:#e5e7eb;transition:background 0.3s}',
+    '.hp-quiz-dot.done{background:#1E2D4E}',
+    '.hp-quiz-dot.active{background:#A8B4D0}',
+    '.hp-quiz-back{background:none;border:none;color:#6b7280;font-size:13px;cursor:pointer;padding:0;margin-bottom:16px;display:flex;align-items:center;gap:4px}',
+    '.hp-quiz-back:hover{color:#1E2D4E}',
+    '.hp-quiz-result{padding-top:4px}',
+    '.hp-quiz-result-title{font-size:16px;font-weight:700;color:#1E2D4E;margin-bottom:4px}',
+    '.hp-quiz-sheet.dark .hp-quiz-result-title{color:#A8B4D0}',
+    '.hp-quiz-result-sub{font-size:13px;color:#6b7280;margin-bottom:16px}',
+    '.hp-form-card{background:#f4f5f7;border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:3px solid #1E2D4E}',
+    '.hp-quiz-sheet.dark .hp-form-card{background:#243058}',
+    '.hp-form-num{font-size:13px;font-weight:700;color:#1E2D4E}',
+    '.hp-quiz-sheet.dark .hp-form-num{color:#A8B4D0}',
+    '.hp-form-name{font-size:13px;font-weight:600;color:#1E2D4E;margin-bottom:2px}',
+    '.hp-quiz-sheet.dark .hp-form-name{color:#e8e4dc}',
+    '.hp-form-reason{font-size:12px;color:#6b7280}',
+    '.hp-quiz-cta{margin-top:18px;display:flex;flex-direction:column;gap:10px}',
+    '.hp-quiz-cta-btn{background:#1E2D4E;color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;width:100%}',
+    '.hp-quiz-cta-btn:hover{background:#0C4E54}',
+    '.hp-quiz-cta-btn.secondary{background:#f4f5f7;color:#1E2D4E}',
+    '.hp-quiz-sheet.dark .hp-quiz-cta-btn.secondary{background:#243058;color:#e8e4dc}',
+    // Deadline calculator styles
+    '.hp-dl-badge{display:inline-block;background:#1E2D4E;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-left:6px;vertical-align:middle}',
+    '.hp-dl-badge.urgent{background:#8B1A2E}',
+    '.hp-dl-badge.ok{background:#1A5C38}',
+    '.hp-dl-badge.past{background:#6b7280}',
+    '.hp-dl-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #e5e7eb;gap:8px}',
+    '.hp-dl-row:last-child{border-bottom:none}',
+    '.hp-dl-label{font-size:13px;font-weight:500;color:#1E2D4E;flex:1}',
+    '.hp-quiz-sheet.dark .hp-dl-label{color:#e8e4dc}',
+    '.hp-dl-date{font-size:11px;color:#6b7280;text-align:right;white-space:nowrap}',
+    '.hp-dl-input{width:100%;border:2px solid #e5e7eb;border-radius:8px;padding:10px 12px;font-size:15px;margin-bottom:14px;box-sizing:border-box}',
+    '.hp-dl-input:focus{outline:none;border-color:#A8B4D0}',
+    '.hp-quiz-section-tab{display:flex;gap:8px;margin-bottom:20px}',
+    '.hp-quiz-tab{flex:1;padding:10px;border:2px solid #e5e7eb;border-radius:8px;background:#f4f5f7;font-size:13px;font-weight:600;cursor:pointer;text-align:center;color:#6b7280}',
+    '.hp-quiz-tab.active{border-color:#1E2D4E;background:#1E2D4E;color:#fff}',
+    '@keyframes hp-fadein{from{opacity:0}to{opacity:1}}',
+  ].join('\n');
+
+  var styleEl = document.createElement('style');
+  styleEl.textContent = CSS;
+  document.head.appendChild(styleEl);
+
+  // ── State ────────────────────────────────────────────────────────────────────
+  var state = {
+    open: false,
+    tab: 'quiz',        // 'quiz' | 'deadlines'
+    step: 0,
+    answers: {},
+    results: null,
+    hearingDate: '',
+    deadlines: null,
+    stage: 'start',
+  };
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+  function isDark() {
+    return document.documentElement.classList.contains('dark');
+  }
+
+  function render() {
+    var existing = document.getElementById('hp-quiz-overlay');
+    if (!state.open) {
+      if (existing) existing.remove();
+      return;
+    }
+    if (!existing) {
+      var ov = document.createElement('div');
+      ov.id = 'hp-quiz-overlay';
+      ov.className = 'hp-quiz-overlay';
+      ov.addEventListener('click', function(e) {
+        if (e.target === ov) close();
+      });
+      document.body.appendChild(ov);
+      existing = ov;
+    }
+
+    var dark = isDark() ? ' dark' : '';
+
+    var inner = '<div class="hp-quiz-sheet' + dark + '">';
+
+    // Header
+    inner += '<div class="hp-quiz-header">';
+    inner += '<div><div class="hp-quiz-title">Hearth &amp; Page Tools</div>';
+    inner += '<div class="hp-quiz-subtitle">Personalized guidance for your case</div></div>';
+    inner += '<button class="hp-quiz-close" id="hp-quiz-close-btn" aria-label="Close">&times;</button>';
+    inner += '</div>';
+
+    // Tabs
+    inner += '<div class="hp-quiz-section-tab">';
+    inner += '<button class="hp-quiz-tab' + (state.tab==='quiz'?' active':'') + '" data-tab="quiz">📋 Form Finder</button>';
+    inner += '<button class="hp-quiz-tab' + (state.tab==='deadlines'?' active':'') + '" data-tab="deadlines">📅 Deadline Calculator</button>';
+    inner += '</div>';
+
+    if (state.tab === 'quiz') {
+      inner += renderQuizTab();
+    } else {
+      inner += renderDeadlineTab();
+    }
+
+    inner += '</div>';
+    existing.innerHTML = inner;
+
+    // Bind events
+    document.getElementById('hp-quiz-close-btn').onclick = close;
+
+    existing.querySelectorAll('[data-tab]').forEach(function(btn) {
+      btn.onclick = function() { state.tab = btn.dataset.tab; render(); };
+    });
+
+    if (state.tab === 'quiz') bindQuizEvents(existing);
+    else bindDeadlineEvents(existing);
+  }
+
+  // ── Quiz tab ─────────────────────────────────────────────────────────────────
+  function renderQuizTab() {
+    var html = '';
+
+    if (state.results) {
+      // Results view
+      html += '<div class="hp-quiz-result">';
+      html += '<div class="hp-quiz-result-title">Based on your answers, you likely need:</div>';
+      html += '<div class="hp-quiz-result-sub">These are the recommended Ontario court forms for your situation.</div>';
+      state.results.forEach(function(f) {
+        html += '<div class="hp-form-card">';
+        html += '<div class="hp-form-num">' + f.num + '</div>';
+        html += '<div class="hp-form-name">' + f.label + '</div>';
+        html += '<div class="hp-form-reason">' + f.reason + '</div>';
+        html += '</div>';
+      });
+      html += '<div class="hp-quiz-cta">';
+      html += '<button class="hp-quiz-cta-btn" id="hp-quiz-start-btn">Start filling these forms</button>';
+      html += '<button class="hp-quiz-cta-btn secondary" id="hp-quiz-restart-btn">Start over</button>';
+      html += '</div>';
+      html += '</div>';
+      return html;
+    }
+
+    // Progress dots
+    html += '<div class="hp-quiz-progress">';
+    QUIZ_STEPS.forEach(function(_, i) {
+      var cls = i < state.step ? 'done' : (i === state.step ? 'active' : '');
+      html += '<div class="hp-quiz-dot ' + cls + '"></div>';
+    });
+    html += '</div>';
+
+    if (state.step > 0) {
+      html += '<button class="hp-quiz-back" id="hp-quiz-back-btn">← Back</button>';
+    }
+
+    var step = QUIZ_STEPS[state.step];
+    html += '<div class="hp-quiz-step">';
+    html += '<div class="hp-quiz-q">' + step.question + '</div>';
+    html += '<div class="hp-quiz-options">';
+    step.options.forEach(function(opt) {
+      html += '<button class="hp-quiz-opt" data-value="' + opt.value + '" data-step="' + step.id + '">' + opt.label + '</button>';
+    });
+    html += '</div></div>';
+
+    return html;
+  }
+
+  function bindQuizEvents(container) {
+    var backBtn = container.querySelector('#hp-quiz-back-btn');
+    if (backBtn) backBtn.onclick = function() { state.step = Math.max(0, state.step-1); render(); };
+
+    var startBtn = container.querySelector('#hp-quiz-start-btn');
+    if (startBtn) startBtn.onclick = function() {
+      close();
+      window.location.hash = '/#/dashboard';
+    };
+
+    var restartBtn = container.querySelector('#hp-quiz-restart-btn');
+    if (restartBtn) restartBtn.onclick = function() {
+      state.step = 0; state.answers = {}; state.results = null; render();
+    };
+
+    container.querySelectorAll('.hp-quiz-opt').forEach(function(btn) {
+      btn.onclick = function() {
+        var stepId = btn.dataset.step;
+        var val = btn.dataset.value;
+        state.answers[stepId] = val;
+        if (state.step < QUIZ_STEPS.length - 1) {
+          state.step++;
+        } else {
+          state.results = getRecommendations(state.answers);
+        }
+        render();
+      };
+    });
+  }
+
+  // ── Deadline tab ─────────────────────────────────────────────────────────────
+  function renderDeadlineTab() {
+    var html = '<div class="hp-quiz-step">';
+    html += '<div class="hp-quiz-q">When is your court hearing or deadline?</div>';
+    html += '<input type="date" class="hp-dl-input" id="hp-dl-date" value="' + state.hearingDate + '" />';
+
+    html += '<div class="hp-quiz-q" style="margin-top:8px;font-size:14px;">What stage are you at?</div>';
+    html += '<div class="hp-quiz-options" style="margin-bottom:16px">';
+    [['start','Just starting'], ['respond','Responding to an application'], ['change','Changing an order']].forEach(function(opt) {
+      var sel = state.stage === opt[0] ? ' style="border-color:#1E2D4E;background:#eef0f6"' : '';
+      html += '<button class="hp-quiz-opt" data-stage="' + opt[0] + '"' + sel + '>' + opt[1] + '</button>';
+    });
+    html += '</div>';
+
+    if (state.deadlines) {
+      html += '<div class="hp-quiz-result-title" style="margin-bottom:12px">Your Timeline</div>';
+      state.deadlines.forEach(function(dl) {
+        var statusCls = dl.status === 'PAST DUE' ? 'past' : (dl.urgent ? 'urgent' : 'ok');
+        html += '<div class="hp-dl-row">';
+        html += '<div class="hp-dl-label">' + dl.label + '</div>';
+        html += '<div class="hp-dl-date">' + dl.date + '<br><span class="hp-dl-badge ' + statusCls + '">' + dl.status + '</span></div>';
+        html += '</div>';
+      });
+      html += '<div class="hp-quiz-cta" style="margin-top:16px">';
+      html += '<button class="hp-quiz-cta-btn" id="hp-dl-go-btn">Go to my case</button>';
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  function bindDeadlineEvents(container) {
+    var dateInput = container.querySelector('#hp-dl-date');
+    if (dateInput) {
+      dateInput.onchange = function() {
+        state.hearingDate = dateInput.value;
+        if (state.hearingDate) {
+          state.deadlines = getDeadlines(state.hearingDate, state.stage);
+        }
+        render();
+      };
+    }
+
+    container.querySelectorAll('[data-stage]').forEach(function(btn) {
+      btn.onclick = function() {
+        state.stage = btn.dataset.stage;
+        if (state.hearingDate) state.deadlines = getDeadlines(state.hearingDate, state.stage);
+        render();
+      };
+    });
+
+    var goBtn = container.querySelector('#hp-dl-go-btn');
+    if (goBtn) goBtn.onclick = function() { close(); window.location.hash = '/#/dashboard'; };
+  }
+
+  // ── Open / close ─────────────────────────────────────────────────────────────
+  function open(tab) {
+    state.open = true;
+    state.tab = tab || 'quiz';
+    state.step = 0;
+    state.answers = {};
+    state.results = null;
+    render();
+  }
+
+  function close() {
+    state.open = false;
+    render();
+    // Restore hash without triggering a navigation away
+    if (window.location.hash.includes('form-quiz')) {
+      history.replaceState(null, '', window.location.href.replace('#/form-quiz', '#/dashboard').replace('form-quiz', 'dashboard'));
+    }
+  }
+
+  // ── Route interceptor — open when hash is /form-quiz ────────────────────────
+  function checkRoute() {
+    if (window.location.hash.includes('form-quiz')) {
+      open('quiz');
+    }
+  }
+
+  window.addEventListener('hashchange', checkRoute);
+  setTimeout(checkRoute, 400);
+
+  // ── Wire the "Not sure? Take the quiz" link via MutationObserver ─────────────
+  var _quizLinkObserver = new MutationObserver(function() {
+    var link = document.querySelector('[data-testid="link-form-quiz"]');
+    if (link && !link._hpPatched) {
+      link._hpPatched = true;
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        open('quiz');
+      });
+    }
+
+    // Also wire a deadline calculator button if it exists in the case dashboard
+    var dlBtn = document.querySelector('[data-testid="button-deadline-calc"]');
+    if (dlBtn && !dlBtn._hpPatched) {
+      dlBtn._hpPatched = true;
+      dlBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        open('deadlines');
+      });
+    }
+  });
+
+  if (document.body) {
+    _quizLinkObserver.observe(document.body, { childList: true, subtree: true });
+  } else {
+    document.addEventListener('DOMContentLoaded', function() {
+      _quizLinkObserver.observe(document.body, { childList: true, subtree: true });
+    });
+  }
+
+  // Expose globally for manual testing
+  window.__hpQuiz = { open: open, close: close };
+
 })();
