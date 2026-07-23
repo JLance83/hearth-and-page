@@ -8640,6 +8640,11 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
           injectQuizPickCSS(state.results);
         }
         render();
+        // Scroll sheet to top so results are visible after render
+        setTimeout(function() {
+          var sheet = document.querySelector('.hp-quiz-sheet');
+          if (sheet) sheet.scrollTop = 0;
+        }, 50);
       };
     });
   }
@@ -8702,6 +8707,12 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   // ── Open / close ─────────────────────────────────────────────────────────────
   function open(tab) {
+    // If already open, don't reset quiz progress — just ensure visibility
+    if (state.open) {
+      if (tab) state.tab = tab;
+      render();
+      return;
+    }
     state.open = true;
     state.tab = tab || 'quiz';
     state.step = 0;
