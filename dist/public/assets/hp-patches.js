@@ -8503,6 +8503,51 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     return html;
   }
 
+  // CSS-driven Quiz pick badges — injected once when quiz results are stored.
+  function injectQuizPickCSS(results) {
+    var oldStyle = document.getElementById('hp-quiz-pick-css');
+    if (oldStyle) oldStyle.remove();
+    if (!results || !results.length) return;
+
+    var ALL = typeof ALL_FORMS !== 'undefined' ? ALL_FORMS : [];
+    var selectors = [];
+    results.forEach(function(r) {
+      var entry = ALL.find(function(f) { return f.badge === r.num; });
+      if (!entry) return;
+      selectors.push('[data-testid="button-form-' + entry.id + '"]');
+      selectors.push('[data-testid="button-search-result-' + entry.id + '"]');
+      selectors.push('[data-testid="quiz-form-' + entry.id + '"]');
+    });
+
+    if (!selectors.length) return;
+
+    var css = [
+      selectors.map(function(s) { return s + '::after'; }).join(', ') + ' {',
+      '  content: "\u2713 Quiz pick";',
+      '  display: inline-block;',
+      '  background: #1E2D4E;',
+      '  color: #A8B4D0;',
+      '  font-size: 10px;',
+      '  font-weight: 700;',
+      '  letter-spacing: 0.06em;',
+      '  text-transform: uppercase;',
+      '  padding: 2px 7px;',
+      '  border-radius: 4px;',
+      '  margin-left: 8px;',
+      '  vertical-align: middle;',
+      '  white-space: nowrap;',
+      '}',
+      selectors.filter(function(s) { return s.indexOf('button-form-') !== -1; }).join(', ') + ' {',
+      '  border-left: 3px solid #A8B4D0 !important;',
+      '}',
+    ].join('\n');
+
+    var style = document.createElement('style');
+    style.id = 'hp-quiz-pick-css';
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+
   function bindQuizEvents(container) {
     var backBtn = container.querySelector('#hp-quiz-back-btn');
     if (backBtn) backBtn.onclick = function() {
@@ -8755,61 +8800,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     styleEl.textContent = CSS_BADGE;
     document.head.appendChild(styleEl);
 
-    // CSS-driven Quiz pick badges — injected once when quiz results are stored.
-    // Targets button[data-testid="button-form-{id}"] and button[data-testid="button-search-result-{id}"]
-    // using ::after pseudo-elements so no JS timing / MutationObserver needed.
-    function injectQuizPickCSS(results) {
-      var old = document.getElementById('hp-quiz-pick-css');
-      if (old) old.remove();
-      if (!results || !results.length) return;
 
-      // Build a lookup: form badge label → form id  (e.g. "Form 8" → "form8-general")
-      var ALL = typeof ALL_FORMS !== 'undefined' ? ALL_FORMS : [];
-      var selectors = [];
-      results.forEach(function(r) {
-        var entry = ALL.find(function(f) { return f.badge === r.num; });
-        if (!entry) return;
-        // Target the card on new-case selector screen
-        selectors.push('[data-testid="button-form-' + entry.id + '"]');
-        // Target the dashboard search result dropdown
-        selectors.push('[data-testid="button-search-result-' + entry.id + '"]');
-        // Target quiz-mode recommended card on new-case screen
-        selectors.push('[data-testid="quiz-form-' + entry.id + '"]');
-      });
-
-      if (!selectors.length) return;
-
-      var css = [
-        // Badge pill via ::after on matching cards
-        selectors.map(function(s) { return s + '::after'; }).join(', ') + ' {',
-        '  content: "\u2713  Quiz pick";',
-        '  display: inline-flex;',
-        '  align-items: center;',
-        '  background: #1E2D4E;',
-        '  color: #A8B4D0;',
-        '  font-size: 10px;',
-        '  font-weight: 700;',
-        '  letter-spacing: 0.06em;',
-        '  text-transform: uppercase;',
-        '  padding: 2px 7px;',
-        '  border-radius: 4px;',
-        '  margin-left: 8px;',
-        '  vertical-align: middle;',
-        '  white-space: nowrap;',
-        '  position: relative;',
-        '  top: -1px;',
-        '}',
-        // Make cards that are recommended have a subtle left accent border
-        selectors.filter(function(s) { return s.indexOf('button-form-') !== -1; }).join(', ') + ' {',
-        '  border-left: 3px solid #A8B4D0 !important;',
-        '}',
-      ].join('\n');
-
-      var style = document.createElement('style');
-      style.id = 'hp-quiz-pick-css';
-      style.textContent = css;
-      document.head.appendChild(style);
-    }
 
     // Expose ALL_FORMS to window for id→badge lookup
     if (typeof ALL_FORMS !== 'undefined') {
