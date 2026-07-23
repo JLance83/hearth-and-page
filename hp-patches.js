@@ -8770,8 +8770,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
       var css = [
         // Badge pill via ::after on matching cards
-        selectors.map(function(s) { return s + '::after'; }).join(',
-') + ' {',
+        selectors.map(function(s) { return s + '::after'; }).join(', ') + ' {',
         '  content: "\2713  Quiz pick";',
         '  display: inline-flex;',
         '  align-items: center;',
@@ -8790,8 +8789,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         '  top: -1px;',
         '}',
         // Make cards that are recommended have a subtle left accent border
-        selectors.filter(function(s) { return s.indexOf('button-form-') !== -1; }).join(',
-') + ' {',
+        selectors.filter(function(s) { return s.indexOf('button-form-') !== -1; }).join(', ') + ' {',
         '  border-left: 3px solid #A8B4D0 !important;',
         '}',
       ].join('
