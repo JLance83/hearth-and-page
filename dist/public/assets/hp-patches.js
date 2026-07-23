@@ -8186,12 +8186,23 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         { label: 'Need to enforce an existing order',       value: 'enforce'  },
       ]
     },
+    {
+      id: 'cas',
+      question: 'Have you, the other party, or the children ever had any contact with a Children's Aid Society (CAS)?',
+      skipIf: function(answers) { return answers.children !== 'yes'; },
+      options: [
+        { label: 'Yes — there has been CAS involvement',   value: 'yes'    },
+        { label: 'No — no CAS involvement',                value: 'no'     },
+        { label: 'Not sure',                               value: 'unsure' },
+      ]
+    },
   ];
 
   // ── Form recommendations based on answers ───────────────────────────────────
   function getRecommendations(answers) {
     var s = answers.situation, c = answers.children,
-        m = answers.married,   st = answers.stage;
+        m = answers.married,   st = answers.stage,
+        cas = answers.cas;
     var forms = [];
 
     // Application to start (Form 8 always needed for new applications)
@@ -8209,13 +8220,25 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       forms.push({ num: 'Form 20',  label: 'Request for Financial Statement', reason: 'To enforce a support order' });
     }
 
-    // Children-specific
+    // Children-specific forms
     if (c === 'yes') {
-      forms.push({ num: 'Form 35.1', label: 'Affidavit in Support of Claim for Custody or Access', reason: 'Required whenever custody or access is claimed' });
+      // Form 35.1 — always required when parenting/custody is involved
+      forms.push({ num: 'Form 35.1', label: 'Affidavit (Parenting — Decision-Making & Parenting Time)', reason: 'Mandatory whenever custody or parenting time is claimed (Family Law Rules, Rule 35.1)' });
+
+      // Form 13 — required whenever children are involved, as child support is almost always at issue
+      // Legal Aid Ontario and the courts require this for any case involving children
+      if (s !== 'property') {
+        forms.push({ num: 'Form 13', label: 'Financial Statement (Support Claims)', reason: 'Required for child support — the court needs your financial information any time children are involved' });
+      }
+
+      // Form 35.1A — required if CAS/child protection involvement (yes or unsure = include as precaution)
+      if (cas === 'yes' || cas === 'unsure') {
+        forms.push({ num: 'Form 35.1A', label: 'Affidavit (Child Protection Information)', reason: cas === 'unsure' ? 'Recommended as a precaution — required if any CAS involvement exists' : 'Required because of CAS involvement — must be filed with Form 35.1 (Family Law Rules, Rule 35.1(1)(a))' });
+      }
     }
 
-    // Support
-    if (s === 'support' || s === 'divorce') {
+    // Support (without children already covered above)
+    if ((s === 'support' || s === 'divorce') && c !== 'yes') {
       forms.push({ num: 'Form 13',  label: 'Financial Statement (Support Claims)', reason: 'Required for all support applications' });
     }
 
@@ -8223,9 +8246,9 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     if (s === 'divorce' && m === 'married') {
       forms.push({ num: 'Form 36',  label: 'Affidavit for Divorce',          reason: 'Required to obtain a divorce order' });
       forms.push({ num: 'Form 36B', label: 'Certificate of Divorce',         reason: 'Issued by court after divorce granted' });
-      if (s === 'property') {
-        forms.push({ num: 'Form 13.1', label: 'Financial Statement (Property)', reason: 'Required when claiming property division' });
-      }
+    }
+    if (s === 'property') {
+      forms.push({ num: 'Form 13.1', label: 'Financial Statement (Property & Support)', reason: 'Required when claiming property division or equalization' });
     }
 
     // Safety
@@ -8234,8 +8257,8 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       forms.push({ num: 'Form 14B', label: 'Motion without Notice (Urgent)', reason: 'For emergency protection orders' });
     }
 
-    // Service / general
-    forms.push({ num: 'Form 6B', label: 'Affidavit of Service', reason: 'Required to prove you served the other party' });
+    // Service — always required
+    forms.push({ num: 'Form 6B', label: 'Affidavit of Service', reason: 'Required to prove you served documents on the other party' });
 
     // Deduplicate by form number
     var seen = {};
@@ -8455,7 +8478,10 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
     // Progress dots
     html += '<div class="hp-quiz-progress">';
-    QUIZ_STEPS.forEach(function(_, i) {
+    var visibleSteps = QUIZ_STEPS.filter(function(step) {
+      return !step.skipIf || !step.skipIf(state.answers);
+    });
+    visibleSteps.forEach(function(_, i) {
       var cls = i < state.step ? 'done' : (i === state.step ? 'active' : '');
       html += '<div class="hp-quiz-dot ' + cls + '"></div>';
     });
@@ -8479,7 +8505,14 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   function bindQuizEvents(container) {
     var backBtn = container.querySelector('#hp-quiz-back-btn');
-    if (backBtn) backBtn.onclick = function() { state.step = Math.max(0, state.step-1); render(); };
+    if (backBtn) backBtn.onclick = function() {
+      var prevStep = state.step - 1;
+      while (prevStep > 0 && QUIZ_STEPS[prevStep].skipIf && QUIZ_STEPS[prevStep].skipIf(state.answers)) {
+        prevStep--;
+      }
+      state.step = Math.max(0, prevStep);
+      render();
+    };
 
     var startBtn = container.querySelector('#hp-quiz-start-btn');
     if (startBtn) startBtn.onclick = function() {
@@ -8571,8 +8604,13 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         var stepId = btn.dataset.step;
         var val = btn.dataset.value;
         state.answers[stepId] = val;
-        if (state.step < QUIZ_STEPS.length - 1) {
-          state.step++;
+        // Find next non-skipped step
+        var nextStep = state.step + 1;
+        while (nextStep < QUIZ_STEPS.length && QUIZ_STEPS[nextStep].skipIf && QUIZ_STEPS[nextStep].skipIf(state.answers)) {
+          nextStep++;
+        }
+        if (nextStep < QUIZ_STEPS.length) {
+          state.step = nextStep;
         } else {
           state.results = getRecommendations(state.answers);
         }
