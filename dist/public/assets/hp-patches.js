@@ -8613,29 +8613,43 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       var banner = document.createElement('div');
       banner.id = 'hp-form-reminder';
       // Top of screen, full width — stays out of the way of all buttons
+      // Outer wrapper: full-width fixed bar
       banner.style.cssText = [
         'position:fixed',
         'top:0',
         'left:0',
         'right:0',
         'background:#1E2D4E',
-        'color:#fff',
-        'padding:6px 12px 6px 16px',
-        'font-size:12px',
-        'font-weight:500',
         'z-index:9998',
         'box-shadow:0 2px 12px rgba(0,0,0,0.3)',
         'display:flex',
         'align-items:center',
+        'padding:5px 8px 5px 12px',
         'gap:8px',
-        'overflow:hidden',
-        'white-space:nowrap',
       ].join(';');
 
+      // Build pill chips for each form
+      var pills = results.slice(0, 8).map(function(r) {
+        return '<span style="' + [
+          'display:inline-block',
+          'background:#2a3f6b',
+          'color:#e8e4dc',
+          'font-size:11px',
+          'font-weight:700',
+          'padding:3px 9px',
+          'border-radius:20px',
+          'white-space:nowrap',
+          'border:1px solid #3d5590',
+          'flex-shrink:0',
+        ].join(';') + '">' + r.num + '</span>';
+      }).join('');
+
       banner.innerHTML = [
-        '<span style="font-size:10px;letter-spacing:0.07em;text-transform:uppercase;color:#A8B4D0;font-weight:700;flex-shrink:0">Quiz picks:</span>',
-        '<span style="font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0">' + formList + '</span>',
-        '<button id="hp-reminder-close" style="background:none;border:none;color:#A8B4D0;cursor:pointer;font-size:15px;line-height:1;padding:2px 6px;flex-shrink:0;margin-left:4px" aria-label="Dismiss">✕</button>',
+        '<span style="font-size:9px;letter-spacing:0.07em;text-transform:uppercase;color:#A8B4D0;font-weight:700;flex-shrink:0;line-height:1.2">Quiz<br>picks</span>',
+        '<div style="display:flex;gap:6px;overflow-x:auto;flex:1;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px 0" id="hp-reminder-pills">',
+          pills,
+        '</div>',
+        '<button id="hp-reminder-close" style="background:none;border:none;color:#A8B4D0;cursor:pointer;font-size:15px;line-height:1;padding:2px 6px;flex-shrink:0" aria-label="Dismiss">✕</button>',
       ].join('');
 
       document.body.appendChild(banner);
