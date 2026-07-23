@@ -8782,7 +8782,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       var css = [
         // Badge pill via ::after on matching cards
         selectors.map(function(s) { return s + '::after'; }).join(', ') + ' {',
-        '  content: "\2713  Quiz pick";',
+        '  content: "\u2713  Quiz pick";',
         '  display: inline-flex;',
         '  align-items: center;',
         '  background: #1E2D4E;',
