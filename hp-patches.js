@@ -8296,7 +8296,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   var CSS = [
     '.hp-quiz-overlay{position:fixed;inset:0;z-index:10000;background:rgba(10,18,40,0.88);display:flex;align-items:flex-end;justify-content:center;animation:hp-fadein 0.2s ease}',
     '.hp-quiz-sheet{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;padding:28px 24px 40px;box-shadow:0 -8px 40px rgba(0,0,0,0.3)}',
-    '.hp-quiz-sheet.dark{background:#1a2240;color:#e8e4dc}',
+    '.hp-quiz-sheet.dark{background:#1e2d4e;color:#f0ece4}',
     '.hp-quiz-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}',
     '.hp-quiz-close{background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;line-height:1}',
     '.hp-quiz-title{font-size:18px;font-weight:700;color:#1E2D4E}',
@@ -8308,8 +8308,8 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     '.hp-quiz-options{display:flex;flex-direction:column;gap:8px}',
     '.hp-quiz-opt{background:#f4f5f7;border:2px solid transparent;border-radius:10px;padding:13px 16px;font-size:14px;font-weight:500;cursor:pointer;text-align:left;color:#1E2D4E;transition:all 0.15s}',
     '.hp-quiz-opt:hover{border-color:#A8B4D0;background:#eef0f6}',
-    '.hp-quiz-sheet.dark .hp-quiz-opt{background:#243058;color:#e8e4dc}',
-    '.hp-quiz-sheet.dark .hp-quiz-opt:hover{border-color:#A8B4D0;background:#2d3d6a}',
+    '.hp-quiz-sheet.dark .hp-quiz-opt{background:#2a3a6a;color:#f0ece4;border:1.5px solid #3d5090}',
+    '.hp-quiz-sheet.dark .hp-quiz-opt:hover{border-color:#A8B4D0;background:#3a4f85;color:#fff}',
     '.hp-quiz-progress{display:flex;gap:6px;margin-bottom:20px}',
     '.hp-quiz-dot{height:4px;flex:1;border-radius:2px;background:#e5e7eb;transition:background 0.3s}',
     '.hp-quiz-dot.done{background:#1E2D4E}',
@@ -8331,7 +8331,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     '.hp-quiz-cta-btn{background:#1E2D4E;color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;width:100%}',
     '.hp-quiz-cta-btn:hover{background:#0C4E54}',
     '.hp-quiz-cta-btn.secondary{background:#f4f5f7;color:#1E2D4E}',
-    '.hp-quiz-sheet.dark .hp-quiz-cta-btn.secondary{background:#243058;color:#e8e4dc}',
+    '.hp-quiz-sheet.dark .hp-quiz-cta-btn.secondary{background:#2a3a6a;color:#f0ece4;border:1.5px solid #A8B4D0}',
     // Deadline calculator styles
     '.hp-dl-badge{display:inline-block;background:#1E2D4E;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-left:6px;vertical-align:middle}',
     '.hp-dl-badge.urgent{background:#8B1A2E}',
@@ -8342,11 +8342,11 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     '.hp-dl-label{font-size:13px;font-weight:500;color:#1E2D4E;flex:1}',
     '.hp-quiz-sheet.dark .hp-dl-label{color:#e8e4dc}',
     '.hp-dl-date{font-size:11px;color:#6b7280;text-align:right;white-space:nowrap}',
-    '.hp-dl-input{width:100%;border:2px solid #e5e7eb;border-radius:8px;padding:10px 12px;font-size:15px;margin-bottom:14px;box-sizing:border-box}',
+    '.hp-dl-input{width:100%;border:2px solid #e5e7eb;border-radius:8px;padding:10px 12px;font-size:15px;margin-bottom:14px;box-sizing:border-box;background:#fff;color:#1E2D4E}',
     '.hp-dl-input:focus{outline:none;border-color:#A8B4D0}',
     '.hp-quiz-section-tab{display:flex;gap:8px;margin-bottom:20px}',
-    '.hp-quiz-tab{flex:1;padding:10px;border:2px solid #e5e7eb;border-radius:8px;background:#f4f5f7;font-size:13px;font-weight:600;cursor:pointer;text-align:center;color:#6b7280}',
-    '.hp-quiz-tab.active{border-color:#1E2D4E;background:#1E2D4E;color:#fff}',
+    '.hp-quiz-tab{flex:1;padding:10px;border:2px solid #e5e7eb;border-radius:8px;background:#f4f5f7;font-size:13px;font-weight:600;cursor:pointer;text-align:center;color:#374151}',
+    '.hp-quiz-tab.active{border-color:#A8B4D0;background:#A8B4D0;color:#1E2D4E;font-weight:700}',
     '@keyframes hp-fadein{from{opacity:0}to{opacity:1}}',
   ].join('\n');
 
@@ -8480,7 +8480,6 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     var startBtn = container.querySelector('#hp-quiz-start-btn');
     if (startBtn) startBtn.onclick = function() {
       close();
-      window.location.hash = '/#/dashboard';
     };
 
     var restartBtn = container.querySelector('#hp-quiz-restart-btn');
@@ -8556,7 +8555,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     });
 
     var goBtn = container.querySelector('#hp-dl-go-btn');
-    if (goBtn) goBtn.onclick = function() { close(); window.location.hash = '/#/dashboard'; };
+    if (goBtn) goBtn.onclick = function() { close(); };
   }
 
   // ── Open / close ─────────────────────────────────────────────────────────────
@@ -8572,9 +8571,9 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   function close() {
     state.open = false;
     render();
-    // Restore hash without triggering a navigation away
+    // If we navigated to form-quiz route, go back to dashboard safely
     if (window.location.hash.includes('form-quiz')) {
-      history.replaceState(null, '', window.location.href.replace('#/form-quiz', '#/dashboard').replace('form-quiz', 'dashboard'));
+      window.location.hash = '/';
     }
   }
 
