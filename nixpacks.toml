@@ -10,4 +10,4 @@ cmd = "NODE_ENV=production node dist/index.cjs"
 [variables]
 PORT = "8080"
 # cache bust: 2026-07-12-v6-pdfjs-text
-# cache bust: 2026-07-20-2314
+# cache bust: 2026-07-23-1627
