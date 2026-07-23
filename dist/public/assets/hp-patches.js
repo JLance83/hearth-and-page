@@ -8188,7 +8188,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     },
     {
       id: 'cas',
-      question: 'Have you, the other party, or the children ever had any contact with a Children's Aid Society (CAS)?',
+      question: "Have you, the other party, or the children ever had any contact with a Children's Aid Society (CAS)?",
       skipIf: function(answers) { return answers.children !== 'yes'; },
       options: [
         { label: 'Yes — there has been CAS involvement',   value: 'yes'    },
