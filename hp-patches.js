@@ -8792,8 +8792,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         selectors.filter(function(s) { return s.indexOf('button-form-') !== -1; }).join(', ') + ' {',
         '  border-left: 3px solid #A8B4D0 !important;',
         '}',
-      ].join('
-');
+      ].join('\n');
 
       var style = document.createElement('style');
       style.id = 'hp-quiz-pick-css';
