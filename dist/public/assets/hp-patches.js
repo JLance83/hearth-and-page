@@ -8055,3 +8055,94 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   }
 
 })();
+
+// ─── BUG-01: Filter stale FormEngine flat-keys from review screen ─────────────
+// ─── BUG-04: Format ISO date strings (YYYY-MM-DD) as human-readable dates ─────
+(function() {
+  // Keys written by FormEngine that must never appear in the intake wizard review
+  var REVIEW_SKIP_KEYS = {
+    respondentFullName: true,
+    applicantFullName: true,
+    respondent_full_name: true,
+    applicant_full_name: true,
+    respondentAddress: true,
+    applicantAddress: true,
+    respondentEmail: true,
+    applicantEmail: true,
+    respondentPhone: true,
+    applicantPhone: true,
+    movingPartyName: true,
+    respondentDob: true,
+    applicantDob: true
+  };
+
+  // ISO date pattern: YYYY-MM-DD
+  var ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+  function formatValue(v) {
+    if (typeof v === 'string' && ISO_DATE_RE.test(v.trim())) {
+      try {
+        // Parse as local date to avoid timezone shift
+        var parts = v.split('-');
+        var d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+        return d.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+      } catch(e) { return v; }
+    }
+    return v;
+  }
+
+  function patchReviewScreen() {
+    // Find all review section cards (data-testid="review-section-*")
+    var cards = document.querySelectorAll('[data-testid^="review-section-"]');
+    if (!cards.length) return;
+
+    cards.forEach(function(card) {
+      var rows = card.querySelectorAll('dl > div');
+      rows.forEach(function(row) {
+        var dt = row.querySelector('dt');
+        var dd = row.querySelector('dd');
+        if (!dt || !dd) return;
+
+        // BUG-01: hide rows whose data-testid key is in the skip list
+        var testId = dd.getAttribute('data-testid') || '';
+        // testId format: "review-<section>-<fieldKey>"
+        var parts = testId.split('-');
+        var fieldKey = parts.slice(2).join('-'); // everything after "review-<section>-"
+        if (REVIEW_SKIP_KEYS[fieldKey]) {
+          row.style.display = 'none';
+          return;
+        }
+
+        // BUG-04: reformat ISO dates in value cells
+        var current = dd.textContent.trim();
+        var formatted = formatValue(current);
+        if (formatted !== current) {
+          dd.textContent = formatted;
+        }
+      });
+    });
+  }
+
+  // Run on DOM changes — the review screen renders asynchronously
+  var _reviewObserver = new MutationObserver(function() {
+    if (window.location.hash.includes('review') || window.location.hash.includes('case')) {
+      patchReviewScreen();
+    }
+  });
+
+  function startReviewObserver() {
+    if (document.body) {
+      _reviewObserver.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startReviewObserver);
+  } else {
+    startReviewObserver();
+  }
+
+  // Also run immediately in case the review is already rendered
+  setTimeout(patchReviewScreen, 500);
+  setTimeout(patchReviewScreen, 1500);
+})();
