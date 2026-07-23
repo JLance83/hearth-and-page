@@ -8881,3 +8881,157 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   window.__hpQuiz = { open: open, close: close };
 
 })();
+
+// ── Courthouse Locator + Filing Instructions ──────────────────────────────────
+(function() {
+  var COURTHOUSES = {
+    'Barrie':       { name: 'Barrie — Superior Court of Justice',       addr: '75 Mulcaster St, Barrie, ON L4M 3P2',             phone: '705-739-6111', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=75+Mulcaster+St+Barrie+ON' },
+    'Brampton':     { name: 'Brampton — Superior Court of Justice',     addr: '7755 Hurontario St, Brampton, ON L6W 4T6',         phone: '905-456-4800', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=7755+Hurontario+St+Brampton+ON' },
+    'Brantford':    { name: 'Brantford — Superior Court of Justice',    addr: '80 Wellington St, Brantford, ON N3T 2L9',          phone: '519-752-7850', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=80+Wellington+St+Brantford+ON' },
+    'Cornwall':     { name: 'Cornwall — Superior Court of Justice',     addr: '26 Pitt St, Cornwall, ON K6J 3P2',                 phone: '613-938-0100', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=26+Pitt+St+Cornwall+ON' },
+    'Hamilton':     { name: 'Hamilton — Superior Court of Justice',     addr: '45 Main St E, Hamilton, ON L8N 2B7',               phone: '905-645-5252', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=45+Main+St+E+Hamilton+ON' },
+    'Kingston':     { name: 'Kingston — Superior Court of Justice',     addr: '5 Court St, Kingston, ON K7L 2N4',                 phone: '613-548-6823', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=5+Court+St+Kingston+ON' },
+    'Kitchener':    { name: 'Kitchener — Superior Court of Justice',    addr: '85 Frederick St, Kitchener, ON N2H 6M5',           phone: '519-741-4310', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=85+Frederick+St+Kitchener+ON' },
+    'London':       { name: 'London — Superior Court of Justice',       addr: '80 Dundas St, London, ON N6A 6A3',                 phone: '519-660-3012', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=80+Dundas+St+London+ON' },
+    'Milton':       { name: 'Milton — Superior Court of Justice',       addr: '491 Steeles Ave E, Milton, ON L9T 1Y7',            phone: '905-878-7291', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=491+Steeles+Ave+E+Milton+ON' },
+    'Newmarket':    { name: 'Newmarket — Superior Court of Justice',    addr: '50 Eagle St W, Newmarket, ON L3Y 6B1',             phone: '905-853-4809', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=50+Eagle+St+W+Newmarket+ON' },
+    'Oshawa':       { name: 'Oshawa — Superior Court of Justice',       addr: '150 Bond St E, Oshawa, ON L1G 0A2',               phone: '905-743-2800', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=150+Bond+St+E+Oshawa+ON' },
+    'Ottawa':       { name: 'Ottawa — Superior Court of Justice',       addr: '161 Elgin St, Ottawa, ON K2P 2K1',                 phone: '613-239-1234', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=161+Elgin+St+Ottawa+ON' },
+    'Peterborough': { name: 'Peterborough — Superior Court of Justice', addr: '70 Simcoe St, Peterborough, ON K9H 2H6',           phone: '705-755-3321', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=70+Simcoe+St+Peterborough+ON' },
+    'St. Catharines':{ name: 'St. Catharines — Superior Court of Justice', addr: '59 Church St, St. Catharines, ON L2R 3C3',     phone: '905-988-6200', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=59+Church+St+St+Catharines+ON' },
+    'Sudbury':      { name: 'Sudbury — Superior Court of Justice',      addr: '155 Elm St, Sudbury, ON P3C 1T9',                  phone: '705-564-7600', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=155+Elm+St+Sudbury+ON' },
+    'Thunder Bay':  { name: 'Thunder Bay — Superior Court of Justice',  addr: '277 Camelot St, Thunder Bay, ON P7A 4B3',          phone: '807-343-2710', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=277+Camelot+St+Thunder+Bay+ON' },
+    'Toronto':      { name: 'Toronto — Superior Court of Justice',      addr: '393 University Ave, Toronto, ON M5G 1E6',          phone: '416-327-5440', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=393+University+Ave+Toronto+ON' },
+    'Windsor':      { name: 'Windsor — Superior Court of Justice',      addr: '245 Windsor Ave, Windsor, ON N9A 1J2',             phone: '519-973-6611', hours: 'Mon–Fri 8:30am–4:30pm', maps: 'https://maps.google.com/?q=245+Windsor+Ave+Windsor+ON' },
+  };
+
+  var FILING_STEPS = [
+    { icon: '📋', title: 'Make copies', body: 'Print or copy your completed form(s). You need <strong>3 copies</strong> — one for the court, one for the other party, and one for yourself.' },
+    { icon: '🏛️', title: 'Go to the filing counter', body: 'Bring your copies to the <strong>Family Court filing counter</strong> during office hours. Arrive early — lineups are common.' },
+    { icon: '💳', title: 'Pay the filing fee', body: 'Most applications cost <strong>$157 to $229</strong> (Form 8 is $229). Accepted: cash, debit, or money order payable to the Minister of Finance.' },
+    { icon: '📬', title: 'Serve the other party', body: 'After filing, you must <strong>serve</strong> a copy on the other party. Most family documents require personal service or special service — the court clerk can advise.' },
+    { icon: '📝', title: 'File proof of service', body: 'After serving, complete an <strong>Affidavit of Service (Form 6B)</strong> and file it with the court. Hearth & Page can help you fill it out.' },
+  ];
+
+  function getCourthouse(courthouseName) {
+    if (!courthouseName) return null;
+    var city = courthouseName.split('\u2014')[0].trim().split(' \u2014')[0].trim();
+    return COURTHOUSES[city] || null;
+  }
+
+  window.__hp_showWhatsNext = function(courthouseName, formLabel) {
+    var existing = document.getElementById('hp-whats-next-panel');
+    if (existing) existing.remove();
+
+    var ch = getCourthouse(courthouseName);
+    var navy = '#1E2D4E', blue = '#A8B4D0', greige = '#C8C0B0';
+
+    var panel = document.createElement('div');
+    panel.id = 'hp-whats-next-panel';
+    panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;display:flex;align-items:flex-end;justify-content:center;padding:0;';
+
+    var courthouseHTML = ch ? [
+      '<div style="background:#f0f4ff;border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid #d0d8f0;">',
+        '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:8px;font-weight:700;">Your courthouse</div>',
+        '<div style="font-weight:700;color:' + navy + ';font-size:15px;margin-bottom:4px;">' + ch.name.split('\u2014')[0].trim() + ' Family Court</div>',
+        '<div style="font-size:13px;color:#555;margin-bottom:6px;">' + ch.addr + '</div>',
+        '<div style="font-size:13px;color:#555;margin-bottom:12px;">📞 ' + ch.phone + ' &nbsp;·&nbsp; 🕐 ' + ch.hours + '</div>',
+        '<a href="' + ch.maps + '" target="_blank" style="display:inline-block;background:' + navy + ';color:#fff;text-decoration:none;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;">📍 Open in Maps</a>',
+      '</div>',
+    ].join('') : [
+      '<div style="background:#f9f9f9;border-radius:12px;padding:14px;margin-bottom:20px;border:1px solid #e5e7eb;">',
+        '<div style="font-size:13px;color:#666;">Complete your intake forms and we\'ll show your courthouse address here. Make sure you\'ve selected your courthouse in your form.</div>',
+      '</div>',
+    ].join('');
+
+    var stepsHTML = FILING_STEPS.map(function(s, i) {
+      return [
+        '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0;">',
+          '<div style="font-size:22px;flex-shrink:0;width:32px;text-align:center;">' + s.icon + '</div>',
+          '<div>',
+            '<div style="font-weight:700;font-size:14px;color:#1a1a2e;margin-bottom:3px;">Step ' + (i+1) + ': ' + s.title + '</div>',
+            '<div style="font-size:13px;color:#555;line-height:1.5;">' + s.body + '</div>',
+          '</div>',
+        '</div>',
+      ].join('');
+    }).join('');
+
+    panel.innerHTML = [
+      '<div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;padding:28px 24px 40px;-webkit-overflow-scrolling:touch;">',
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">',
+          '<div>',
+            '<div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Hearth &amp; Page</div>',
+            '<div style="font-size:20px;font-weight:800;color:' + navy + ';">What do I do next?</div>',
+          '</div>',
+          '<button id="hp-wn-close" style="background:none;border:1px solid #e5e7eb;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;color:#888;display:flex;align-items:center;justify-content:center;">×</button>',
+        '</div>',
+        '<div style="font-size:13px;color:#666;margin-bottom:16px;">You\'ve downloaded <strong>' + (formLabel||'your form') + '</strong>. Here\'s exactly what to do next to file it with the court.</div>',
+        courthouseHTML,
+        '<div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#888;font-weight:700;margin-bottom:4px;">Filing steps</div>',
+        stepsHTML,
+        '<div style="margin-top:20px;padding:14px;background:#fffbeb;border-radius:10px;border:1px solid #fde68a;">',
+          '<div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:4px;">⚠️ Not legal advice</div>',
+          '<div style="font-size:12px;color:#78350f;line-height:1.5;">This is a general guide. Court procedures can vary. If you\'re unsure about any step, contact your local courthouse or visit <a href="https://stepstojustice.ca" target="_blank" style="color:#92400e;">stepstojustice.ca</a>.</div>',
+        '</div>',
+        '<button id="hp-wn-done" style="margin-top:20px;width:100%;background:' + navy + ';color:#fff;border:none;border-radius:12px;padding:15px;font-size:15px;font-weight:700;cursor:pointer;">Done</button>',
+      '</div>',
+    ].join('');
+
+    document.body.appendChild(panel);
+    document.getElementById('hp-wn-close').onclick = function() { panel.remove(); };
+    document.getElementById('hp-wn-done').onclick = function() { panel.remove(); };
+    panel.addEventListener('click', function(e) { if (e.target === panel) panel.remove(); });
+  };
+
+  // Hook into export panel — show "What's next?" after successful download
+  var _origOpenExport = window.__openExportPanel;
+  if (typeof _origOpenExport === 'function') {
+    window.__openExportPanel = function(caseId, formId) {
+      _origOpenExport(caseId, formId);
+      // Patch the showStatus to intercept the success message
+      var observer = new MutationObserver(function() {
+        var statusEl = document.getElementById('hp-ep-status');
+        if (statusEl && statusEl.textContent.indexOf('downloaded') !== -1) {
+          observer.disconnect();
+          // Fetch courthouse from case data
+          var resolvedCaseId = caseId;
+          if (!resolvedCaseId) {
+            var hm = window.location.hash.match(/case[s]?\/([0-9]+)/);
+            resolvedCaseId = hm ? hm[1] : null;
+          }
+          var formLabel = typeof formIdToLabel === 'function' ? formIdToLabel(formId) : formId;
+          if (resolvedCaseId) {
+            fetch(window.__hp_railwayEP || 'https://api-production-2334.up.railway.app' + '/api/cases/' + resolvedCaseId, {
+              headers: (typeof __authHdr === 'function' ? __authHdr() : {})
+            }).then(function(r){ return r.json(); }).then(function(d) {
+              var ch = (d.case && d.case.courthouse) || (d.courthouse) || null;
+              setTimeout(function() { window.__hp_showWhatsNext(ch, formLabel); }, 1500);
+            }).catch(function() {
+              setTimeout(function() { window.__hp_showWhatsNext(null, formLabel); }, 1500);
+            });
+          } else {
+            setTimeout(function() { window.__hp_showWhatsNext(null, formLabel); }, 1500);
+          }
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    };
+  }
+
+  // Also expose a manual trigger accessible from anywhere
+  // Users can tap "What do I do next?" from the dashboard too
+  window.__hp_courthouseLocator = function() {
+    var caseMatch = window.location.hash.match(/case[s]?\/([0-9]+)/);
+    var caseId = caseMatch ? caseMatch[1] : null;
+    if (caseId) {
+      fetch('https://api-production-2334.up.railway.app/api/cases/' + caseId, {
+        headers: (typeof __authHdr === 'function' ? __authHdr() : {})
+      }).then(function(r){ return r.json(); }).then(function(d) {
+        var ch = (d.case && d.case.courthouse) || (d.courthouse) || null;
+        window.__hp_showWhatsNext(ch, null);
+      }).catch(function() { window.__hp_showWhatsNext(null, null); });
+    } else {
+      window.__hp_showWhatsNext(null, null);
+    }
+  };
+})();
