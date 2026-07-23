@@ -8575,23 +8575,22 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         'right:0',
         'background:#1E2D4E',
         'color:#fff',
-        'padding:8px 16px',
+        'padding:6px 12px 6px 16px',
         'font-size:12px',
         'font-weight:500',
         'z-index:9998',
-        'text-align:center',
         'box-shadow:0 2px 12px rgba(0,0,0,0.3)',
         'display:flex',
         'align-items:center',
-        'justify-content:center',
         'gap:8px',
-        'flex-wrap:wrap',
+        'overflow:hidden',
+        'white-space:nowrap',
       ].join(';');
 
       banner.innerHTML = [
         '<span style="font-size:10px;letter-spacing:0.07em;text-transform:uppercase;color:#A8B4D0;font-weight:700;flex-shrink:0">Quiz picks:</span>',
-        '<span style="font-weight:600;color:#fff;flex:1;min-width:0">' + formList + '</span>',
-        '<button id="hp-reminder-close" style="background:none;border:none;color:#A8B4D0;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;flex-shrink:0" aria-label="Dismiss">✕</button>',
+        '<span style="font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0">' + formList + '</span>',
+        '<button id="hp-reminder-close" style="background:none;border:none;color:#A8B4D0;cursor:pointer;font-size:15px;line-height:1;padding:2px 6px;flex-shrink:0;margin-left:4px" aria-label="Dismiss">✕</button>',
       ].join('');
 
       document.body.appendChild(banner);
@@ -8743,20 +8742,23 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     styleEl.textContent = CSS_BADGE;
     document.head.appendChild(styleEl);
 
+    function makeBadge() {
+      var badge = document.createElement('span');
+      badge.className = 'hp-rec-badge';
+      badge.innerHTML = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 5l2.5 2.5L8 3"/></svg> Quiz pick';
+      return badge;
+    }
+
     function badgeRecommendedForms() {
       if (!window.__hpRecommendedForms || window.__hpRecommendedForms.size === 0) return;
 
-      // Search results: buttons with data-testid="button-search-result-{id}"
+      // 1. Search dropdown results: data-testid="button-search-result-{id}"
       var resultBtns = document.querySelectorAll('[data-testid^="button-search-result-"]');
       resultBtns.forEach(function(btn) {
-        if (btn.dataset.hpBadged) return; // already done
+        if (btn.dataset.hpBadged) return;
         var formId = btn.getAttribute('data-testid').replace('button-search-result-', '');
-
-        // Find the badge label from ALL_FORMS (e.g. "Form 8") by matching the id
         var formEntry = (window.__hp_allForms || []).find(function(f) { return f.id === formId; });
         var formBadge = formEntry ? formEntry.badge : null;
-
-        // Also try matching by the badge text already in the DOM
         if (!formBadge) {
           var badgeText = btn.querySelector('p:last-of-type');
           if (badgeText) {
@@ -8764,36 +8766,48 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
             formBadge = parts[0] ? parts[0].trim() : null;
           }
         }
-
         if (formBadge && window.__hpRecommendedForms.has(formBadge)) {
-          var badge = document.createElement('span');
-          badge.className = 'hp-rec-badge';
-          badge.innerHTML = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 5l2.5 2.5L8 3"/></svg> Quiz pick';
-          // Insert after the form title paragraph
+          var b = makeBadge();
           var titleP = btn.querySelector('p:first-of-type');
           if (titleP) {
             titleP.style.display = 'inline';
-            titleP.parentNode.insertBefore(badge, titleP.nextSibling);
-            badge.style.display = 'inline-flex';
-            badge.style.marginTop = '2px';
+            titleP.parentNode.insertBefore(b, titleP.nextSibling);
+            b.style.display = 'inline-flex';
+            b.style.marginTop = '2px';
           }
           btn.dataset.hpBadged = '1';
         }
       });
 
-      // Also badge forms in the "All forms" grid/list if it exists
-      var formCards = document.querySelectorAll('[data-testid^="form-card-"], [data-testid^="button-form-"]');
-      formCards.forEach(function(card) {
-        if (card.dataset.hpBadged) return;
-        var id = card.getAttribute('data-testid').replace('form-card-', '').replace('button-form-', '');
-        var formEntry = (window.__hp_allForms || []).find(function(f) { return f.id === id; });
-        var formBadge = formEntry ? formEntry.badge : null;
-        if (formBadge && window.__hpRecommendedForms.has(formBadge)) {
-          var badge = document.createElement('span');
-          badge.className = 'hp-rec-badge';
-          badge.innerHTML = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 5l2.5 2.5L8 3"/></svg> Quiz pick';
-          card.appendChild(badge);
-          card.dataset.hpBadged = '1';
+      // 2. New-case form selector cards (manual list): button elements with border-card-border class
+      //    These don't have a predictable data-testid, so match by badge text inside the card
+      var formBtns = document.querySelectorAll('button.rounded-xl');
+      formBtns.forEach(function(btn) {
+        if (btn.dataset.hpBadged) return;
+        // The badge label (e.g. "Form 8") is in a span with bg-card-border-ish styling
+        var badgeSpan = btn.querySelector('span, p');
+        if (!badgeSpan) return;
+        // Walk all text nodes to find something like "Form 8" or "Form 13"
+        var allText = btn.innerText || '';
+        var m = allText.match(/^(Form\s+[\d.]+[A-Z]?)/m);
+        if (!m) return;
+        var formBadge = m[1].replace(/\s+/, ' ').trim();
+        if (window.__hpRecommendedForms.has(formBadge)) {
+          // Add a "Quiz pick" badge after the form badge span
+          var b = makeBadge();
+          b.style.marginLeft = '6px';
+          // Find the badge element (first inline span or p with "Form X")
+          var spans = btn.querySelectorAll('span');
+          var inserted = false;
+          for (var i = 0; i < spans.length; i++) {
+            if (spans[i].textContent.trim().match(/^Form\s+[\d.]+/)) {
+              spans[i].parentNode.insertBefore(b, spans[i].nextSibling);
+              inserted = true;
+              break;
+            }
+          }
+          if (!inserted) btn.prepend(b);
+          btn.dataset.hpBadged = '1';
         }
       });
     }
