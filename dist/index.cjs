@@ -576,6 +576,13 @@ app.post('/api/cases', requireAuth, async (req, res) => {
       const allFree = requestedForms.every(f => FREE_FORMS.includes(f));
       if (!allFree) return res.status(403).json({ message: 'Subscription required', code: 'SUBSCRIPTION_REQUIRED', upgradeUrl: '/pricing' });
     }
+    // Enforce server-side case limit per plan
+    const PLAN_LIMITS = { free: 1, standard: 3, plus: 999 };
+    const limit = PLAN_LIMITS[plan] ?? 1;
+    const existingCases = await dbAll('cases', { user_id: `eq.${req.user.id}`, status: 'neq.deleted' });
+    if (existingCases.length >= limit) {
+      return res.status(403).json({ message: 'Case limit reached for your plan', code: 'PLAN_LIMIT', limit, used: existingCases.length, upgradeUrl: '/pricing' });
+    }
     const now = Date.now();
     const newCase = await dbInsert('cases', { userId: req.user.id, title, caseType: caseType || 'form8-general', status: 'active', createdAt: now, updatedAt: now });
     res.json(newCase);
