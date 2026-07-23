@@ -8716,9 +8716,16 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
     html += '<div class="hp-quiz-q" style="margin-top:8px;font-size:14px;">What stage are you at?</div>';
     html += '<div class="hp-quiz-options" style="margin-bottom:16px">';
+    var dark = isDark();
     [['start','Just starting'], ['respond','Responding to an application'], ['change','Changing an order']].forEach(function(opt) {
-      var sel = state.stage === opt[0] ? ' style="border-color:#1E2D4E;background:#eef0f6"' : '';
-      html += '<button class="hp-quiz-opt" data-stage="' + opt[0] + '"' + sel + '>' + opt[1] + '</button>';
+      var isSel = state.stage === opt[0];
+      var selStyle = isSel
+        ? (dark
+            ? 'border-color:#A8B4D0;background:#A8B4D0;color:#1E2D4E;font-weight:700'
+            : 'border-color:#1E2D4E;background:#1E2D4E;color:#fff;font-weight:700')
+        : '';
+      var selAttr = selStyle ? ' style="' + selStyle + '"' : '';
+      html += '<button class="hp-quiz-opt" data-stage="' + opt[0] + '"' + selAttr + '>' + opt[1] + '</button>';
     });
     html += '</div>';
 
