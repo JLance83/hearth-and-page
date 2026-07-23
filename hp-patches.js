@@ -8550,48 +8550,68 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     };
 
     // Show a dismissible sticky banner reminding the user which forms to add
+    // Only shows on dashboard or case wizard pages — never on disclaimer/new-case screens
     function showFormReminder(results) {
       if (!results || !results.length) return;
+
+      // Suppress on disclaimer / new-case / form-selector screens
+      var hash = window.location.hash || '';
+      var suppressOn = ['new-case', 'disclaimer', 'onboard', 'form-quiz'];
+      for (var i = 0; i < suppressOn.length; i++) {
+        if (hash.indexOf(suppressOn[i]) !== -1) return;
+      }
+
       var existing = document.getElementById('hp-form-reminder');
       if (existing) existing.remove();
 
       var formList = results.slice(0, 5).map(function(r) { return r.num; }).join(' · ');
       var banner = document.createElement('div');
       banner.id = 'hp-form-reminder';
+      // Top of screen, full width — stays out of the way of all buttons
       banner.style.cssText = [
         'position:fixed',
-        'bottom:70px',
-        'left:50%',
-        'transform:translateX(-50%)',
+        'top:0',
+        'left:0',
+        'right:0',
         'background:#1E2D4E',
         'color:#fff',
-        'padding:12px 16px',
-        'border-radius:12px',
-        'font-size:13px',
+        'padding:8px 16px',
+        'font-size:12px',
         'font-weight:500',
         'z-index:9998',
         'text-align:center',
-        'box-shadow:0 4px 24px rgba(0,0,0,0.35)',
-        'max-width:340px',
-        'width:calc(100% - 48px)',
-        'line-height:1.5',
+        'box-shadow:0 2px 12px rgba(0,0,0,0.3)',
         'display:flex',
-        'flex-direction:column',
-        'gap:6px',
+        'align-items:center',
+        'justify-content:center',
+        'gap:8px',
+        'flex-wrap:wrap',
       ].join(';');
 
       banner.innerHTML = [
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">',
-          '<span style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:#A8B4D0;font-weight:700">Quiz recommendation</span>',
-          '<button id="hp-reminder-close" style="background:none;border:none;color:#A8B4D0;cursor:pointer;font-size:16px;line-height:1;padding:0">✕</button>',
-        '</div>',
-        '<div style="font-weight:600;color:#fff">Add these forms: <span style="color:#A8B4D0">' + formList + '</span></div>',
-        '<div style="font-size:11px;color:#9ca3af">Use the "Add Forms" button or search above</div>',
+        '<span style="font-size:10px;letter-spacing:0.07em;text-transform:uppercase;color:#A8B4D0;font-weight:700;flex-shrink:0">Quiz picks:</span>',
+        '<span style="font-weight:600;color:#fff;flex:1;min-width:0">' + formList + '</span>',
+        '<button id="hp-reminder-close" style="background:none;border:none;color:#A8B4D0;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;flex-shrink:0" aria-label="Dismiss">✕</button>',
       ].join('');
 
       document.body.appendChild(banner);
       document.getElementById('hp-reminder-close').onclick = function() { banner.remove(); };
-      setTimeout(function() { if (banner.parentNode) banner.remove(); }, 12000);
+      // Also remove if user navigates away from wizard/dashboard back to new-case screen
+      var _reminderNavCheck = setInterval(function() {
+        var h = window.location.hash || '';
+        var gone = false;
+        for (var j = 0; j < suppressOn.length; j++) {
+          if (h.indexOf(suppressOn[j]) !== -1) { gone = true; break; }
+        }
+        if (gone || !banner.parentNode) {
+          banner.remove();
+          clearInterval(_reminderNavCheck);
+        }
+      }, 500);
+      setTimeout(function() {
+        if (banner.parentNode) banner.remove();
+        clearInterval(_reminderNavCheck);
+      }, 20000);
     }
 
     var restartBtn = container.querySelector('#hp-quiz-restart-btn');
