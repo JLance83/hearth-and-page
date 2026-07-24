@@ -1181,6 +1181,53 @@ app.post('/api/stripe/billing-portal', requireAuth, async (req, res) => {
 
 app.post('/api/stripe/portal', requireAuth, async (req, res) => { req.url = '/api/stripe/billing-portal'; app.handle(req, res); });
 
+
+// ── Deadline Notification Routes ──────────────────────────────────────────────
+
+// GET /api/cases/:id/deadlines — list saved deadlines for a case
+app.get('/api/cases/:id/deadlines', requireAuth, async (req, res) => {
+  const caseId = parseInt(req.params.id, 10);
+  if (!caseId) return res.status(400).json({ error: 'Invalid case ID' });
+  // Verify case belongs to user
+  const c = await dbGet('cases', { id: \`eq.\${caseId}\`, user_id: \`eq.\${req.user.id}\` });
+  if (!c) return res.status(404).json({ error: 'Case not found' });
+  const rows = await dbAll('deadlines', { case_id: \`eq.\${caseId}\` }, { order: 'due_date.asc' });
+  res.json(rows || []);
+});
+
+// POST /api/cases/:id/deadlines — save a deadline
+app.post('/api/cases/:id/deadlines', requireAuth, async (req, res) => {
+  const caseId = parseInt(req.params.id, 10);
+  if (!caseId) return res.status(400).json({ error: 'Invalid case ID' });
+  const { label, due_date, stage } = req.body;
+  if (!label || !due_date) return res.status(400).json({ error: 'label and due_date are required' });
+  // Verify case belongs to user
+  const c = await dbGet('cases', { id: \`eq.\${caseId}\`, user_id: \`eq.\${req.user.id}\` });
+  if (!c) return res.status(404).json({ error: 'Case not found' });
+  const dl = await dbInsert('deadlines', {
+    user_id: req.user.id,
+    case_id: caseId,
+    label: label.trim().substring(0, 200),
+    due_date,
+    stage: stage || 'start',
+    notified_3day: false,
+    notified_1day: false,
+    created_at: Date.now()
+  });
+  res.status(201).json(dl);
+});
+
+// DELETE /api/cases/:id/deadlines/:dlId — remove a deadline
+app.delete('/api/cases/:id/deadlines/:dlId', requireAuth, async (req, res) => {
+  const caseId = parseInt(req.params.id, 10);
+  const dlId   = parseInt(req.params.dlId, 10);
+  if (!caseId || !dlId) return res.status(400).json({ error: 'Invalid IDs' });
+  const dl = await dbGet('deadlines', { id: \`eq.\${dlId}\`, case_id: \`eq.\${caseId}\`, user_id: \`eq.\${req.user.id}\` });
+  if (!dl) return res.status(404).json({ error: 'Deadline not found' });
+  await dbDelete('deadlines', { id: \`eq.\${dlId}\` });
+  res.json({ ok: true });
+});
+
 app.post('/api/stripe/sync', requireAuth, async (req, res) => {
   try {
     if (!process.env.STRIPE_SECRET_KEY) return res.json({ ok: true });

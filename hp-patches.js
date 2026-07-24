@@ -8388,6 +8388,9 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     hearingDate: '',
     deadlines: null,
     stage: 'start',
+    savedDeadlines: [],
+    savingDeadline: false,
+    savedMsg: '',
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -8739,8 +8742,37 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         html += '<div class="hp-dl-date">' + dl.date + '<br><span class="hp-dl-badge ' + statusCls + '">' + dl.status + '</span></div>';
         html += '</div>';
       });
-      html += '<div class="hp-quiz-cta" style="margin-top:16px">';
+      html += '<div class="hp-quiz-cta" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">';
       html += '<button class="hp-quiz-cta-btn" id="hp-dl-go-btn">Go to my case</button>';
+      var caseId = (window.location.hash.match(/#\/case\/(\d+)/) || [])[1];
+      if (caseId) {
+        html += '<button class="hp-quiz-cta-btn" id="hp-dl-save-btn" style="background:#1E2D4E;border:2px solid #A8B4D0;" ' +
+          (state.savingDeadline ? 'disabled' : '') + '>' +
+          (state.savingDeadline ? 'Saving...' : '💾 Save to my case') + '</button>';
+      }
+      html += '</div>';
+      if (state.savedMsg) {
+        html += '<div style="margin-top:8px;font-size:13px;color:#6daa45;font-weight:600">' + state.savedMsg + '</div>';
+      }
+    }
+
+    html += '</div>';
+
+    // ── Saved Deadlines ──────────────────────────────────────────────────────
+    if (state.savedDeadlines && state.savedDeadlines.length) {
+      html += '<div style="margin-top:20px;border-top:1px solid rgba(168,180,208,0.2);padding-top:16px">';
+      html += '<div style="font-size:13px;font-weight:700;color:#A8B4D0;margin-bottom:10px;letter-spacing:0.05em;text-transform:uppercase">Saved Deadlines</div>';
+      state.savedDeadlines.forEach(function(dl) {
+        var d = new Date(dl.due_date + 'T00:00:00');
+        var fmt = d.toLocaleDateString('en-CA', { year:'numeric', month:'short', day:'numeric' });
+        var daysLeft = Math.round((d - new Date()) / 86400000);
+        var urgency = daysLeft < 0 ? 'color:#ef4444' : (daysLeft <= 3 ? 'color:#f59e0b' : 'color:#6daa45');
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(168,180,208,0.1)">';
+        html += '<div style="flex:1;font-size:13px;color:#CDCCCA">' + dl.label + '</div>';
+        html += '<div style="font-size:12px;' + urgency + ';font-weight:600">' + fmt + '</div>';
+        html += '<button class="hp-dl-del-btn" data-dlid="' + dl.id + '" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px;padding:0 4px" title="Remove">×</button>';
+        html += '</div>';
+      });
       html += '</div>';
     }
 
@@ -8770,6 +8802,84 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
     var goBtn = container.querySelector('#hp-dl-go-btn');
     if (goBtn) goBtn.onclick = function() { close(); };
+
+    // Save deadline button
+    var saveBtn = container.querySelector('#hp-dl-save-btn');
+    if (saveBtn) {
+      saveBtn.onclick = function() {
+        var caseId = (window.location.hash.match(/#\/case\/(\d+)/) || [])[1];
+        if (!caseId || !state.deadlines || !state.hearingDate) return;
+        state.savingDeadline = true;
+        state.savedMsg = '';
+        render();
+        // Save the hearing date itself as the primary deadline
+        var token = localStorage.getItem('hp_token') || window.__hp_token || '';
+        fetch(_RW + '/api/cases/' + caseId + '/deadlines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({
+            label: 'Court Hearing / Key Date',
+            due_date: state.hearingDate,
+            stage: state.stage
+          })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(dl) {
+          state.savingDeadline = false;
+          if (dl && dl.id) {
+            state.savedDeadlines = state.savedDeadlines.concat([dl]);
+            state.savedMsg = '✓ Saved to your case';
+            setTimeout(function() { state.savedMsg = ''; render(); }, 3000);
+          } else {
+            state.savedMsg = 'Could not save — please try again';
+          }
+          render();
+        })
+        .catch(function() {
+          state.savingDeadline = false;
+          state.savedMsg = 'Could not save — please try again';
+          render();
+        });
+      };
+    }
+
+    // Delete saved deadline buttons
+    container.querySelectorAll('.hp-dl-del-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        var dlId = btn.dataset.dlid;
+        var caseId = (window.location.hash.match(/#\/case\/(\d+)/) || [])[1];
+        if (!caseId || !dlId) return;
+        var token = localStorage.getItem('hp_token') || window.__hp_token || '';
+        fetch(_RW + '/api/cases/' + caseId + '/deadlines/' + dlId, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        })
+        .then(function() {
+          state.savedDeadlines = state.savedDeadlines.filter(function(d) { return String(d.id) !== String(dlId); });
+          render();
+        })
+        .catch(function() {});
+      };
+    });
+
+    // Load saved deadlines when opening
+    if (state.savedDeadlines.length === 0) {
+      var caseId = (window.location.hash.match(/#\/case\/(\d+)/) || [])[1];
+      if (caseId) {
+        var token = localStorage.getItem('hp_token') || window.__hp_token || '';
+        fetch(_RW + '/api/cases/' + caseId + '/deadlines', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(rows) {
+          if (Array.isArray(rows) && rows.length) {
+            state.savedDeadlines = rows;
+            render();
+          }
+        })
+        .catch(function() {});
+      }
+    }
   }
 
   // ── Open / close ─────────────────────────────────────────────────────────────
