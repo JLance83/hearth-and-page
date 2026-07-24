@@ -304,8 +304,8 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.0-bug03-fixed', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
-app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.0.0', db: 'supabase' }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.1-sec', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.1', db: 'supabase' }));
 
 // ── Auth ──
 
@@ -987,7 +987,7 @@ app.get('/api/download/:token', async (req, res) => {
 
 // ── Email proxy ──
 
-app.post('/api/send-email', async (req, res) => {
+app.post('/api/send-email', requireAuth, async (req, res) => {
   try {
     const { to, subject, html, text, attachments } = req.body;
     if (!to || !subject) return res.status(400).json({ error: 'Missing required fields: to, subject' });
@@ -997,7 +997,7 @@ app.post('/api/send-email', async (req, res) => {
   } catch (e) { console.error('[HP] /api/send-email error:', e.message); res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/email/send', async (req, res) => { req.url = '/api/send-email'; app.handle(req, res); });
+app.post('/api/email/send', requireAuth, async (req, res) => { req.url = '/api/send-email'; app.handle(req, res); });
 
 // ── Account ──
 
@@ -1366,43 +1366,7 @@ app.post('/api/safety/check-codeword', requireAuth, async (req, res) => {
 
 // ── Admin routes ──
 
-app.post('/api/__admin/reset-pw', async (req, res) => {
-  const { adminKey, email, newPassword } = req.body;
-  if (adminKey !== 'hp_admin_reset_2024') return res.status(403).json({ error: 'Forbidden' });
-  const user = await dbGet('users', { email: `eq.${email.toLowerCase()}` });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  const newHash = await hashPassword(newPassword);
-  await dbUpdate('users', { id: `eq.${user.id}` }, { passwordHash: newHash });
-  res.json({ ok: true, email: user.email });
-});
 
-app.post('/api/__admin/list-users', async (req, res) => {
-  const { adminKey } = req.body;
-  if (adminKey !== 'hp_admin_reset_2024') return res.status(403).json({ error: 'Forbidden' });
-  const users = await dbAll('users', {}, { order: 'id.asc' });
-  res.json(users.map(u => ({ ...u, passwordHash: u.passwordHash ? u.passwordHash.substring(0,30) + '...' : null })));
-});
-
-app.post('/api/__admin/ensure-testuser', async (req, res) => {
-  const { adminKey } = req.body;
-  if (adminKey !== 'hp_admin_reset_2024') return res.status(403).json({ error: 'Forbidden' });
-  const existing = await dbGet('users', { email: `eq.jlance1@icloud.com` });
-  if (existing) {
-    const newHash = await hashPassword('Cayenne07');
-    await dbUpdate('users', { id: `eq.${existing.id}` }, { passwordHash: newHash, plan: 'plus', emailVerified: 1, subscriptionStatus: 'active' });
-    return res.json({ action: 'updated', id: existing.id });
-  }
-  const hash = await hashPassword('Cayenne07');
-  const newUser = await dbInsert('users', { email: 'jlance1@icloud.com', passwordHash: hash, firstName: 'Joshua', emailVerified: 1, plan: 'plus', subscriptionStatus: 'active', createdAt: Date.now(), updatedAt: Date.now() });
-  res.json({ action: 'created', id: newUser.id });
-});
-
-
-
-// ── PDF Review & Patch — field list endpoint ──────────────────────────────
-// GET /api/cases/:caseId/pdf-fields/:formType
-// Returns [{fieldId, label, currentValue, isBlank}] for the review screen
-// v2: uses row.fieldKey (camelCase from dbAll/toCamel) — build 1782819450
 app.get('/api/cases/:caseId/pdf-fields/:formType', requireAuth, requireSubscription, async (req, res) => {
   try {
     const c = await dbGet('cases', { id: `eq.${req.params.caseId}`, user_id: `eq.${req.user.id}` });
