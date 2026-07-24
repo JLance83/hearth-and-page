@@ -2271,52 +2271,28 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   // ── Inject Account Settings button into navbar ──────────────────────────────
   // Uses MutationObserver to re-inject after React re-renders the navbar on route change
-  (function injectAccountBtn() {
-    function makeAccBtn() {
+  // Account button: React already renders button-nav-account (person icon) natively.
+  // We no longer inject a duplicate — it was causing an extra icon on mobile that
+  // pushed things off-screen. button-nav-account navigates to #/account via the
+  // React router, which is handled by the React bundle.
+  // If button-nav-account is somehow missing, wire it up:
+  (function ensureAccountBtn() {
+    function tryFix() {
+      // React's button is already there — nothing to do
+      if (document.querySelector('[data-testid="button-nav-account"]')) return;
+      // If for some reason it's gone, re-wire button-account as fallback
+      if (document.querySelector('[data-testid="button-account"]')) return;
+      var logoutBtn = document.querySelector('[data-testid="button-logout"]');
+      if (!logoutBtn) return;
       var btn = document.createElement('button');
       btn.setAttribute('data-testid', 'button-account');
       btn.setAttribute('aria-label', 'Account settings');
-      btn.setAttribute('title', 'Account settings');
-      btn.style.cssText = [
-        'display:inline-flex;align-items:center;justify-content:center;',
-        'height:2.25rem;width:2.25rem;min-width:44px;min-height:44px;',
-        'border-radius:0.375rem;background:transparent;border:none;cursor:pointer;',
-        'color:rgba(237,232,223,0.6);flex-shrink:0;'
-      ].join('');
-      btn.innerHTML =
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+
-          '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>'+
-          '<circle cx="12" cy="7" r="4"/>'+
-        '</svg>';
-      btn.addEventListener('click', function() {
-        if (typeof window.__openAccountSettings_real === 'function') window.__openAccountSettings_real();
-        else if (typeof window.__openAccountSettings === 'function') window.__openAccountSettings();
-      });
-      return btn;
+      btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;height:2.25rem;width:2.25rem;min-width:44px;min-height:44px;border-radius:0.375rem;background:transparent;border:none;cursor:pointer;color:rgba(237,232,223,0.6);flex-shrink:0;';
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+      btn.addEventListener('click', function() { window.location.hash = '/account'; });
+      logoutBtn.parentNode.insertBefore(btn, logoutBtn);
     }
-
-    function tryInject() {
-      var logoutBtn = document.querySelector('[data-testid="button-logout"]');
-      if (!logoutBtn) return;
-      if (document.querySelector('[data-testid="button-account"]')) return; // already there
-      logoutBtn.parentNode.insertBefore(makeAccBtn(), logoutBtn);
-      console.log('[HP] Account button injected');
-    }
-
-    // Initial injection attempt with polling
-    var IV = setInterval(function() {
-      if (document.querySelector('[data-testid="button-logout"]')) {
-        tryInject();
-        clearInterval(IV);
-      }
-    }, 400);
-    setTimeout(function(){ clearInterval(IV); }, 20000);
-
-    // MutationObserver — re-inject whenever React re-renders the navbar
-    var observer = new MutationObserver(function() {
-      tryInject();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+    setTimeout(tryFix, 1500);
   })();
 
   // Signal the bootstrap that hp-patches.js has fully loaded and all functions are ready
@@ -9415,49 +9391,43 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
 })();
 
-// ─── Shield fix: ensure hp-patches overlay always wins over React's stub ────
-// React's SafetyOverlayHP sets window.__openSafetyOverlay_real = setOpen(true)
-// after mount, overwriting our richer overlay. We intercept with a property
-// descriptor so every write to __openSafetyOverlay_real is captured and
-// replaced with our version.
+// ─── Shield fix: overwrite __openSafetyOverlay_real AFTER React mounts ──────
+// React's SafetyOverlayHP mounts ~200-400ms after page load and sets
+// window.__openSafetyOverlay_real = () => setOpen(true), overwriting our
+// richer overlay. Our safety IIFE sets it at parse time (immediate), but React
+// wins because it runs later.
+//
+// Fix: poll until React has set it (i.e., until it becomes a function), then
+// immediately overwrite it with our version. Repeat on every hash change.
 (function() {
   'use strict';
 
-  // Wait until the safety IIFE has already set window.__openSafetyOverlay_real
-  // (that happens during patches load), then lock it down.
-  function lockShield() {
-    var realFn = window.__openSafetyOverlay_real;
-    if (typeof realFn !== 'function') return; // patches not loaded yet
+  // The overlay function our safety IIFE registered — grab it at parse time.
+  // It's always been set before this block runs (same file, earlier in the IIFE).
+  var _ourOverlay = window.__openSafetyOverlay_real;
 
-    // Redefine the property with a setter that ignores React's overwrite
-    try {
-      Object.defineProperty(window, '__openSafetyOverlay_real', {
-        get: function() { return realFn; },
-        set: function(v) {
-          // React tries to set it to setOpen(true) — ignore it silently.
-          // If for some reason a future patch intentionally updates it,
-          // it can call window.__hp_setShieldReal(fn) instead.
-          void v;
-        },
-        configurable: true
-      });
-    } catch(e) {
-      // If defineProperty fails (shouldn't happen in modern browsers), fall back
-      // to a polling re-assertion every 500ms.
-      setInterval(function() {
-        if (window.__openSafetyOverlay_real !== realFn) {
-          window.__openSafetyOverlay_real = realFn;
-        }
-      }, 500);
-    }
-
-    // Also expose an escape hatch for intentional future updates
-    window.__hp_setShieldReal = function(fn) { realFn = fn; };
+  function reassertShield() {
+    if (typeof _ourOverlay !== 'function') return;
+    // Forcibly reassert our version regardless of what React set
+    window.__openSafetyOverlay_real = _ourOverlay;
   }
 
-  // Run after a delay to let the safety IIFE finish setting up
-  setTimeout(lockShield, 800);
-  // Also run on hash change in case the shield IIFE re-runs
-  window.addEventListener('hashchange', function() { setTimeout(lockShield, 1200); });
+  // React typically mounts in 200-600ms. Poll every 100ms for 3s to catch it,
+  // then reassert immediately after each detection.
+  var _checks = 0;
+  var _poll = setInterval(function() {
+    _checks++;
+    reassertShield();
+    if (_checks >= 30) clearInterval(_poll); // stop after 3s
+  }, 100);
+
+  // Also reassert 2s after page load (belt + suspenders)
+  setTimeout(reassertShield, 2000);
+
+  // Re-assert on every hash navigation (React re-mounts overlay on route change)
+  window.addEventListener('hashchange', function() {
+    setTimeout(reassertShield, 300);
+    setTimeout(reassertShield, 800);
+  });
 
 })();
