@@ -127,7 +127,7 @@ window.__patchForm13PDF_real = async function(pdfBlob, caseId) {
 // from new domains — a plain link email always delivers.
 window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel) {
   try {
-    var RAILWAY = 'https://api-production-2334.up.railway.app';
+    var RAILWAY = _RW; // consolidated — see top of file
     var token = window.__hp_getToken ? window.__hp_getToken() : null;
     if (!token) { console.warn('No auth token for email'); return false; }
 
@@ -202,6 +202,9 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
 // ─── Inject "Email me this PDF" button via MutationObserver ──────────────────
 // This works even when the bundle doesn’t have the button (e.g. Railway build)
 (function() {
+// ── Single source of truth for Railway API base URL ──
+var _RW = 'https://api-production-2334.up.railway.app';
+
   var injected = false;
 
   function tryInjectEmailButton() {
@@ -233,7 +236,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
       emailBtn.disabled = true;
 
       try {
-        var RAILWAY_BASE = 'https://api-production-2334.up.railway.app';
+        var RAILWAY_BASE = _RW; // consolidated — see top of file
 
         // Resolve caseId from URL hash — handles #/case/1/review and #/cases/1/review
         var caseIdMatch = window.location.hash.match(/case[s]?\/([0-9]+)/);
@@ -332,7 +335,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     var lastName = '';
     try {
       if (caseId) {
-        var RAILWAY_EP = 'https://api-production-2334.up.railway.app';
+        var RAILWAY_EP = _RW; // consolidated — see top of file
         var r = await fetch(RAILWAY_EP + '/api/cases/' + caseId + '/form-data', {
           headers: window.__authHdr ? window.__authHdr() : {}
         });
@@ -368,7 +371,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 // window.__openExportPanel(caseId, formId) -- shows a modal with Download PDF
 // button for paid users, or an upsell prompt for free users.
 (function() {
-  var RAILWAY_EP = 'https://api-production-2334.up.railway.app';
+  var RAILWAY_EP = _RW; // consolidated — see top of file
 
   // Map FormEngine formId to backend PDF file key (stored in /pdfs/)
   // ON-F8 => form8, ON-F13_1 => form13_1, ON-F13B => form13b, etc.
@@ -1420,7 +1423,6 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
 // ─── Safety Overlay (shield icon in navbar calls window.__openSafetyOverlay) ──
 (function() {
-  var _RW = 'https://api-production-2334.up.railway.app';
 
   function makeResourceCard(number, label, desc, href, isUrgent) {
     var borderColor = isUrgent ? 'rgba(239,68,68,0.35)' : 'rgba(255,255,255,0.07)';
@@ -2957,7 +2959,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 // or when user clicks the account settings nav link.
 // Handles: change password, manage subscription, account info.
 (function() {
-  var RAILWAY_ACCT = 'https://api-production-2334.up.railway.app';
+  var RAILWAY_ACCT = _RW; // consolidated — see top of file
   var TEAL_D = '#1E2D4E';
   var BURG   = '#1E2D4E';
 
@@ -3604,7 +3606,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 // download proceed.
 // ═══════════════════════════════════════════════════════════════════════════════
 (function() {
-  var RAILWAY_EP = 'https://api-production-2334.up.railway.app';
+  var RAILWAY_EP = _RW; // consolidated — see top of file
   var TEAL_D  = '#1E2D4E';
   var AMBER   = '#92400E';
   var AMBER_BG= '#FFFBEB';
@@ -6648,7 +6650,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 // Floating "Evidence" button on /#/case/:id/* routes (Plus plan only)
 // ─────────────────────────────────────────────────────────────────────────────
 (function() {
-  var RAILWAY_EP = 'https://api-production-2334.up.railway.app';
+  var RAILWAY_EP = _RW; // consolidated — see top of file
 
   var CATEGORIES = [
     { key: 'financial',      label: 'Financial',       icon: '💰', color: '#22895E' },

@@ -29,7 +29,6 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://omuwicdbeuavojrnddwe.supabase.co').trim();
 const SUPABASE_KEY = (process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9tdXdpY2RiZXVhdm9qcm5kZHdlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjY1MDYxMiwiZXhwIjoyMDk4MjI2NjEyfQ.bQhktT5DCmLQwF6GPBcrR-pF1auBpjAZu_4gOU-EJL8').trim();
 
-console.log('[DB] Supabase endpoint:', SUPABASE_URL);
 
 // camelCase ↔ snake_case helpers
 function toSnakeKey(k) {
@@ -274,7 +273,6 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const ms = Date.now() - start;
-    console.log(`[express] ${req.method} ${req.path} ${res.statusCode} in ${ms}ms`);
   });
   next();
 });
@@ -832,7 +830,7 @@ function getPythonBin() {
     const savedPath = fs.readFileSync(savedPathFile, 'utf8').trim();
     if (savedPath) candidates.unshift(savedPath);
   }
-  for (const c of candidates) { if (fs.existsSync(c)) { console.log('[pdf-fill] Python binary:', c); return c; } }
+  for (const c of candidates) { if (fs.existsSync(c)) { return c; } }
   return 'python3';
 }
 const PYTHON_BIN = getPythonBin();
@@ -1063,7 +1061,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       const status = sub.status;
       const periodEnd = sub.current_period_end ? sub.current_period_end * 1000 : null;
       await dbUpdate('users', { stripe_customer_id: `eq.${customerId}` }, { plan: status === 'active' ? plan : 'free', subscriptionStatus: status, subscriptionCurrentPeriodEnd: periodEnd, stripeSubscriptionId: sub.id });
-      console.log(`[webhook] ${event.type} — customer ${customerId} plan=${plan} status=${status}`);
+      console.log(`[webhook] ${event.type} plan=${plan} status=${status}`);
     }
     switch (event.type) {
       case 'customer.subscription.created':
@@ -1101,7 +1099,6 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
   <p style="font-size:12px;color:#7A7974;margin-top:32px">Hearth &amp; Page &bull; heartandpage.ca &bull; support@heartandpage.ca<br>This is an automated receipt. Please do not reply to this email.</p>
 </div>`,
               });
-              console.log(`[webhook] Receipt email sent to ${custRow.email}`);
             }
           } catch (emailErr) {
             console.error('[webhook] Receipt email failed:', emailErr.message);
@@ -1598,7 +1595,6 @@ app.post('/api/cases/:caseId/autofill', requireAuth, async (req, res) => {
         saved.push({ section, fieldKey, fieldValue: String(fieldValue) });
       }
     }
-    console.log('[autofill] saved', saved.length, 'fields for case', caseId);
     res.json({ saved: saved.length, fields: saved });
   } catch(e) {
     console.error('[autofill] error:', e.message);
@@ -1621,7 +1617,6 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
     const fileType = doc.fileType || doc.file_type || 'image/jpeg';
 
     if (!fileData) {
-      console.log('[parse] no file_data on doc', docId);
       return res.json({ fields: [], docTypeLabel: fileName });
     }
 
@@ -1654,7 +1649,6 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
         }
         if (extractedText.trim().length > 20) {
           pdfText = extractedText.slice(0, 6000);
-          console.log('[parse] pdfjs extracted', pdfText.length, 'chars from', numPages, 'pages');
         }
       } catch(e) {
         const errMsg = e.message || '';
@@ -1662,7 +1656,6 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
         // Detect password-protected PDFs
         if (errMsg.toLowerCase().includes('password') || errMsg.toLowerCase().includes('encrypt')) {
           isEncryptedPDF = true;
-          console.log('[parse] PDF is password-protected — cannot extract text');
           return res.json({
             fields: [],
             docTypeLabel: fileName,
@@ -1676,7 +1669,6 @@ app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, r
         try {
           const rawBuf = Buffer.from(fileData, 'base64');
           if (rawBuf.indexOf('/Encrypt') >= 0) {
-            console.log('[parse] PDF has /Encrypt flag — likely password protected');
             return res.json({
               fields: [],
               docTypeLabel: fileName,
@@ -1738,18 +1730,15 @@ Return ONLY valid JSON:
       userContent = [
         { type: 'text', text: 'Here is the extracted text from the document:\n\n' + pdfText + '\n\nExtract all available fields and return the JSON.' }
       ];
-      console.log('[parse] using text extraction path');
     } else if (imageBase64s.length > 0) {
       // Image path: vision
       userContent = [
         ...imageBase64s.map(b64 => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}`, detail: 'high' } })),
         { type: 'text', text: 'Extract all available fields from this document and return the JSON.' }
       ];
-      console.log('[parse] using vision path');
     } else if (isPDFDirect && !pdfText) {
       // PDF but pdfjs text extraction failed (scanned/image PDF or encoding issue)
       // Fallback: send raw PDF bytes as base64 to GPT-4o — it can read PDFs natively
-      console.log('[parse] pdfjs text extraction failed, trying GPT-4o PDF vision fallback');
       const rawBase64 = doc.fileData || doc.file_data || '';
       if (!rawBase64) {
         console.warn('[parse] no usable content — returning empty');
@@ -1760,7 +1749,6 @@ Return ONLY valid JSON:
         { type: 'image_url', image_url: { url: `data:application/pdf;base64,${rawBase64}`, detail: 'high' } },
         { type: 'text', text: 'This is a PDF document. Extract all available fields from it and return the JSON.' }
       ];
-      console.log('[parse] using PDF vision fallback path (raw PDF base64 len:', rawBase64.length, ')');
     } else {
       console.warn('[parse] no usable content — returning empty');
       return res.json({ fields: [], docTypeLabel: fileName });
@@ -1775,7 +1763,7 @@ Return ONLY valid JSON:
       ]
     });
 
-    console.log('[parse] calling OpenAI Vision | docType guess:', isPDF ? 'PDF' : 'image', '| pages:', imageBase64s.length);
+    
     const oaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openAiToken}` },
@@ -1863,7 +1851,6 @@ Return ONLY valid JSON:
       return f; // unknown key — pass through as-is for display
     }).filter(Boolean);
 
-    console.log('[parse] extracted', fields.length, 'mapped fields from', docTypeLabel);
     res.json({ fields, docTypeLabel, docType: parsed.docType || 'unknown', _rawCount: rawFields.length });
 
   } catch(e) {
@@ -1900,12 +1887,10 @@ if (fs.existsSync(publicDir)) {
 // Start
 // ──────────────────────────────────────────────
 async function start() {
-  console.log('[HP] Starting Hearth & Page API v3.0.0 (Supabase)');
   const server = http.createServer(app);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`[HP] Server listening on port ${PORT}`);
     console.log(`[HP] Environment: ${NODE_ENV}`);
-    console.log(`[HP] DB: Supabase @ ${SUPABASE_URL}`);
   });
 }
 start().catch(console.error);
