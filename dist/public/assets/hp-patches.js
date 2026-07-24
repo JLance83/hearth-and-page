@@ -9431,3 +9431,80 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   });
 
 })();
+
+// ─── "H&P Tools" FAB on case pages ─────────────────────────────────────────
+// Injects a "Tools" FAB button above the "Am I Ready?" button on any case page.
+// Opens the H&P Tools bottom sheet (Form Finder + Deadline Calculator).
+(function() {
+  'use strict';
+
+  var FAB_CSS = [
+    '#hp-tools-fab{position:fixed;bottom:196px;right:24px;z-index:9000;',
+    'display:flex;align-items:center;gap:7px;padding:10px 16px;',
+    'background:linear-gradient(135deg,#0C4E54,#01696F);color:#E0F0F1;',
+    'border:1.5px solid rgba(79,152,163,0.45);border-radius:24px;',
+    'font-size:12px;font-weight:700;letter-spacing:0.04em;cursor:pointer;',
+    'box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:all 0.2s;white-space:nowrap;}',
+    '#hp-tools-fab:hover{background:linear-gradient(135deg,#01696F,#0C4E54);',
+    'border-color:rgba(79,152,163,0.7);transform:translateY(-1px);}',
+  ].join('');
+
+  function injectFabStyles() {
+    if (document.getElementById('hp-tools-fab-style')) return;
+    var s = document.createElement('style');
+    s.id = 'hp-tools-fab-style';
+    s.textContent = FAB_CSS;
+    document.head.appendChild(s);
+  }
+
+  function injectToolsFAB() {
+    if (document.getElementById('hp-tools-fab')) return;
+    injectFabStyles();
+
+    var fab = document.createElement('button');
+    fab.id = 'hp-tools-fab';
+    fab.title = 'H&P Tools — Form Finder & Deadline Calculator';
+    fab.innerHTML = [
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">',
+      '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+      '</svg>',
+      'H&amp;P Tools'
+    ].join('');
+
+    fab.addEventListener('click', function() {
+      // Use the quiz module's open function if available
+      if (window.__hpQuiz && typeof window.__hpQuiz.open === 'function') {
+        window.__hpQuiz.open('quiz');
+      } else {
+        // Fallback: navigate to form-quiz hash which triggers the route interceptor
+        window.location.hash = '/form-quiz';
+      }
+    });
+
+    document.body.appendChild(fab);
+  }
+
+  function removeToolsFAB() {
+    var el = document.getElementById('hp-tools-fab');
+    if (el) el.remove();
+  }
+
+  // ── Route watcher ──────────────────────────────────────────────────────────
+  var __toolsLastHash = '';
+
+  function onToolsHashChange() {
+    var hash = window.location.hash;
+    if (hash === __toolsLastHash) return;
+    __toolsLastHash = hash;
+
+    if (/#\/case\/\d+/.test(hash)) {
+      setTimeout(injectToolsFAB, 1200);
+    } else {
+      removeToolsFAB();
+    }
+  }
+
+  window.addEventListener('hashchange', onToolsHashChange);
+  setTimeout(onToolsHashChange, 1800);
+
+})();
