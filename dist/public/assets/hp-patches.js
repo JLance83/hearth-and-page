@@ -8992,3 +8992,425 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   window.__hpQuiz = { open: open, close: close };
 
 })();
+
+// ─── "Am I Ready to File?" Pre-Flight Checklist ────────────────────────────
+// FAB button on every case page, opens a full-screen checklist overlay.
+// Checklist items are grouped by category and stored in localStorage so
+// the user's checked state persists across visits.
+(function() {
+  'use strict';
+
+  // ── Checklist items ────────────────────────────────────────────────────────
+  // Each item: { id, category, text, tip, required }
+  var CHECKLIST = [
+    // ── Documents ──────────────────────────────────────────────────────────
+    {
+      id: 'docs_id',
+      category: 'Documents',
+      text: 'I have government-issued photo ID for myself',
+      tip: 'You may need to produce ID at the courthouse. A driver\'s licence or passport works.',
+      required: true
+    },
+    {
+      id: 'docs_children',
+      category: 'Documents',
+      text: 'I have birth certificates for any children named in my application',
+      tip: 'Courts often require certified copies of birth certificates for custody and support matters.',
+      required: true
+    },
+    {
+      id: 'docs_financials',
+      category: 'Documents',
+      text: 'I have gathered financial documents (pay stubs, tax returns, bank statements)',
+      tip: 'Required if you are filing Form 13 or 13.1 (Financial Statement). At minimum, last 3 years of NOAs and last 3 pay stubs.',
+      required: false
+    },
+    {
+      id: 'docs_marriage',
+      category: 'Documents',
+      text: 'I have my marriage certificate (if claiming divorce or spousal support)',
+      tip: 'A certified copy from ServiceOntario is required for divorce applications.',
+      required: false
+    },
+    {
+      id: 'docs_separation',
+      category: 'Documents',
+      text: 'I have my separation agreement (if one exists)',
+      tip: 'If you and the other party already have a written agreement, bring a copy.',
+      required: false
+    },
+
+    // ── Forms ──────────────────────────────────────────────────────────────
+    {
+      id: 'forms_complete',
+      category: 'Forms',
+      text: 'All required forms in my Hearth & Page case are marked complete',
+      tip: 'Open each form in the wizard and confirm there are no missing required fields.',
+      required: true
+    },
+    {
+      id: 'forms_printed',
+      category: 'Forms',
+      text: 'I have printed or downloaded the final PDF versions of my forms',
+      tip: 'Download each form from the Export page. Make sure you are printing the finalized version, not a draft.',
+      required: true
+    },
+    {
+      id: 'forms_copies',
+      category: 'Forms',
+      text: 'I have made enough copies (at least 3 sets: court, other party, myself)',
+      tip: 'Courts keep the original. You serve one set on the other party and keep one for your records.',
+      required: true
+    },
+    {
+      id: 'forms_sworn',
+      category: 'Forms',
+      text: 'Any affidavits or financial statements have been sworn or affirmed before a commissioner',
+      tip: 'Affidavits must be signed in front of a commissioner of oaths or notary public. Many courthouses have one on site.',
+      required: true
+    },
+
+    // ── Service ────────────────────────────────────────────────────────────
+    {
+      id: 'service_served',
+      category: 'Serving the Other Party',
+      text: 'I have served the other party with all required documents',
+      tip: 'Most documents must be served personally or by regular mail before filing. Check the Family Law Rules for your specific form.',
+      required: true
+    },
+    {
+      id: 'service_proof',
+      category: 'Serving the Other Party',
+      text: 'I have completed an Affidavit of Service (Form 6B) as proof of service',
+      tip: 'You need proof that the other party was served. The person who served them fills out Form 6B.',
+      required: true
+    },
+    {
+      id: 'service_timing',
+      category: 'Serving the Other Party',
+      text: 'I have waited the required number of days after serving before filing',
+      tip: 'Service must happen a certain number of days before the hearing or filing deadline. Check the specific rule for your form.',
+      required: true
+    },
+
+    // ── Courthouse ─────��───────────────────────────────────────────────────
+    {
+      id: 'court_location',
+      category: 'Courthouse',
+      text: 'I know which courthouse to file at and have confirmed the filing office hours',
+      tip: 'Filing offices are typically open 8:30am–4:30pm. Hours vary by location. Call ahead if unsure.',
+      required: true
+    },
+    {
+      id: 'court_fees',
+      category: 'Courthouse',
+      text: 'I am aware of the filing fee and have a method of payment ready',
+      tip: 'Most Ontario courthouses accept debit, credit card, or money order. Cash may not be accepted. Fee waivers are available if you qualify.',
+      required: true
+    },
+    {
+      id: 'court_fee_waiver',
+      category: 'Courthouse',
+      text: 'If I cannot afford the filing fee, I have looked into a fee waiver (Form 0)',
+      tip: 'Low-income applicants can apply for a fee waiver using the Fee Waiver Request (Form 0) at the courthouse.',
+      required: false
+    },
+    {
+      id: 'court_number',
+      category: 'Courthouse',
+      text: 'I know my existing court file number (if this is not a new application)',
+      tip: 'If a court file already exists, your file number should be on any previous documents you received.',
+      required: false
+    },
+
+    // ── Support & Safety ───────────────────────────────────────────────────
+    {
+      id: 'support_lao',
+      category: 'Support & Safety',
+      text: 'I have checked if I qualify for Legal Aid Ontario assistance',
+      tip: 'Legal Aid Ontario provides free or low-cost legal help. Call 1-800-668-8258 or visit legalaid.on.ca.',
+      required: false
+    },
+    {
+      id: 'support_jsc',
+      category: 'Support & Safety',
+      text: 'I have visited the Justice Services Centre or courthouse help desk if I have questions',
+      tip: 'Many Ontario courthouses have a Family Law Information Centre (FLIC) where staff can help you understand the process (not legal advice).',
+      required: false
+    },
+    {
+      id: 'support_safety',
+      category: 'Support & Safety',
+      text: 'If there are safety concerns, I have activated Hearth & Page\'s Safety Plan feature',
+      tip: 'Use the shield icon in the top navbar to set up a safety plan, including emergency contacts and quick-exit options.',
+      required: false
+    }
+  ];
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  var STORAGE_KEY = 'hp_ready_checklist_v1';
+
+  function loadChecked() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch(e) { return {}; }
+  }
+
+  function saveChecked(checked) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch(e) {}
+  }
+
+  // ── Styles ─────────────────────────────────────────────────────────────────
+  var CSS = [
+    // FAB button
+    '#hp-ready-fab{position:fixed;bottom:140px;right:24px;z-index:9000;',
+    'display:flex;align-items:center;gap:7px;padding:10px 16px;',
+    'background:linear-gradient(135deg,#1E2D4E,#2a3f6e);color:#A8B4D0;',
+    'border:1.5px solid rgba(168,180,208,0.35);border-radius:24px;',
+    'font-size:12px;font-weight:700;letter-spacing:0.04em;cursor:pointer;',
+    'box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:all 0.2s;white-space:nowrap;}',
+    '#hp-ready-fab:hover{background:linear-gradient(135deg,#2a3f6e,#1E2D4E);',
+    'border-color:rgba(168,180,208,0.6);transform:translateY(-1px);}',
+
+    // Overlay
+    '#hp-ready-overlay{position:fixed;inset:0;z-index:10500;',
+    'background:rgba(10,14,22,0.92);display:flex;align-items:flex-start;justify-content:center;',
+    'padding:24px 16px;overflow-y:auto;}',
+
+    // Panel
+    '#hp-ready-panel{background:#1a2035;border:1px solid rgba(168,180,208,0.2);',
+    'border-radius:16px;width:100%;max-width:680px;padding:28px 28px 32px;',
+    'box-shadow:0 20px 60px rgba(0,0,0,0.6);}',
+
+    // Header
+    '.hp-ready-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}',
+    '.hp-ready-title{font-size:20px;font-weight:800;color:#F0EDE8;letter-spacing:-0.01em;}',
+    '.hp-ready-close{background:none;border:none;color:#A8B4D0;cursor:pointer;font-size:22px;',
+    'line-height:1;padding:4px;opacity:0.7;transition:opacity 0.15s;}',
+    '.hp-ready-close:hover{opacity:1;}',
+    '.hp-ready-subtitle{font-size:13px;color:#7A7974;margin-bottom:20px;}',
+
+    // Progress bar
+    '.hp-ready-progress-wrap{background:rgba(168,180,208,0.1);border-radius:8px;height:8px;margin-bottom:6px;}',
+    '.hp-ready-progress-bar{height:8px;border-radius:8px;transition:width 0.4s ease;',
+    'background:linear-gradient(90deg,#4F98A3,#6daa45);}',
+    '.hp-ready-progress-label{font-size:12px;color:#7A7974;margin-bottom:20px;}',
+    '.hp-ready-progress-label span{color:#A8B4D0;font-weight:700;}',
+
+    // Category
+    '.hp-ready-category{margin-bottom:20px;}',
+    '.hp-ready-cat-title{font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;',
+    'color:#4F98A3;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(79,152,163,0.2);}',
+
+    // Item
+    '.hp-ready-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;',
+    'border-bottom:1px solid rgba(168,180,208,0.07);cursor:pointer;',
+    'transition:background 0.15s;border-radius:6px;padding:10px 8px;margin:0 -8px;}',
+    '.hp-ready-item:hover{background:rgba(168,180,208,0.05);}',
+    '.hp-ready-item:last-child{border-bottom:none;}',
+
+    // Checkbox
+    '.hp-ready-check{width:20px;height:20px;min-width:20px;border-radius:5px;',
+    'border:2px solid rgba(168,180,208,0.3);display:flex;align-items:center;justify-content:center;',
+    'transition:all 0.2s;margin-top:1px;}',
+    '.hp-ready-check.checked{background:#437A22;border-color:#437A22;}',
+    '.hp-ready-check svg{display:none;}',
+    '.hp-ready-check.checked svg{display:block;}',
+
+    // Item text
+    '.hp-ready-item-body{flex:1;}',
+    '.hp-ready-item-text{font-size:14px;color:#CDCCCA;line-height:1.4;font-weight:500;}',
+    '.hp-ready-item-text.checked{color:#7A7974;text-decoration:line-through;}',
+    '.hp-ready-required{display:inline-block;font-size:9px;font-weight:800;letter-spacing:0.08em;',
+    'text-transform:uppercase;color:#964219;background:rgba(150,66,25,0.15);',
+    'padding:1px 5px;border-radius:3px;margin-left:6px;vertical-align:middle;}',
+    '.hp-ready-tip{font-size:12px;color:#7A7974;margin-top:4px;line-height:1.45;}',
+
+    // Footer
+    '.hp-ready-footer{margin-top:24px;padding-top:20px;border-top:1px solid rgba(168,180,208,0.1);}',
+    '.hp-ready-score{text-align:center;margin-bottom:16px;}',
+    '.hp-ready-score-num{font-size:36px;font-weight:900;color:#F0EDE8;line-height:1;}',
+    '.hp-ready-score-label{font-size:13px;color:#7A7974;margin-top:4px;}',
+    '.hp-ready-verdict{border-radius:10px;padding:14px 16px;font-size:13px;font-weight:600;text-align:center;}',
+    '.hp-ready-verdict.great{background:rgba(67,122,34,0.15);color:#6daa45;border:1px solid rgba(67,122,34,0.3);}',
+    '.hp-ready-verdict.almost{background:rgba(150,66,25,0.12);color:#BB653B;border:1px solid rgba(150,66,25,0.3);}',
+    '.hp-ready-verdict.not-yet{background:rgba(161,44,123,0.1);color:#D163A7;border:1px solid rgba(161,44,123,0.3);}',
+    '.hp-ready-reset{display:block;margin:14px auto 0;background:none;border:none;',
+    'color:#7A7974;font-size:12px;cursor:pointer;text-decoration:underline;}',
+    '.hp-ready-reset:hover{color:#A8B4D0;}',
+  ].join('');
+
+  function injectStyles() {
+    if (document.getElementById('hp-ready-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'hp-ready-styles';
+    s.textContent = CSS;
+    document.head.appendChild(s);
+  }
+
+  // ── Render overlay ─────────────────────────────────────────────────────────
+  function openOverlay() {
+    if (document.getElementById('hp-ready-overlay')) return;
+    injectStyles();
+
+    var checked = loadChecked();
+    var total = CHECKLIST.length;
+    var done = CHECKLIST.filter(function(i) { return checked[i.id]; }).length;
+    var requiredItems = CHECKLIST.filter(function(i) { return i.required; });
+    var requiredDone = requiredItems.filter(function(i) { return checked[i.id]; }).length;
+    var pct = Math.round((done / total) * 100);
+
+    // Group by category
+    var categories = [];
+    CHECKLIST.forEach(function(item) {
+      var cat = categories.find(function(c) { return c.name === item.category; });
+      if (!cat) { cat = { name: item.category, items: [] }; categories.push(cat); }
+      cat.items.push(item);
+    });
+
+    // Verdict
+    var verdictClass, verdictMsg;
+    if (requiredDone === requiredItems.length && done >= total * 0.8) {
+      verdictClass = 'great';
+      verdictMsg = '✓ You appear ready to file. Review any remaining optional items and head to the courthouse.';
+    } else if (requiredDone >= requiredItems.length * 0.7) {
+      verdictClass = 'almost';
+      verdictMsg = '⚠ Almost there — complete the remaining required items before filing.';
+    } else {
+      verdictClass = 'not-yet';
+      verdictMsg = '✗ There are important steps still outstanding. Work through the required items before filing.';
+    }
+
+    var html = '<div id="hp-ready-panel">';
+
+    // Header
+    html += '<div class="hp-ready-header">';
+    html += '<div class="hp-ready-title">Am I Ready to File?</div>';
+    html += '<button class="hp-ready-close" id="hp-ready-close-btn">×</button>';
+    html += '</div>';
+    html += '<div class="hp-ready-subtitle">Ontario Family Court — Pre-Filing Checklist</div>';
+
+    // Progress
+    html += '<div class="hp-ready-progress-wrap"><div class="hp-ready-progress-bar" style="width:' + pct + '%"></div></div>';
+    html += '<div class="hp-ready-progress-label"><span>' + done + ' of ' + total + '</span> items complete · ' +
+      '<span>' + requiredDone + ' of ' + requiredItems.length + '</span> required items complete</div>';
+
+    // Categories
+    categories.forEach(function(cat) {
+      html += '<div class="hp-ready-category">';
+      html += '<div class="hp-ready-cat-title">' + cat.name + '</div>';
+      cat.items.forEach(function(item) {
+        var isChecked = !!checked[item.id];
+        html += '<div class="hp-ready-item" data-id="' + item.id + '">';
+        html += '<div class="hp-ready-check' + (isChecked ? ' checked' : '') + '">';
+        html += '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,6 5,9 10,3"/></svg>';
+        html += '</div>';
+        html += '<div class="hp-ready-item-body">';
+        html += '<div class="hp-ready-item-text' + (isChecked ? ' checked' : '') + '">' + item.text;
+        if (item.required) html += '<span class="hp-ready-required">Required</span>';
+        html += '</div>';
+        html += '<div class="hp-ready-tip">' + item.tip + '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+    // Footer / verdict
+    html += '<div class="hp-ready-footer">';
+    html += '<div class="hp-ready-score">';
+    html += '<div class="hp-ready-score-num">' + pct + '%</div>';
+    html += '<div class="hp-ready-score-label">of checklist complete</div>';
+    html += '</div>';
+    html += '<div class="hp-ready-verdict ' + verdictClass + '">' + verdictMsg + '</div>';
+    html += '<button class="hp-ready-reset" id="hp-ready-reset-btn">Reset checklist</button>';
+    html += '</div>';
+    html += '</div>'; // panel
+
+    var overlay = document.createElement('div');
+    overlay.id = 'hp-ready-overlay';
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+
+    // Close on backdrop click
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeOverlay();
+    });
+
+    // Close button
+    document.getElementById('hp-ready-close-btn').addEventListener('click', closeOverlay);
+
+    // Reset button
+    document.getElementById('hp-ready-reset-btn').addEventListener('click', function() {
+      saveChecked({});
+      closeOverlay();
+      setTimeout(openOverlay, 50);
+    });
+
+    // Item toggle
+    overlay.querySelectorAll('.hp-ready-item').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var id = el.dataset.id;
+        var c = loadChecked();
+        c[id] = !c[id];
+        saveChecked(c);
+        // Re-render overlay in place
+        closeOverlay();
+        setTimeout(openOverlay, 30);
+      });
+    });
+  }
+
+  function closeOverlay() {
+    var el = document.getElementById('hp-ready-overlay');
+    if (el) el.remove();
+  }
+
+  // ── FAB injection ──────────────────────────────────────────────────────────
+  function injectReadyFAB() {
+    if (document.getElementById('hp-ready-fab')) return;
+    injectStyles();
+
+    var fab = document.createElement('button');
+    fab.id = 'hp-ready-fab';
+    fab.title = 'Am I Ready to File?';
+    fab.innerHTML = [
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">',
+      '<polyline points="9,11 12,14 22,4"/>',
+      '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+      '</svg>',
+      'Am I Ready?'
+    ].join('');
+    fab.addEventListener('click', openOverlay);
+    document.body.appendChild(fab);
+  }
+
+  function removeReadyFAB() {
+    var el = document.getElementById('hp-ready-fab');
+    if (el) el.remove();
+    closeOverlay();
+  }
+
+  // ── Route watcher ──────────────────────────────────────────────────────────
+  var __readyLastHash = '';
+
+  function onReadyHashChange() {
+    var hash = window.location.hash;
+    if (hash === __readyLastHash) return;
+    __readyLastHash = hash;
+
+    // Show FAB on any case page
+    if (/#\/case\/\d+/.test(hash)) {
+      setTimeout(injectReadyFAB, 1200);
+    } else {
+      removeReadyFAB();
+    }
+  }
+
+  window.addEventListener('hashchange', onReadyHashChange);
+  setTimeout(onReadyHashChange, 1800);
+
+  window.__hp_readyChecklist = { open: openOverlay, close: closeOverlay };
+
+})();
