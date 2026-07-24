@@ -1166,8 +1166,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       saveBtn.textContent = 'Saving…';
       if (savingMsg) savingMsg.style.display = 'block';
 
-      var _RAILWAY = 'https://api-production-2334.up.railway.app';
-      fetch(_RAILWAY + '/api/cases/' + caseId, {
+      fetch(_RW + '/api/cases/' + caseId, {
         method: 'PATCH',
         headers: __authHdr(),
         body: JSON.stringify({ caseType: newType })
@@ -3217,7 +3216,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 (function() {
   'use strict';
 
-  var RAILWAY_RP  = (typeof RAILWAY_EP !== 'undefined' ? RAILWAY_EP : 'https://api-production-2334.up.railway.app');
+  var RAILWAY_RP  = _RW;
   var TEAL_RP     = '#1E2D4E';
   var AMBER_RP    = '#f59e0b';
   var GREEN_RP    = '#16a34a';
@@ -4001,7 +4000,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 (function() {
   'use strict';
 
-  var RW = 'https://api-production-2334.up.railway.app';
+  var RW = _RW; // consolidated
 
   // ── Package definitions ────────────────────────────────────────────────────
   var PACKAGES = [
@@ -6077,7 +6076,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 (function() {
   'use strict';
 
-  var API = window.__HP_API || 'https://api-production-2334.up.railway.app';
+  var API = window.__HP_API || _RW;
   var GOLD   = '#C9903A';
   var NAVY   = '#1E2D4E';
   var BG     = '#0f1117';

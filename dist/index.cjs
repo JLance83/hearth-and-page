@@ -303,7 +303,7 @@ app.post('/api/auth/login-debug', async (req, res) => {
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
 app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.1-sec', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
-app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.1', db: 'supabase' }));
+app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.1-sec', db: 'supabase' }));
 
 // ── Auth ──
 
@@ -355,10 +355,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/signup', async (req, res) => {
-  req.url = '/api/auth/register';
-  app.handle(req, res);
-});
 
 app.post('/api/auth/login', async (req, res) => {
   try {
