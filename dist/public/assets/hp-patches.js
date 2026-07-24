@@ -9414,3 +9414,50 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   window.__hp_readyChecklist = { open: openOverlay, close: closeOverlay };
 
 })();
+
+// ─── Shield fix: ensure hp-patches overlay always wins over React's stub ────
+// React's SafetyOverlayHP sets window.__openSafetyOverlay_real = setOpen(true)
+// after mount, overwriting our richer overlay. We intercept with a property
+// descriptor so every write to __openSafetyOverlay_real is captured and
+// replaced with our version.
+(function() {
+  'use strict';
+
+  // Wait until the safety IIFE has already set window.__openSafetyOverlay_real
+  // (that happens during patches load), then lock it down.
+  function lockShield() {
+    var realFn = window.__openSafetyOverlay_real;
+    if (typeof realFn !== 'function') return; // patches not loaded yet
+
+    // Redefine the property with a setter that ignores React's overwrite
+    try {
+      Object.defineProperty(window, '__openSafetyOverlay_real', {
+        get: function() { return realFn; },
+        set: function(v) {
+          // React tries to set it to setOpen(true) — ignore it silently.
+          // If for some reason a future patch intentionally updates it,
+          // it can call window.__hp_setShieldReal(fn) instead.
+          void v;
+        },
+        configurable: true
+      });
+    } catch(e) {
+      // If defineProperty fails (shouldn't happen in modern browsers), fall back
+      // to a polling re-assertion every 500ms.
+      setInterval(function() {
+        if (window.__openSafetyOverlay_real !== realFn) {
+          window.__openSafetyOverlay_real = realFn;
+        }
+      }, 500);
+    }
+
+    // Also expose an escape hatch for intentional future updates
+    window.__hp_setShieldReal = function(fn) { realFn = fn; };
+  }
+
+  // Run after a delay to let the safety IIFE finish setting up
+  setTimeout(lockShield, 800);
+  // Also run on hash change in case the shield IIFE re-runs
+  window.addEventListener('hashchange', function() { setTimeout(lockShield, 1200); });
+
+})();
