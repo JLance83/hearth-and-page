@@ -1189,9 +1189,9 @@ app.get('/api/cases/:id/deadlines', requireAuth, async (req, res) => {
   const caseId = parseInt(req.params.id, 10);
   if (!caseId) return res.status(400).json({ error: 'Invalid case ID' });
   // Verify case belongs to user
-  const c = await dbGet('cases', { id: \`eq.\${caseId}\`, user_id: \`eq.\${req.user.id}\` });
+  const c = await dbGet('cases', { id: `eq.\${caseId}`, user_id: `eq.\${req.user.id}` });
   if (!c) return res.status(404).json({ error: 'Case not found' });
-  const rows = await dbAll('deadlines', { case_id: \`eq.\${caseId}\` }, { order: 'due_date.asc' });
+  const rows = await dbAll('deadlines', { case_id: `eq.\${caseId}` }, { order: 'due_date.asc' });
   res.json(rows || []);
 });
 
@@ -1202,7 +1202,7 @@ app.post('/api/cases/:id/deadlines', requireAuth, async (req, res) => {
   const { label, due_date, stage } = req.body;
   if (!label || !due_date) return res.status(400).json({ error: 'label and due_date are required' });
   // Verify case belongs to user
-  const c = await dbGet('cases', { id: \`eq.\${caseId}\`, user_id: \`eq.\${req.user.id}\` });
+  const c = await dbGet('cases', { id: `eq.\${caseId}`, user_id: `eq.\${req.user.id}` });
   if (!c) return res.status(404).json({ error: 'Case not found' });
   const dl = await dbInsert('deadlines', {
     user_id: req.user.id,
@@ -1222,9 +1222,9 @@ app.delete('/api/cases/:id/deadlines/:dlId', requireAuth, async (req, res) => {
   const caseId = parseInt(req.params.id, 10);
   const dlId   = parseInt(req.params.dlId, 10);
   if (!caseId || !dlId) return res.status(400).json({ error: 'Invalid IDs' });
-  const dl = await dbGet('deadlines', { id: \`eq.\${dlId}\`, case_id: \`eq.\${caseId}\`, user_id: \`eq.\${req.user.id}\` });
+  const dl = await dbGet('deadlines', { id: `eq.\${dlId}`, case_id: `eq.\${caseId}`, user_id: `eq.\${req.user.id}` });
   if (!dl) return res.status(404).json({ error: 'Deadline not found' });
-  await dbDelete('deadlines', { id: \`eq.\${dlId}\` });
+  await dbDelete('deadlines', { id: `eq.\${dlId}` });
   res.json({ ok: true });
 });
 
