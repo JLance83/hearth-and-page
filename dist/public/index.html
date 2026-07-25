@@ -7,32 +7,28 @@
     <title>Hearth &amp; Page</title>
     <link rel="stylesheet" crossorigin href="./assets/index-BC6OZlWN.css">
     <script type="module" crossorigin src="./assets/index-CNjoTsGP.js?v=7f305e83"></script>
-    <script src="./assets/hp-patches.js?v=5caf3c2f" defer></script>
+    <script src="./assets/hp-patches.js?v=601bcc0f" defer></script>
     <script src="./assets/FormEngine.js?v=73926f80" defer></script>
     <style id="hp-nav-mobile-hide">
     @media (max-width: 639px) {
-      /* Hide overflow nav icons */
-      [data-testid="button-nav-courthouse"],
-      [data-testid="link-courthouse"],
-      [data-testid="button-nav-plans"],
-      [data-testid="link-plans"] {
+      /* Hide logo text — keep SVG icon only, saves ~65px */
+      [data-testid="link-home"] span {
         display: none !important;
       }
-      /* Cap logo width so icon row always fits */
-      [data-testid="link-home"] {
-        max-width: 110px !important;
-        overflow: hidden !important;
-        flex-shrink: 1 !important;
+      /* Remove extra gap in logo container without text */
+      [data-testid="link-home"] > div {
+        gap: 0 !important;
       }
-      /* Prevent header from letting icons overflow off-screen */
+      /* Tighten icon button spacing so all 7 fit */
+      header button,
+      header a[data-testid^="link-"] {
+        min-width: 36px !important;
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+      }
+      /* Ensure header never clips — use visible so icons don't get cut */
       header {
-        overflow: hidden !important;
-      }
-      /* Icon row: never shrink icons, let logo absorb any squeeze */
-      header > div:last-child,
-      header nav {
-        flex-shrink: 0 !important;
-        flex-wrap: nowrap !important;
+        overflow: visible !important;
       }
     }
   </style>

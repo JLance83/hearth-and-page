@@ -9480,10 +9480,9 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   // Hide courthouse and plans on mobile using JS direct style (more reliable
   // than CSS injection in Safari which can ignore dynamically injected styles)
-  var HIDE_IDS = [
-    'button-nav-courthouse', 'link-courthouse',
-    'button-nav-plans',      'link-plans',
-  ];
+  // Logo text is now hidden via CSS in index.html, freeing room for all 7 icons
+  // No icons need to be hidden on mobile anymore
+  var HIDE_IDS = [];
 
   function hideNavOverflow() {
     if (window.innerWidth >= 640) return; // only on mobile
