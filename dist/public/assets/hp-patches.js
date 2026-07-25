@@ -6,6 +6,9 @@
 //   3. Email PDF to user
 //   4. MutationObserver to inject "Email me this PDF" button into the download dialog
 
+// ─── Global constants (must be at top-level before any IIFE) ─────────────────
+var _RW = 'https://api-production-2334.up.railway.app';
+
 // ─── Auth token ───────────────────────────────────────────────────────────────
 function __getFlap35Token() {
   try {
@@ -202,9 +205,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
 // ─── Inject "Email me this PDF" button via MutationObserver ──────────────────
 // This works even when the bundle doesn’t have the button (e.g. Railway build)
 (function() {
-// ── Single source of truth for Railway API base URL ──
-var _RW = 'https://api-production-2334.up.railway.app';
-
+  // _RW is defined at top of file (global)
   var injected = false;
 
   function tryInjectEmailButton() {
