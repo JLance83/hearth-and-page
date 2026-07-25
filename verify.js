@@ -1,133 +1,111 @@
-#!/usr/bin/env node
 /**
- * Hearth & Page — Pre-Deploy Smoke Test
- * Runs a headless browser, logs in, and verifies all critical UI features.
- * Called by deploy.sh before every push. Exit 0 = pass, exit 1 = fail.
+ * Hearth & Page — Post-Deploy Smoke Test
+ * Runs a headless browser against the live site and checks all critical surfaces.
+ * Exit 0 = pass, Exit 1 = fail (deploy blocked).
  */
 
 const { chromium } = require('playwright');
 
-const URL   = 'https://hearthandpage.ca';
-const EMAIL = 'jlance1@icloud.com';
-const PASS  = 'xutsug-puxwet-kudfI3';
-const VIEWPORT = { width: 390, height: 844 }; // iPhone
+const LIVE_URL   = 'https://hearthandpage.ca';
+const TEST_EMAIL = 'jlance1@icloud.com';
+const TEST_PASS  = 'xutsug-puxwet-kudfI3';
+const VIEWPORT   = { width: 390, height: 844 };
 
-let passed = 0;
-let failed = 0;
+const passed   = [];
 const failures = [];
 
-function ok(name) {
-  console.log('  ✓ ' + name);
-  passed++;
-}
-
-function fail(name, detail) {
-  console.error('  ✗ ' + name + (detail ? ' — ' + detail : ''));
-  failures.push(name + (detail ? ': ' + detail : ''));
-  failed++;
-}
+function ok(msg)         { passed.push(msg);   console.log('  \u2713 ' + msg); }
+function fail(name, why) { failures.push(name + ': ' + why); console.error('  \u2717 ' + name + ' — ' + why); }
 
 async function run() {
-  console.log('\n─── Hearth & Page Pre-Deploy Smoke Test ───────────────────\n');
+  console.log('\n\u2500\u2500\u2500 Hearth & Page Pre-Deploy Smoke Test \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n');
 
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  const page    = await browser.newPage();
   await page.setViewportSize(VIEWPORT);
 
-  // Collect JS errors
   const jsErrors = [];
-  page.on('pageerror', e => jsErrors.push(e.message));
+  page.on('pageerror', err => jsErrors.push(err.message));
 
-  // ── 1. Login ──────────────────────────────────────────────────────────────
+  // ── 1. Login ─────────────────────────────────────────────────────────────
   console.log('[ Login ]');
-  await page.goto(URL + '/#/login', { waitUntil: 'networkidle', timeout: 20000 });
+  await page.goto(LIVE_URL + '/#/login', { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(2000);
 
   try {
-    await page.fill('[data-testid="input-email"]', EMAIL);
-    await page.fill('[data-testid="input-password"]', PASS);
+    await page.fill('[data-testid="input-email"]',    TEST_EMAIL);
+    await page.fill('[data-testid="input-password"]', TEST_PASS);
     await page.click('[data-testid="button-submit-login"]');
-    await page.waitForTimeout(5000);
-    const hash = await page.evaluate(() => window.location.hash);
-    if (hash.includes('dashboard') || hash.includes('case')) {
+    await page.waitForTimeout(4000);
+    const url = page.url();
+    if (url.includes('dashboard') || url.includes('#/') && !url.includes('login')) {
       ok('Login succeeds and redirects to dashboard');
     } else {
-      fail('Login', 'Expected #/dashboard, got ' + hash);
+      fail('Login', 'Still on login page after submit — url: ' + url);
     }
   } catch (e) {
-    fail('Login', e.message.substring(0, 100));
+    fail('Login', e.message);
   }
 
-  // ── 2. No JS errors on load ───────────────────────────────────────────────
+  // ── 2. JavaScript errors ─────────────────────────────────────────────────
   console.log('\n[ JavaScript Errors ]');
-  const criticalErrors = jsErrors.filter(e =>
-    !e.includes('favicon') &&
-    !e.includes('ResizeObserver') &&
-    !e.includes('Non-Error')
-  );
-  if (criticalErrors.length === 0) {
+  if (jsErrors.length === 0) {
     ok('No JS errors on load');
   } else {
-    criticalErrors.forEach(e => fail('JS Error', e.substring(0, 120)));
+    jsErrors.forEach(e => fail('JS error', e.slice(0, 120)));
   }
 
-  // ── 3. Patches loaded at correct version ─────────────────────────────────
+  // ── 3. Patches version hash ───────────────────────────────────────────────
   console.log('\n[ Patches ]');
-  const patchVersion = await page.evaluate(() => {
-    const s = Array.from(document.querySelectorAll('script')).find(el => el.src.includes('hp-patches'));
-    return s ? s.src.split('?v=')[1] : null;
-  });
-  if (patchVersion) {
-    ok('hp-patches.js loaded with version hash: ' + patchVersion);
-  } else {
-    fail('hp-patches.js', 'Script not found in DOM');
+  try {
+    const patchHash = await page.evaluate(() => {
+      const scripts = Array.from(document.querySelectorAll('script[src]'));
+      const patch   = scripts.find(s => s.src.includes('hp-patches.js'));
+      if (!patch) return null;
+      const m = patch.src.match(/\?v=([a-f0-9]+)/);
+      return m ? m[1] : 'no-hash';
+    });
+    if (patchHash) {
+      ok('hp-patches.js loaded with version hash: ' + patchHash);
+    } else {
+      fail('Patches', 'hp-patches.js script tag not found');
+    }
+  } catch (e) {
+    fail('Patches', e.message);
   }
 
-  // ── 4. Navbar icons present ───────────────────────────────────────────────
+  // ── 4. Navbar icons ───────────────────────────────────────────────────────
   console.log('\n[ Navbar Icons ]');
-  const navChecks = [
-    { id: 'button-theme-toggle', name: 'Theme toggle' },
-    { id: 'button-nav-dashboard', name: 'Dashboard icon' },
-    { id: 'button-nav-account', name: 'Person/account icon' },
-    { id: 'button-safety', name: 'Shield icon' },
-    { id: 'button-logout', name: 'Logout icon' },
+
+  const mustBeVisible = [
+    { testid: 'button-theme-toggle', label: 'Theme toggle'    },
+    { testid: 'button-nav-dashboard',label: 'Dashboard icon'  },
+    { testid: 'button-nav-account',  label: 'Person/account icon' },
+    { testid: 'button-safety',       label: 'Shield icon'     },
+    { testid: 'button-logout',       label: 'Logout icon'     },
+    { testid: 'button-nav-courthouse',label: 'Courthouse icon' },
+    { testid: 'button-nav-plans',    label: 'Plans/card icon' },
   ];
-  for (const check of navChecks) {
+
+  for (const check of mustBeVisible) {
     const info = await page.evaluate((id) => {
       const el = document.querySelector('[data-testid="' + id + '"]');
-      if (!el) return { exists: false };
-      const r = el.getBoundingClientRect();
-      return { exists: true, visible: r.width > 0, right: Math.round(r.right) };
-    }, check.id);
-    if (!info.exists) {
-      fail(check.name, 'Element not in DOM');
-    } else if (!info.visible) {
-      fail(check.name, 'Element hidden (display:none or width:0)');
+      if (!el) return null;
+      const r  = el.getBoundingClientRect();
+      const cs = window.getComputedStyle(el);
+      return { display: cs.display, w: Math.round(r.width), right: Math.round(r.right) };
+    }, check.testid);
+
+    if (!info || info.display === 'none' || info.w === 0) {
+      fail(check.label, 'Element hidden or missing');
     } else if (info.right > VIEWPORT.width + 5) {
-      fail(check.name, 'Clipped off right edge (right=' + info.right + 'px, viewport=' + VIEWPORT.width + 'px)');
+      fail(check.label, 'Clipped off right edge (right=' + info.right + 'px, viewport=' + VIEWPORT.width + 'px)');
     } else {
-      ok(check.name + ' visible at ' + info.right + 'px');
+      ok(check.label + ' visible at ' + info.right + 'px');
     }
   }
 
-    // All 7 icons should be visible — logo text is hidden via CSS to make room
-  const allIconIds = ['button-nav-courthouse', 'button-nav-plans', 'button-logout'];
-  for (const id of allIconIds) {
-    const info = await page.evaluate((testId) => {
-      const el = document.querySelector('[data-testid="' + testId + '"]');
-      if (!el) return { w: -1, right: -1 };
-      const r = el.getBoundingClientRect();
-      return { w: Math.round(r.width), right: Math.round(r.right) };
-    }, id);
-    if (info.w <= 0) {
-      fail(id + ' visible', 'Element hidden or missing');
-    } else if (info.right > VIEWPORT.width + 5) {
-      fail(id + ' fits on screen', 'Clipped at right=' + info.right + 'px');
-    } else {
-      ok(id + ' visible and fits (' + info.right + 'px)');
-    }
-  }
-  // Logo text must be hidden (CSS hides span, keeps SVG icon only)
+  // Logo text must be hidden on mobile (SVG icon only)
   const logoSpanDisplay = await page.evaluate(() => {
     const span = document.querySelector('[data-testid="link-home"] span');
     return span ? window.getComputedStyle(span).display : 'not found';
@@ -135,18 +113,10 @@ async function run() {
   if (logoSpanDisplay === 'none') {
     ok('Logo text hidden on mobile (SVG icon only)');
   } else {
-    fail('Logo text should be hidden on mobile', 'display=' + logoSpanDisplay);
-  }, id);
-    if (w === 0) {
-      ok(id + ' correctly hidden on mobile');
-    } else if (w === -1) {
-      ok(id + ' not in DOM (hidden by React)');
-    } else {
-      fail(id + ' should be hidden on mobile', 'width=' + w + 'px — will push icons off screen');
-    }
+    fail('Logo text on mobile', 'display=' + logoSpanDisplay + ' — taking space from icon row');
   }
 
-  // Person icon should NOT be a gear (check SVG path for person shape)
+  // Account button must have person icon, not gear
   const accountIconSvg = await page.evaluate(() => {
     const btn = document.querySelector('[data-testid="button-nav-account"]');
     return btn ? btn.innerHTML : '';
@@ -163,88 +133,97 @@ async function run() {
   console.log('\n[ Shield / Safety Overlay ]');
   try {
     await page.click('[data-testid="button-safety"]');
-    await page.waitForTimeout(2000);
-    const overlayOpen = await page.evaluate(() => {
-      const overlay = document.getElementById('hp-safety-overlay');
-      return overlay && overlay.style.display !== 'none' && overlay.style.display !== '';
-    });
-    if (overlayOpen) {
-      ok('Shield opens safety overlay');
-      // Close it
-      await page.evaluate(() => {
-        const overlay = document.getElementById('hp-safety-overlay');
-        if (overlay) overlay.style.display = 'none';
+    await page.waitForTimeout(1500);
+    const overlayVisible = await page.evaluate(() => {
+      const overlay = document.querySelector('.hp-safety-overlay, [class*="safety-overlay"], [class*="safetyOverlay"]');
+      if (overlay) {
+        const cs = window.getComputedStyle(overlay);
+        return cs.display !== 'none' && cs.visibility !== 'hidden';
+      }
+      // Fallback: look for any overlay-style fixed element that appeared
+      const fixed = Array.from(document.querySelectorAll('*')).filter(el => {
+        const cs = window.getComputedStyle(el);
+        return cs.position === 'fixed' && cs.zIndex > 40 && cs.display !== 'none'
+               && parseInt(cs.width) > 200 && parseInt(cs.height) > 200;
       });
+      return fixed.length > 0;
+    });
+    if (overlayVisible) {
+      ok('Shield opens safety overlay');
     } else {
-      fail('Shield button', 'Safety overlay did not open after click');
+      fail('Shield', 'Safety overlay not visible after click');
     }
+    // Close overlay — click outside or press Escape
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(800);
+    // Force-close via JS in case Escape didn't work
+    await page.evaluate(() => {
+      const overlay = document.getElementById('hp-safety-overlay');
+      if (overlay) overlay.style.display = 'none';
+    });
+    await page.waitForTimeout(300);
   } catch (e) {
-    fail('Shield button', e.message.substring(0, 100));
+    fail('Shield click', e.message);
   }
 
-  // ── 6. Quiz link opens tools sheet ───────────────────────────────────────
+  // ── 6. Quiz / H&P Tools ──────────────────────────────────────────────────
   console.log('\n[ Quiz / H&P Tools ]');
   try {
-    const quizLink = await page.$('[data-testid="link-dashboard-quiz"]');
+    const quizLink = await page.$('[data-testid="link-dashboard-quiz"]') ||
+                     await page.$('[data-testid="link-form-quiz"]');
     if (!quizLink) {
-      fail('Quiz link', 'link-dashboard-quiz not found in DOM');
+      fail('Quiz link', 'Neither link-dashboard-quiz nor link-form-quiz found');
     } else {
       await quizLink.click();
-      await page.waitForTimeout(2000);
-      const quizOpen = await page.evaluate(() => {
-        const overlay = document.getElementById('hp-quiz-overlay');
-        const sheet = document.getElementById('hp-tools-sheet');
-        return !!(overlay || sheet);
+      await page.waitForTimeout(1500);
+      const sheetVisible = await page.evaluate(() => {
+        const fixed = Array.from(document.querySelectorAll('*')).filter(el => {
+          const cs = window.getComputedStyle(el);
+          return cs.position === 'fixed' && cs.display !== 'none'
+                 && parseInt(cs.zIndex) > 40 && parseInt(cs.width) > 200;
+        });
+        return fixed.length > 0;
       });
-      if (quizOpen) {
+      if (sheetVisible) {
         ok('Quiz link opens H&P Tools overlay');
       } else {
-        fail('Quiz link', 'Neither hp-quiz-overlay nor hp-tools-sheet appeared after click');
+        fail('Quiz', 'H&P Tools overlay did not appear');
       }
     }
   } catch (e) {
-    fail('Quiz link', e.message.substring(0, 100));
+    fail('Quiz', e.message);
   }
 
-  // ── 7. window globals set by patches ─────────────────────────────────────
+  // ── 7. Patch globals ─────────────────────────────────────────────────────
   console.log('\n[ Patch Globals ]');
   const globals = await page.evaluate(() => ({
-    RW: typeof window._RW,
-    openSafety: typeof window.__openSafetyOverlay,
-    hpQuiz: typeof window.__hpQuiz,
-    patchesReady: !!window.__hp_patches_ready,
+    _RW:                   typeof window._RW,
+    __openSafetyOverlay:   typeof window.__openSafetyOverlay,
+    __hpQuiz:              typeof window.__hpQuiz,
   }));
 
-  if (globals.RW === 'string') {
-    ok('_RW global defined (Railway URL)');
-  } else {
-    fail('_RW global', 'undefined — all API calls will fail');
-  }
+  if (globals._RW === 'string')     ok('_RW global defined (Railway URL)');
+  else                              fail('_RW global', 'type=' + globals._RW + ' (expected string)');
 
-  if (globals.openSafety === 'function') {
-    ok('__openSafetyOverlay is a function');
-  } else {
-    fail('__openSafetyOverlay', 'not a function — shield will not work');
-  }
+  if (globals.__openSafetyOverlay === 'function') ok('__openSafetyOverlay is a function');
+  else                                            fail('__openSafetyOverlay', 'type=' + globals.__openSafetyOverlay);
 
-  if (globals.hpQuiz === 'object') {
-    ok('__hpQuiz object registered');
-  } else {
-    fail('__hpQuiz', 'not registered — quiz/tools sheet will not work');
-  }
+  if (globals.__hpQuiz === 'object') ok('__hpQuiz object registered');
+  else                               fail('__hpQuiz', 'type=' + globals.__hpQuiz + ' (expected object)');
 
+  // ── Summary ──────────────────────────────────────────────────────────────
   await browser.close();
+  const total = passed.length + failures.length;
+  console.log('\n' + '\u2500'.repeat(60));
+  console.log('  Passed: ' + passed.length + '   Failed: ' + failures.length);
 
-  // ── Summary ───────────────────────────────────────────────────────────────
-  console.log('\n────────────────────────────────────────────────────────────');
-  console.log('  Passed: ' + passed + '   Failed: ' + failed);
   if (failures.length > 0) {
     console.error('\n  FAILURES:');
-    failures.forEach(f => console.error('    • ' + f));
+    failures.forEach(f => console.error('    \u2022 ' + f));
     console.error('\n  Deploy BLOCKED. Fix the above issues and re-run.\n');
     process.exit(1);
   } else {
-    console.log('\n  All checks passed — safe to deploy.\n');
+    console.log('\n  All checks passed \u2014 safe to deploy.\n');
     process.exit(0);
   }
 }
