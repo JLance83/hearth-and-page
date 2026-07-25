@@ -9657,3 +9657,58 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   _quizObserver.observe(document.body, { childList: true, subtree: true });
 
 })();
+
+// ─── Fix: add scroll spacer below sticky upload button so footer is fully visible ──
+(function() {
+  'use strict';
+
+  function addUploadSpacer() {
+    // Find buttons that look like the sticky upload button (purple, bottom of page)
+    var btns = document.querySelectorAll('button');
+    var uploadBtn = null;
+    for (var i = 0; i < btns.length; i++) {
+      var txt = btns[i].textContent || '';
+      if (txt.toLowerCase().indexOf('upload document') !== -1 || txt.toLowerCase().indexOf('upload document or photo') !== -1) {
+        uploadBtn = btns[i];
+        break;
+      }
+    }
+    if (!uploadBtn) return;
+
+    // Find its sticky/fixed container
+    var container = uploadBtn;
+    for (var j = 0; j < 5; j++) {
+      container = container.parentElement;
+      if (!container) break;
+      var cs = window.getComputedStyle(container);
+      if (cs.position === 'sticky' || cs.position === 'fixed') break;
+    }
+    if (!container) return;
+
+    // Only add spacer once
+    var next = container.nextElementSibling;
+    if (next && next.dataset && next.dataset.hpSpacer) return;
+
+    var spacer = document.createElement('div');
+    spacer.dataset.hpSpacer = '1';
+    spacer.style.height = '80px';
+    spacer.style.flexShrink = '0';
+    container.parentNode.insertBefore(spacer, container.nextSibling);
+  }
+
+  // Run on hash change (when evidence tab becomes active)
+  function onNav() {
+    setTimeout(addUploadSpacer, 500);
+    setTimeout(addUploadSpacer, 1500);
+  }
+  window.addEventListener('hashchange', onNav);
+  setTimeout(addUploadSpacer, 1000);
+  setTimeout(addUploadSpacer, 2500);
+
+  // MutationObserver catches the upload button being rendered
+  var _spacerObs = new MutationObserver(function() {
+    addUploadSpacer();
+  });
+  _spacerObs.observe(document.body, { childList: true, subtree: true });
+
+})();
