@@ -9508,3 +9508,41 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   setTimeout(onToolsHashChange, 1800);
 
 })();
+
+// ─── Navbar overflow fix ────────────────────────────────────────────────────
+// On mobile (< 640px) the navbar has too many icons and clips the account +
+// safety buttons off the right edge. Fix: hide low-priority nav items on
+// mobile so the account icon and shield are always reachable.
+(function() {
+  'use strict';
+
+  var STYLE = [
+    // Hide Courthouse and Plans nav buttons on mobile — they're accessible
+    // via the main nav grid icon anyway
+    '@media (max-width: 639px) {',
+    '  [data-testid="button-nav-courthouse"],',
+    '  [data-testid="link-courthouse"],',
+    '  [data-testid="button-nav-plans"],',
+    '  [data-testid="link-plans"] {',
+    '    display: none !important;',
+    '  }',
+    // Ensure navbar flex row never overflows — clip gracefully
+    '  nav, header { overflow: visible !important; }',
+    '  header > div, nav > div { flex-wrap: nowrap; overflow: visible; }',
+    '}',
+  ].join('\n');
+
+  function injectNavbarFix() {
+    if (document.getElementById('hp-navbar-fix')) return;
+    var s = document.createElement('style');
+    s.id = 'hp-navbar-fix';
+    s.textContent = STYLE;
+    document.head.appendChild(s);
+  }
+
+  // Inject immediately and after React mounts
+  injectNavbarFix();
+  setTimeout(injectNavbarFix, 500);
+  window.addEventListener('hashchange', injectNavbarFix);
+
+})();
