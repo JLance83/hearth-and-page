@@ -9546,3 +9546,41 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   window.addEventListener('hashchange', injectNavbarFix);
 
 })();
+
+// ─── Fix account nav button icon: replace gear with person icon ──────────────
+// React renders button-nav-account with a Settings/gear icon (sA = Settings),
+// making it visually identical to the adjacent gear/settings button.
+// This patch swaps it to a proper UserCircle/person SVG.
+(function() {
+  'use strict';
+
+  var PERSON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
+
+  function fixAccountIcon() {
+    var btn = document.querySelector('[data-testid="button-nav-account"]');
+    if (!btn) return;
+    if (btn.dataset.iconFixed) return; // already patched
+    btn.innerHTML = PERSON_SVG;
+    btn.dataset.iconFixed = '1';
+    // Make sure the parent link navigates to account page
+    var link = btn.closest('a') || btn.closest('[data-testid="link-account-settings"]');
+    if (link && !link.dataset.iconFixed) {
+      link.dataset.iconFixed = '1';
+    }
+  }
+
+  // Poll until React renders the button
+  var _tries = 0;
+  var _iv = setInterval(function() {
+    fixAccountIcon();
+    _tries++;
+    if (_tries > 40) clearInterval(_iv);
+  }, 150);
+
+  // Re-run on navigation
+  window.addEventListener('hashchange', function() {
+    setTimeout(fixAccountIcon, 400);
+    setTimeout(fixAccountIcon, 900);
+  });
+
+})();
