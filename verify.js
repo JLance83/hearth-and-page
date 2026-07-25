@@ -110,13 +110,33 @@ async function run() {
     }
   }
 
-  // Courthouse and plans should be HIDDEN on mobile
-  const shouldBeHidden = ['button-nav-courthouse', 'button-nav-plans'];
-  for (const id of shouldBeHidden) {
-    const w = await page.evaluate((id) => {
-      const el = document.querySelector('[data-testid="' + id + '"]');
-      return el ? el.getBoundingClientRect().width : -1;
+    // All 7 icons should be visible — logo text is hidden via CSS to make room
+  const allIconIds = ['button-nav-courthouse', 'button-nav-plans', 'button-logout'];
+  for (const id of allIconIds) {
+    const info = await page.evaluate((testId) => {
+      const el = document.querySelector('[data-testid="' + testId + '"]');
+      if (!el) return { w: -1, right: -1 };
+      const r = el.getBoundingClientRect();
+      return { w: Math.round(r.width), right: Math.round(r.right) };
     }, id);
+    if (info.w <= 0) {
+      fail(id + ' visible', 'Element hidden or missing');
+    } else if (info.right > VIEWPORT.width + 5) {
+      fail(id + ' fits on screen', 'Clipped at right=' + info.right + 'px');
+    } else {
+      ok(id + ' visible and fits (' + info.right + 'px)');
+    }
+  }
+  // Logo text must be hidden (CSS hides span, keeps SVG icon only)
+  const logoSpanDisplay = await page.evaluate(() => {
+    const span = document.querySelector('[data-testid="link-home"] span');
+    return span ? window.getComputedStyle(span).display : 'not found';
+  });
+  if (logoSpanDisplay === 'none') {
+    ok('Logo text hidden on mobile (SVG icon only)');
+  } else {
+    fail('Logo text should be hidden on mobile', 'display=' + logoSpanDisplay);
+  }, id);
     if (w === 0) {
       ok(id + ' correctly hidden on mobile');
     } else if (w === -1) {
