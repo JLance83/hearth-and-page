@@ -11,13 +11,21 @@
     <script src="./assets/FormEngine.js?v=73926f80" defer></script>
     <style id="hp-nav-mobile-hide">
     @media (max-width: 639px) {
-      /* Hide logo text — keep SVG icon only, saves ~65px */
+      /* Replace "Hearth & Page" with "H&P" on mobile — saves ~55px, keeps brand visible */
       [data-testid="link-home"] span {
-        display: none !important;
+        font-size: 0 !important;      /* hide original text without display:none */
+        letter-spacing: 0 !important;
       }
-      /* Remove extra gap in logo container without text */
+      [data-testid="link-home"] span::after {
+        content: "H&P" !important;
+        font-size: 0.875rem !important;   /* 14px — compact but readable */
+        font-family: Georgia, "Times New Roman", serif !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.03em !important;
+      }
+      /* Restore a small gap between flame icon and H&P text */
       [data-testid="link-home"] > div {
-        gap: 0 !important;
+        gap: 0.35rem !important;
       }
       /* Tighten icon button spacing so all 7 fit */
       header button,
@@ -26,7 +34,7 @@
         padding-left: 4px !important;
         padding-right: 4px !important;
       }
-      /* Ensure header never clips — use visible so icons don't get cut */
+      /* Ensure header never clips */
       header {
         overflow: visible !important;
       }
