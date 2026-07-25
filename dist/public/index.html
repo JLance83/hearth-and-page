@@ -7,8 +7,18 @@
     <title>Hearth &amp; Page</title>
     <link rel="stylesheet" crossorigin href="./assets/index-BC6OZlWN.css">
     <script type="module" crossorigin src="./assets/index-CNjoTsGP.js?v=7f305e83"></script>
-    <script src="./assets/hp-patches.js?v=836d649a" defer></script>
+    <script src="./assets/hp-patches.js?v=5caf3c2f" defer></script>
     <script src="./assets/FormEngine.js?v=73926f80" defer></script>
+    <style id="hp-nav-mobile-hide">
+    @media (max-width: 639px) {
+      [data-testid="button-nav-courthouse"],
+      [data-testid="link-courthouse"],
+      [data-testid="button-nav-plans"],
+      [data-testid="link-plans"] {
+        display: none !important;
+      }
+    }
+  </style>
   </head>
   <body>
     <div id="root"></div>

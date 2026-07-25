@@ -9496,20 +9496,34 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     });
   }
 
-  // Run immediately, after React mounts, and on every navigation
+  // Run immediately and at multiple intervals — Safari private mode is
+  // aggressive about deferring scripts, so we cast a wide net
   hideNavOverflow();
-  setTimeout(hideNavOverflow, 300);
-  setTimeout(hideNavOverflow, 800);
-  setTimeout(hideNavOverflow, 2000);
+  [100, 300, 600, 1000, 1500, 2500, 4000].forEach(function(ms) {
+    setTimeout(hideNavOverflow, ms);
+  });
+
+  // Re-run on every navigation
   window.addEventListener('hashchange', function() {
-    setTimeout(hideNavOverflow, 300);
+    [100, 400, 900].forEach(function(ms) { setTimeout(hideNavOverflow, ms); });
   });
-  // MutationObserver catches React re-renders
-  var _navObs = new MutationObserver(hideNavOverflow);
-  document.addEventListener('DOMContentLoaded', function() {
-    var header = document.querySelector('header');
-    if (header) _navObs.observe(header, { childList: true, subtree: true });
+
+  // MutationObserver on document.body — starts immediately, no DOMContentLoaded
+  // needed since this script is deferred and body already exists
+  var _navObs = new MutationObserver(function(mutations) {
+    // Only act if something changed in the header area
+    for (var i = 0; i < mutations.length; i++) {
+      var target = mutations[i].target;
+      if (target.tagName === 'HEADER' || (target.closest && target.closest('header'))) {
+        hideNavOverflow();
+        return;
+      }
+    }
   });
+  // Observe body immediately — will catch header when React mounts it
+  if (document.body) {
+    _navObs.observe(document.body, { childList: true, subtree: true });
+  }
 
 })();
 
