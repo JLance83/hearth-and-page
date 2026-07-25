@@ -105,15 +105,15 @@ async function run() {
     }
   }
 
-  // Logo text must be hidden on mobile (SVG icon only)
-  const logoSpanDisplay = await page.evaluate(() => {
-    const span = document.querySelector('[data-testid="link-home"] span');
-    return span ? window.getComputedStyle(span).display : 'not found';
+  // Logo must stay compact on mobile (font-size:0 trick — check width not display)
+  const logoWidth = await page.evaluate(() => {
+    const logo = document.querySelector('[data-testid="link-home"]');
+    return logo ? Math.round(logo.getBoundingClientRect().width) : -1;
   });
-  if (logoSpanDisplay === 'none') {
-    ok('Logo text hidden on mobile (SVG icon only)');
+  if (logoWidth > 0 && logoWidth <= 80) {
+    ok('Logo compact on mobile (' + logoWidth + 'px)');
   } else {
-    fail('Logo text on mobile', 'display=' + logoSpanDisplay + ' — taking space from icon row');
+    fail('Logo width on mobile', logoWidth + 'px — expected <= 80px');
   }
 
   // Account button must have person icon, not gear
