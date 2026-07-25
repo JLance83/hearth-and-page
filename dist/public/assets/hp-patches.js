@@ -9391,46 +9391,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
 })();
 
-// ─── Shield fix: overwrite __openSafetyOverlay_real AFTER React mounts ──────
-// React's SafetyOverlayHP mounts ~200-400ms after page load and sets
-// window.__openSafetyOverlay_real = () => setOpen(true), overwriting our
-// richer overlay. Our safety IIFE sets it at parse time (immediate), but React
-// wins because it runs later.
-//
-// Fix: poll until React has set it (i.e., until it becomes a function), then
-// immediately overwrite it with our version. Repeat on every hash change.
-(function() {
-  'use strict';
 
-  // The overlay function our safety IIFE registered — grab it at parse time.
-  // It's always been set before this block runs (same file, earlier in the IIFE).
-  var _ourOverlay = window.__openSafetyOverlay_real;
-
-  function reassertShield() {
-    if (typeof _ourOverlay !== 'function') return;
-    // Forcibly reassert our version regardless of what React set
-    window.__openSafetyOverlay_real = _ourOverlay;
-  }
-
-  // React typically mounts in 200-600ms. Poll every 100ms for 3s to catch it,
-  // then reassert immediately after each detection.
-  var _checks = 0;
-  var _poll = setInterval(function() {
-    _checks++;
-    reassertShield();
-    if (_checks >= 30) clearInterval(_poll); // stop after 3s
-  }, 100);
-
-  // Also reassert 2s after page load (belt + suspenders)
-  setTimeout(reassertShield, 2000);
-
-  // Re-assert on every hash navigation (React re-mounts overlay on route change)
-  window.addEventListener('hashchange', function() {
-    setTimeout(reassertShield, 300);
-    setTimeout(reassertShield, 800);
-  });
-
-})();
 
 // ─── "H&P Tools" FAB on case pages ─────────────────────────────────────────
 // Injects a "Tools" FAB button above the "Am I Ready?" button on any case page.
@@ -9582,5 +9543,99 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     setTimeout(fixAccountIcon, 400);
     setTimeout(fixAccountIcon, 900);
   });
+
+})();
+
+// ─── Shield + Quiz definitive fix ───────────────────────────────────────────
+// Problem 1: window.__openSafetyOverlay calls whenReady() which waits for
+// React's SafetyOverlayHP to mount and set __openSafetyOverlay_real. But
+// SafetyOverlayHP only mounts inside case routes — on dashboard it never
+// mounts, so __openSafetyOverlay_real stays undefined and the shield does
+// nothing. Fix: overwrite window.__openSafetyOverlay directly with our own
+// overlay function so it bypasses the React whenReady chain entirely.
+//
+// Problem 2: The quiz watcher was listening for [data-testid="link-form-quiz"]
+// but the dashboard renders [data-testid="link-dashboard-quiz"]. Fix: wire
+// both testids.
+(function() {
+  'use strict';
+
+  // ── Fix 1: Shield ──────────────────────────────────────────────────────────
+  // Wait until the safety IIFE has registered openSafetyOverlay, then
+  // overwrite the top-level window.__openSafetyOverlay stub so it calls our
+  // function directly — no React involvement needed.
+  function fixShield() {
+    // The safety IIFE sets both __openSafetyOverlay AND __openSafetyOverlay_real.
+    // If _real is defined, it means the safety IIFE has already run.
+    // If not, __openSafetyOverlay_real might be set by React's overlay on case routes.
+    // Solution: define our own direct reference that always works everywhere.
+    var _fn = window.__openSafetyOverlay_real;
+    if (typeof _fn !== 'function') return false;
+
+    // Overwrite the top-level stub entirely
+    window.__openSafetyOverlay = function() {
+      _fn();
+    };
+    // Also keep _real pointed at our function (in case React's whenReady fires)
+    window.__openSafetyOverlay_real = _fn;
+    return true;
+  }
+
+  // Poll until the safety IIFE has run
+  var _shieldPolls = 0;
+  var _shieldIv = setInterval(function() {
+    _shieldPolls++;
+    if (fixShield()) {
+      clearInterval(_shieldIv);
+      return;
+    }
+    if (_shieldPolls > 60) clearInterval(_shieldIv); // give up after 6s
+  }, 100);
+
+  // Re-assert on every navigation (React re-mounts on route change)
+  window.addEventListener('hashchange', function() {
+    setTimeout(fixShield, 300);
+    setTimeout(fixShield, 800);
+    setTimeout(fixShield, 1500);
+  });
+
+  // ── Fix 2: Quiz link — wire both testids ──────────────────────────────────
+  // Dashboard renders link-dashboard-quiz (not link-form-quiz as previously assumed)
+  function wireQuizLinks() {
+    var selectors = [
+      '[data-testid="link-dashboard-quiz"]',
+      '[data-testid="link-form-quiz"]',
+      '[data-testid="link-retake-quiz"]',
+    ];
+    selectors.forEach(function(sel) {
+      var el = document.querySelector(sel);
+      if (!el || el.dataset.hpQuizWired) return;
+      el.dataset.hpQuizWired = '1';
+      el.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Open the H&P Tools quiz overlay
+        if (window.__hpQuiz && typeof window.__hpQuiz.open === 'function') {
+          window.__hpQuiz.open('quiz');
+        } else {
+          // Fallback: navigate to form-quiz hash which triggers the route watcher
+          window.location.hash = '/form-quiz';
+        }
+      });
+    });
+  }
+
+  // Wire on load and every navigation
+  setTimeout(wireQuizLinks, 1000);
+  setTimeout(wireQuizLinks, 2500);
+  window.addEventListener('hashchange', function() {
+    setTimeout(wireQuizLinks, 600);
+  });
+
+  // MutationObserver to catch quiz links rendered after initial load
+  var _quizObserver = new MutationObserver(function() {
+    wireQuizLinks();
+  });
+  _quizObserver.observe(document.body, { childList: true, subtree: true });
 
 })();
