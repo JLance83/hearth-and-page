@@ -9478,34 +9478,38 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 (function() {
   'use strict';
 
-  var STYLE = [
-    // Hide Courthouse and Plans nav buttons on mobile — they're accessible
-    // via the main nav grid icon anyway
-    '@media (max-width: 639px) {',
-    '  [data-testid="button-nav-courthouse"],',
-    '  [data-testid="link-courthouse"],',
-    '  [data-testid="button-nav-plans"],',
-    '  [data-testid="link-plans"] {',
-    '    display: none !important;',
-    '  }',
-    // Ensure navbar flex row never overflows — clip gracefully
-    '  nav, header { overflow: visible !important; }',
-    '  header > div, nav > div { flex-wrap: nowrap; overflow: visible; }',
-    '}',
-  ].join('\n');
+  // Hide courthouse and plans on mobile using JS direct style (more reliable
+  // than CSS injection in Safari which can ignore dynamically injected styles)
+  var HIDE_IDS = [
+    'button-nav-courthouse', 'link-courthouse',
+    'button-nav-plans',      'link-plans',
+  ];
 
-  function injectNavbarFix() {
-    if (document.getElementById('hp-navbar-fix')) return;
-    var s = document.createElement('style');
-    s.id = 'hp-navbar-fix';
-    s.textContent = STYLE;
-    document.head.appendChild(s);
+  function hideNavOverflow() {
+    if (window.innerWidth >= 640) return; // only on mobile
+    HIDE_IDS.forEach(function(id) {
+      var el = document.querySelector('[data-testid="' + id + '"]');
+      if (el) {
+        el.style.setProperty('display', 'none', 'important');
+        el.setAttribute('aria-hidden', 'true');
+      }
+    });
   }
 
-  // Inject immediately and after React mounts
-  injectNavbarFix();
-  setTimeout(injectNavbarFix, 500);
-  window.addEventListener('hashchange', injectNavbarFix);
+  // Run immediately, after React mounts, and on every navigation
+  hideNavOverflow();
+  setTimeout(hideNavOverflow, 300);
+  setTimeout(hideNavOverflow, 800);
+  setTimeout(hideNavOverflow, 2000);
+  window.addEventListener('hashchange', function() {
+    setTimeout(hideNavOverflow, 300);
+  });
+  // MutationObserver catches React re-renders
+  var _navObs = new MutationObserver(hideNavOverflow);
+  document.addEventListener('DOMContentLoaded', function() {
+    var header = document.querySelector('header');
+    if (header) _navObs.observe(header, { childList: true, subtree: true });
+  });
 
 })();
 
