@@ -9712,3 +9712,113 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   _spacerObs.observe(document.body, { childList: true, subtree: true });
 
 })();
+
+
+// ── Standard Plan Banner — Dark Mode Brightness Fix ──────────────────────────
+// The Standard plan active banner on the dashboard uses near-black bg in dark
+// mode (dark:bg-[#1E2D4E]/10) making it barely visible. This patch brightens
+// it to a teal-tinted style matching the brand teal (#4F98A3).
+(function() {
+  var STANDARD_BANNER_STYLE = [
+    'background:rgba(79,152,163,0.15) !important',
+    'border-color:rgba(79,152,163,0.5) !important'
+  ].join(';');
+
+  var STANDARD_ICON_STYLE = 'color:#4F98A3 !important';
+  var STANDARD_TEXT_STYLE = 'color:#4F98A3 !important';
+
+  function fixStandardBanner() {
+    // Only apply in dark mode
+    if (!document.documentElement.classList.contains('dark')) return;
+
+    // Find the banner: a div containing text "plan active" with Standard styling
+    // The banner has class containing "rounded-lg border px-4 py-3 mb-6"
+    var banners = document.querySelectorAll('div[class*="rounded-lg"][class*="border"][class*="px-4"][class*="py-3"][class*="mb-6"]');
+    banners.forEach(function(banner) {
+      // Only target Standard banner (not Plus which uses gold/amber)
+      var text = banner.textContent || '';
+      if (text.indexOf('Standard') !== -1 && text.indexOf('plan active') !== -1) {
+        if (banner.dataset.hpBannerFixed) return;
+        banner.dataset.hpBannerFixed = '1';
+        banner.style.cssText += ';' + STANDARD_BANNER_STYLE;
+
+        // Fix icon and text colors
+        var icon = banner.querySelector('svg');
+        if (icon) icon.style.cssText += ';' + STANDARD_ICON_STYLE;
+
+        var texts = banner.querySelectorAll('p, span');
+        texts.forEach(function(el) {
+          el.style.cssText += ';' + STANDARD_TEXT_STYLE;
+        });
+      }
+    });
+  }
+
+  // Run on load and on navigation
+  setTimeout(fixStandardBanner, 800);
+  setTimeout(fixStandardBanner, 2000);
+  window.addEventListener('hashchange', function() {
+    setTimeout(fixStandardBanner, 800);
+  });
+
+  var _bannerObs = new MutationObserver(function() {
+    fixStandardBanner();
+  });
+  _bannerObs.observe(document.body, { childList: true, subtree: true });
+})();
+
+
+// ── Collaborate Tab — "Coming Soon" Treatment ────────────────────────────────
+// Replaces the bare collaborate tab content with a polished coming soon UI.
+(function() {
+  function applyCollaborateCS() {
+    // Find the collaborate section — look for the "Two-Party Collaboration" heading
+    var headings = document.querySelectorAll('p, h2, h3, div');
+    var colabContainer = null;
+    headings.forEach(function(el) {
+      if ((el.textContent || '').trim() === 'Two-Party Collaboration') {
+        // Walk up to find the section container
+        colabContainer = el.closest('div[class]') || el.parentElement;
+      }
+    });
+
+    if (!colabContainer) return;
+    if (colabContainer.dataset.hpCSApplied) return;
+    colabContainer.dataset.hpCSApplied = '1';
+
+    // Replace content with coming soon UI
+    colabContainer.innerHTML =
+      '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center;gap:16px;">' +
+        '<div style="width:56px;height:56px;border-radius:50%;background:rgba(79,152,163,0.15);display:flex;align-items:center;justify-content:center;margin-bottom:8px;">' +
+          '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4F98A3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>' +
+            '<circle cx="9" cy="7" r="4"/>' +
+            '<path d="M23 21v-2a4 4 0 0 0-3-3.87"/>' +
+            '<path d="M16 3.13a4 4 0 0 1 0 7.75"/>' +
+          '</svg>' +
+        '</div>' +
+        '<h3 style="margin:0;font-size:17px;font-weight:700;color:var(--foreground, #ede8df);">Two-Party Collaboration</h3>' +
+        '<p style="margin:0;font-size:14px;color:var(--muted-foreground, #A8B4D0);max-width:280px;line-height:1.5;">' +
+          'Invite the other party to securely view and collaborate on your case. This feature is coming soon.' +
+        '</p>' +
+        '<div style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;background:rgba(79,152,163,0.12);border:1px solid rgba(79,152,163,0.35);border-radius:20px;padding:6px 14px;">' +
+          '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4F98A3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+            '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' +
+          '</svg>' +
+          '<span style="font-size:12px;font-weight:600;color:#4F98A3;letter-spacing:0.04em;">COMING SOON</span>' +
+        '</div>' +
+      '</div>';
+  }
+
+  setTimeout(applyCollaborateCS, 800);
+  setTimeout(applyCollaborateCS, 2000);
+  window.addEventListener('hashchange', function() {
+    setTimeout(applyCollaborateCS, 600);
+    setTimeout(applyCollaborateCS, 1500);
+  });
+
+  var _csObs = new MutationObserver(function() {
+    applyCollaborateCS();
+  });
+  _csObs.observe(document.body, { childList: true, subtree: true });
+})();
