@@ -831,6 +831,15 @@ function getPythonBin() {
 }
 const PYTHON_BIN = getPythonBin();
 
+// Transform Supabase snake_case rows → camelCase dicts expected by fill_pdf.py
+function toFillRows(dbRows) {
+  return (dbRows || []).map(r => ({
+    section:    r.section    || r.section    || '',
+    fieldKey:   r.fieldKey   || r.field_key  || '',
+    fieldValue: r.fieldValue || r.field_value || '',
+  }));
+}
+
 async function fillPDF(pdfPath, formData, formType) {
   return new Promise((resolve) => {
     const tmpJson = path.join(os.tmpdir(), `hp_formdata_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
@@ -932,7 +941,7 @@ app.post('/api/cases/:caseId/official-pdf/:formType', requireAuth, requirePaidEx
     const pdfPath = path.join(__dirname, 'public', 'pdfs', `${formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).json({ message: 'PDF template not found for ' + formType });
     const formData = await dbAll('form_data', { case_id: `eq.${c.id}` });
-    const filledPdf = await fillPDF(pdfPath, formData, formType);
+    const filledPdf = await fillPDF(pdfPath, toFillRows(formData), formType);
     const formLabel = formType.replace(/_/g, '.').toUpperCase();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="HearthAndPage-${formLabel}.pdf"`);
@@ -970,7 +979,7 @@ app.get('/api/download/:token', async (req, res) => {
     const pdfPath = path.join(__dirname, 'public', 'pdfs', `${row.formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).send('PDF not found.');
     const formData = await dbAll('form_data', { case_id: `eq.${row.caseId}` });
-    const filledPdf = await fillPDF(pdfPath, formData, row.formType);
+    const filledPdf = await fillPDF(pdfPath, toFillRows(formData), row.formType);
     const formLabel = row.formType.replace(/_/g, '.').toUpperCase();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="HearthAndPage-${formLabel}.pdf"`);
