@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# v3.5.4 — updated key mapping for section+fieldKey snake_case
 """
 fill_pdf.py - Fill Ontario court PDF AcroForm fields with user data.
 Called by the Node.js server as a child process.
@@ -15,8 +14,18 @@ try:
     from pypdf import PdfWriter, PdfReader
     import pypdf.generic as g
 except ImportError:
-    sys.stderr.write("pypdf not available\n")
-    sys.exit(1)
+    import subprocess
+    sys.stderr.write("[fill_pdf] pypdf not found, installing...\n")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "pypdf>=4.0.0"],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        import pypdf
+        from pypdf import PdfWriter, PdfReader
+        import pypdf.generic as g
+        sys.stderr.write("[fill_pdf] pypdf installed OK\n")
+    except Exception as e:
+        sys.stderr.write(f"[fill_pdf] Could not install pypdf: {e}\n")
+        sys.exit(1)
 
 def format_phone(raw):
     if not raw:
