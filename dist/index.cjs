@@ -302,47 +302,8 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-// TEMP DEBUG — remove after fix
-app.get('/api/debug-pdf', async (req, res) => {
-  const { exec } = require('child_process');
-  const os = require('os');
-  const testRows = [
-    {section:'applicant',fieldKey:'applicant_full_name',fieldValue:'DEBUG JOSHUA LANCE'},
-    {section:'respondent',fieldKey:'respondent_full_name',fieldValue:'DEBUG SHASTA PEARCE'},
-    {section:'children',fieldKey:'child_1_name',fieldValue:'DEBUG PAETON LANCE'},
-    {section:'court',fieldKey:'courthouse',fieldValue:'sudbury-ocj'},
-    {section:'form35_1',fieldKey:'filer_full_name',fieldValue:'DEBUG JOSHUA LANCE'},
-  ];
-  const tmpJson = path.join(os.tmpdir(), 'debug_rows.json');
-  const tmpOut  = path.join(os.tmpdir(), 'debug_out.pdf');
-  const pdfPath = path.join(__dirname, 'public', 'pdfs', 'form35_1.pdf');
-  fs.writeFileSync(tmpJson, JSON.stringify(testRows));
-  const cmd = `${PYTHON_BIN} ${JSON.stringify(FILL_SCRIPT)} ${JSON.stringify(pdfPath)} ${JSON.stringify(tmpOut)} ${JSON.stringify(tmpJson)} form35_1`;
-  // Also resolve python at request time (not just at startup)
-  const { execSync: es } = require('child_process');
-  let runtimePython = '';
-  try { runtimePython = es('find /mise/installs /mise/shims -name "python*" 2>/dev/null | head -10', {timeout:5000,shell:true}).toString().trim(); } catch(e) { runtimePython = 'find error: ' + e.message; }
-  let envPath = '';
-  try { envPath = es('env | grep -i path', {timeout:2000,shell:true}).toString().trim(); } catch(e) {}
-  let lsPy = '';
-  try { lsPy = es('ls /mise/shims/python* 2>/dev/null; ls /mise/installs/python*/*/bin/python3 2>/dev/null | head -5', {timeout:3000,shell:true}).toString().trim(); } catch(e) {}
-  const python3PathTxt = path.join(__dirname, 'python3_path.txt');
-  const savedPathVal = fs.existsSync(python3PathTxt) ? fs.readFileSync(python3PathTxt,'utf8').trim() : 'NOT FOUND';
-  exec(cmd, { timeout: 30000, shell: true }, (err, stdout, stderr) => {
-    const pdfExists = fs.existsSync(tmpOut);
-    const pdfSize   = pdfExists ? fs.statSync(tmpOut).size : 0;
-    res.json({
-      cmd, err: err ? err.message : null, stdout, stderr,
-      pdfExists, pdfSize,
-      fillScriptExists: fs.existsSync(FILL_SCRIPT),
-      pythonBin: PYTHON_BIN, runtimePython, savedPathVal, envPath, lsPy,
-      fillScriptHead: fs.existsSync(FILL_SCRIPT) ? fs.readFileSync(FILL_SCRIPT,'utf8').slice(0,100) : ''
-    });
-  });
-});
-
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.13-selfinstall', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
-app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.13-selfinstall', db: 'supabase' }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.6.0', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.6.0', db: 'supabase' }));
 
 // ── Auth ──
 
