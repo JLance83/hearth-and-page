@@ -302,8 +302,8 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.3-pdf-keymapping', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
-app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.3-pdf-keymapping', db: 'supabase' }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.4-pdf-final', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.4-pdf-final', db: 'supabase' }));
 
 // ── Auth ──
 
@@ -1000,7 +1000,7 @@ app.post('/api/cases/:caseId/pdf-link/:formType', requireAuth, requirePaidExport
     if (!fs.existsSync(pdfPath)) return res.status(404).json({ message: 'PDF template not found for ' + formType });
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
-    await dbInsert('pdf_download_tokens', { token, caseId, formType, userId: req.user.id, expiresAt, createdAt: Date.now() });
+    await dbInsert('pdf_download_tokens', { token, case_id: caseId, form_type: formType, user_id: req.user.id, expires_at: expiresAt, created_at: Date.now() });
     const RAILWAY_API_URL = process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'https://api-production-2334.up.railway.app';
     const downloadUrl = `${RAILWAY_API_URL}/api/download/${token}`;
     const formLabel = formType.replace('form', 'Form ').replace('_', '.').toUpperCase();
@@ -1013,15 +1013,18 @@ app.get('/api/download/:token', async (req, res) => {
     const { token } = req.params;
     const row = await dbGet('pdf_download_tokens', { token: `eq.${token}` });
     if (!row) return res.status(404).send('Download link not found or already used.');
-    if (Date.now() > row.expiresAt) {
+    const expiresAt = row.expires_at || row.expiresAt;
+    const caseId    = row.case_id    || row.caseId;
+    const formType  = row.form_type  || row.formType;
+    if (Date.now() > expiresAt) {
       await dbDelete('pdf_download_tokens', { token: `eq.${token}` });
       return res.status(410).send('This download link has expired. Please generate a new one from the app.');
     }
-    const pdfPath = path.join(__dirname, 'public', 'pdfs', `${row.formType}.pdf`);
+    const pdfPath = path.join(__dirname, 'public', 'pdfs', `${formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).send('PDF not found.');
-    const formData = await dbAll('form_data', { case_id: `eq.${row.caseId}` });
-    const filledPdf = await fillPDF(pdfPath, toFillRows(formData), row.formType);
-    const formLabel = row.formType.replace(/_/g, '.').toUpperCase();
+    const formData = await dbAll('form_data', { case_id: `eq.${caseId}` });
+    const filledPdf = await fillPDF(pdfPath, toFillRows(formData), formType);
+    const formLabel = formType.replace(/_/g, '.').toUpperCase();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="HearthAndPage-${formLabel}.pdf"`);
     res.setHeader('Content-Length', filledPdf.length);
