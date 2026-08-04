@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# v3.5.4 — updated key mapping for section+fieldKey snake_case
 """
 fill_pdf.py - Fill Ontario court PDF AcroForm fields with user data.
 Called by the Node.js server as a child process.
