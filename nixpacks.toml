@@ -1,12 +1,15 @@
 [phases.setup]
 pkgs = ["nodejs_20"]
 
+[phases.install]
+cmds = [
+  "npm install --production",
+  "pip3 install -r requirements.txt 2>/dev/null || pip install -r requirements.txt 2>/dev/null || true"
+]
+
 [phases.build]
 cmds = [
-  "mise install python 2>/dev/null || apt-get install -y python3 python3-pip 2>/dev/null || true",
-  "npm install --production",
   "cp fill_pdf.py dist/fill_pdf.py || true",
-  "pip3 install pypdf 2>/dev/null || pip install pypdf 2>/dev/null || true",
   "(which python3 2>/dev/null || which python 2>/dev/null) | head -1 > dist/python3_path.txt",
   "echo '[build] python3_path.txt:' && cat dist/python3_path.txt"
 ]

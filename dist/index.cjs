@@ -341,8 +341,8 @@ app.get('/api/debug-pdf', async (req, res) => {
   });
 });
 
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.11-aptpy', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
-app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.11-aptpy', db: 'supabase' }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.12-pypdf', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.12-pypdf', db: 'supabase' }));
 
 // ── Auth ──
 
