@@ -318,6 +318,12 @@ app.get('/api/debug-pdf', async (req, res) => {
   const pdfPath = path.join(__dirname, 'public', 'pdfs', 'form35_1.pdf');
   fs.writeFileSync(tmpJson, JSON.stringify(testRows));
   const cmd = `${PYTHON_BIN} ${JSON.stringify(FILL_SCRIPT)} ${JSON.stringify(pdfPath)} ${JSON.stringify(tmpOut)} ${JSON.stringify(tmpJson)} form35_1`;
+  // Also resolve python at request time (not just at startup)
+  const { execSync: es } = require('child_process');
+  let runtimePython = '';
+  try { runtimePython = es('which python3 || which python || find /nix/store -maxdepth 4 -name python3 -type f 2>/dev/null | head -1', {timeout:5000,shell:true}).toString().trim(); } catch(e) { runtimePython = e.message; }
+  const python3PathTxt = path.join(__dirname, 'python3_path.txt');
+  const savedPathVal = fs.existsSync(python3PathTxt) ? fs.readFileSync(python3PathTxt,'utf8').trim() : 'NOT FOUND';
   exec(cmd, { timeout: 30000, shell: true }, (err, stdout, stderr) => {
     const pdfExists = fs.existsSync(tmpOut);
     const pdfSize   = pdfExists ? fs.statSync(tmpOut).size : 0;
@@ -325,14 +331,14 @@ app.get('/api/debug-pdf', async (req, res) => {
       cmd, err: err ? err.message : null, stdout, stderr,
       pdfExists, pdfSize,
       fillScriptExists: fs.existsSync(FILL_SCRIPT),
-      pythonBin: PYTHON_BIN,
+      pythonBin: PYTHON_BIN, runtimePython, savedPathVal,
       fillScriptHead: fs.existsSync(FILL_SCRIPT) ? fs.readFileSync(FILL_SCRIPT,'utf8').slice(0,100) : ''
     });
   });
 });
 
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.5-debug', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
-app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.5-debug', db: 'supabase' }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.6-pythonpath', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.6-pythonpath', db: 'supabase' }));
 
 // ── Auth ──
 
@@ -849,13 +855,34 @@ app.put('/api/cases/:caseId/form-data', requireAuth, async (req, res) => {
 const FILL_SCRIPT = path.join(__dirname, 'fill_pdf.py');
 
 function getPythonBin() {
-  const candidates = ['/usr/bin/python3', '/usr/local/bin/python3', '/usr/bin/python', '/usr/local/bin/python'];
+  // 1. Check python3_path.txt written during build by nixpacks
   const savedPathFile = path.join(__dirname, 'python3_path.txt');
   if (fs.existsSync(savedPathFile)) {
     const savedPath = fs.readFileSync(savedPathFile, 'utf8').trim();
-    if (savedPath) candidates.unshift(savedPath);
+    if (savedPath && fs.existsSync(savedPath)) return savedPath;
   }
+  // 2. Common absolute paths
+  const candidates = [
+    '/usr/bin/python3', '/usr/local/bin/python3',
+    '/usr/bin/python',  '/usr/local/bin/python',
+    '/opt/homebrew/bin/python3',
+  ];
+  // 3. Nix store paths (Railway nixpacks)
+  try {
+    const nixProfiles = ['/nix/var/nix/profiles/default/bin/python3', '/run/current-system/sw/bin/python3'];
+    for (const p of nixProfiles) { if (fs.existsSync(p)) { return p; } }
+    // Try globbing /nix/store for python3
+    const { execSync } = require('child_process');
+    const nixPath = execSync('find /nix/store -maxdepth 4 -name python3 -type f 2>/dev/null | head -1', { timeout: 3000 }).toString().trim();
+    if (nixPath && fs.existsSync(nixPath)) return nixPath;
+  } catch(e) {}
   for (const c of candidates) { if (fs.existsSync(c)) { return c; } }
+  // 4. Last resort: resolve via shell at startup
+  try {
+    const { execSync } = require('child_process');
+    const p = execSync('which python3 || which python', { timeout: 3000, shell: true }).toString().trim().split('\n')[0];
+    if (p) return p;
+  } catch(e) {}
   return 'python3';
 }
 const PYTHON_BIN = getPythonBin();
