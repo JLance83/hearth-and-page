@@ -2,12 +2,16 @@
 pkgs = ["nodejs_20", "python311", "poppler_utils"]
 
 [phases.build]
-cmds = ["npm install --production", "cp fill_pdf.py dist/fill_pdf.py || true", "which python3 > dist/python3_path.txt && echo OK || true"]
+cmds = [
+  "npm install --production",
+  "cp fill_pdf.py dist/fill_pdf.py || true",
+  "(which python3 2>/dev/null || which python 2>/dev/null || find /usr -name python3 -type f 2>/dev/null | head -1 || find / -name python3 -type f -not -path '*/proc/*' 2>/dev/null | head -1) | head -1 > dist/python3_path.txt",
+  "echo '[nixpacks-build] Python path:' && cat dist/python3_path.txt || echo 'python3 not found'"
+]
 
 [start]
 cmd = "NODE_ENV=production node dist/index.cjs"
 
 [variables]
 PORT = "8080"
-# cache bust: 2026-07-12-v6-pdfjs-text
-# cache bust: 2026-07-23-1627
+# cache bust: 2026-08-04-v1-pythonpath

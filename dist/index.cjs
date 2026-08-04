@@ -337,8 +337,8 @@ app.get('/api/debug-pdf', async (req, res) => {
   });
 });
 
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.7-nixfind', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
-app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.7-nixfind', db: 'supabase' }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.8-nixpath', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.8-nixpath', db: 'supabase' }));
 
 // ── Auth ──
 
