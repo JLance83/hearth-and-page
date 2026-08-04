@@ -321,7 +321,11 @@ app.get('/api/debug-pdf', async (req, res) => {
   // Also resolve python at request time (not just at startup)
   const { execSync: es } = require('child_process');
   let runtimePython = '';
-  try { runtimePython = es('find /nix/store -maxdepth 4 -name python3 -type f 2>/dev/null | head -3', {timeout:5000,shell:true}).toString().trim(); } catch(e) { runtimePython = 'find error: ' + e.message; }
+  try { runtimePython = es('find /usr /opt /home /run /bin /sbin -name "python*" -type f 2>/dev/null | grep -v __pycache__ | head -10', {timeout:8000,shell:true}).toString().trim(); } catch(e) { runtimePython = 'find error: ' + e.message; }
+  let envPath = '';
+  try { envPath = es('env | grep -i path', {timeout:2000,shell:true}).toString().trim(); } catch(e) {}
+  let lsPy = '';
+  try { lsPy = es('ls /usr/bin/python* /usr/local/bin/python* 2>/dev/null; ls /run/current-system/sw/bin/python* 2>/dev/null; ls /root/.nix-profile/bin/python* 2>/dev/null', {timeout:3000,shell:true}).toString().trim(); } catch(e) {}
   const python3PathTxt = path.join(__dirname, 'python3_path.txt');
   const savedPathVal = fs.existsSync(python3PathTxt) ? fs.readFileSync(python3PathTxt,'utf8').trim() : 'NOT FOUND';
   exec(cmd, { timeout: 30000, shell: true }, (err, stdout, stderr) => {
@@ -331,14 +335,14 @@ app.get('/api/debug-pdf', async (req, res) => {
       cmd, err: err ? err.message : null, stdout, stderr,
       pdfExists, pdfSize,
       fillScriptExists: fs.existsSync(FILL_SCRIPT),
-      pythonBin: PYTHON_BIN, runtimePython, savedPathVal,
+      pythonBin: PYTHON_BIN, runtimePython, savedPathVal, envPath, lsPy,
       fillScriptHead: fs.existsSync(FILL_SCRIPT) ? fs.readFileSync(FILL_SCRIPT,'utf8').slice(0,100) : ''
     });
   });
 });
 
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.8-nixpath', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
-app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.8-nixpath', db: 'supabase' }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.9-pathscan', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.9-pathscan', db: 'supabase' }));
 
 // ── Auth ──
 
