@@ -302,8 +302,8 @@ app.post('/api/auth/login-debug', async (req, res) => {
     } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
   } catch(e) { return res.json({ step: 'exception', error: e.message }); }
 });
-app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.2-pdf-fix', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
-app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.2-pdf-fix', db: 'supabase' }));
+app.get('/api/status', (req, res) => res.json({ ok: true, version: '3.5.3-pdf-keymapping', db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
+app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: '3.5.3-pdf-keymapping', db: 'supabase' }));
 
 // ── Auth ──
 
@@ -831,13 +831,54 @@ function getPythonBin() {
 }
 const PYTHON_BIN = getPythonBin();
 
-// Transform Supabase snake_case rows → camelCase dicts expected by fill_pdf.py
+// camelCase → snake_case helper: "fullName" → "full_name", "child_0_fullName" → "child_0_full_name"
+function camelToSnake(str) {
+  return str.replace(/([A-Z])/g, '_$1').toLowerCase();
+}
+
+// Transform Supabase DB rows → flat dicts fill_pdf.py's _fe_flat() understands.
+// DB stores: { section: 'applicant', field_key: 'fullName', field_value: 'Joshua Lance' }
+// fill_pdf.py _fe_flat() expects rows with: { fieldKey: 'applicant_full_name', fieldValue: '...' }
+// _header() and form-fill functions look up keys like: applicant_full_name, respondent_full_name,
+// child_1_name, courthouse, filer_full_name, etc.
 function toFillRows(dbRows) {
-  return (dbRows || []).map(r => ({
-    section:    r.section    || r.section    || '',
-    fieldKey:   r.fieldKey   || r.field_key  || '',
-    fieldValue: r.fieldValue || r.field_value || '',
-  }));
+  return (dbRows || []).map(r => {
+    const section    = r.section    || '';
+    const rawKey     = r.field_key  || r.fieldKey  || '';
+    const fieldValue = r.field_value || r.fieldValue || '';
+
+    // Convert camelCase field_key to snake_case
+    const snakeKey = camelToSnake(rawKey);
+
+    // Children section: remap 0-indexed child_0_full_name → child_1_name (PDF is 1-indexed)
+    // DB: section=children, field_key=child_0_fullName  → child_1_name
+    //     section=children, field_key=child_0_dob       → child_1_dob
+    //     section=children, field_key=count             → children_count
+    let fieldKey;
+    if (section === 'children' && rawKey.startsWith('child_')) {
+      // child_0_fullName → child_1_name, child_1_dob → child_2_dob
+      const m = rawKey.match(/^child_(\d+)_(.+)$/);
+      if (m) {
+        const idx = parseInt(m[1], 10) + 1;
+        const sub = camelToSnake(m[2]).replace('full_name', 'name');
+        fieldKey = `child_${idx}_${sub}`;
+      } else {
+        fieldKey = `${section}_${snakeKey}`;
+      }
+    } else if (section && section !== '__meta__') {
+      // applicant + full_name → applicant_full_name
+      // court + courthouse   → courthouse (no double-prefix when key already contains section)
+      if (snakeKey === section || snakeKey.startsWith(`${section}_`)) {
+        fieldKey = snakeKey;
+      } else {
+        fieldKey = `${section}_${snakeKey}`;
+      }
+    } else {
+      fieldKey = snakeKey;
+    }
+
+    return { section, fieldKey, fieldValue };
+  });
 }
 
 async function fillPDF(pdfPath, formData, formType) {
