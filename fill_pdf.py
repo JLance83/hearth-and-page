@@ -440,6 +440,63 @@ def _is_yes(val):
     return str(val).strip().lower() in ('yes', 'true', '1', 'on')
 
 
+# ─── Small helpers introduced during the Aug 12 2026 audit (Fix 4) ───────────
+def _pick(d, *keys):
+    """Return the first non-empty stripped value from d for the given keys.
+
+    Frontend now writes section-prefixed snake_case (e.g. `respondent_city`),
+    but legacy cases used camelCase (`respondentCity`). Callers pass both
+    spellings so old data still fills.
+    """
+    for k in keys:
+        v = d.get(k, '')
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s:
+            return s
+    return ''
+
+
+def _fmt_addr(street, unit, city, province, postal):
+    """Compose a single-line address; drops empty pieces without doubled commas.
+
+    Unit is prefixed as 'Unit N, <street>' so it lands where humans expect it.
+    """
+    street = (street or '').strip()
+    unit   = (unit   or '').strip()
+    city   = (city   or '').strip()
+    province = (province or '').strip()
+    postal = (postal or '').strip()
+    head = f'Unit {unit}, {street}' if unit and street else (street or (f'Unit {unit}' if unit else ''))
+    parts = [head, city, province, postal]
+    return ', '.join(p for p in parts if p)
+
+
+def _fmt_muni(city, province):
+    """'City, Province' — omits pieces that are blank."""
+    city = (city or '').strip()
+    province = (province or '').strip()
+    return ', '.join(p for p in [city, province] if p)
+
+
+def _split_first_last(full_name):
+    """Split a full name into (first+middle, last).
+
+    Ontario court forms expect the surname alone in the 'last name' box,
+    with any middle names kept with the given name. The prior code did
+    `parts[0], ' '.join(parts[1:])` which mis-labelled 'Joshua Daniel Lance'
+    as first='Joshua', last='Daniel Lance'. Fix 4 (D5) uses the
+    surname-is-last-token convention instead.
+    """
+    parts = (full_name or '').strip().split()
+    if not parts:
+        return '', ''
+    if len(parts) == 1:
+        return parts[0], ''
+    return ' '.join(parts[:-1]), parts[-1]
+
+
 def fill_form8(input_path, output_path, form_data_list):
     """
     Fill Form 8 (Application General) from FormEngine-saved data.
@@ -465,18 +522,21 @@ def fill_form8(input_path, output_path, form_data_list):
         fields[f'Court File Number, page {pg}'] = file_number
 
     # ── Applicant ─────────────────────────────────────────────────────────
-    ap_name = d.get('applicantFullName', d.get('applicant_full_name', ''))
-    ap_dob  = d.get('applicantDob', d.get('applicant_dob', ''))
-    ap_addr_parts = [
-        d.get('applicantAddress', d.get('applicant_address', '')),
-        d.get('applicantUnit', d.get('applicant_unit', '')),
-        d.get('applicantCity', d.get('applicant_city', '')),
-        d.get('applicantProvince', 'ON'),
-        d.get('applicantPostalCode', d.get('applicant_postal_code', '')),
-    ]
-    ap_addr = ', '.join(p for p in ap_addr_parts if p)
-    ap_phone = format_phone(d.get('applicantPhone', d.get('applicant_phone', '')))
-    ap_email = d.get('applicantEmail', d.get('applicant_email', ''))
+    # NOTE (Aug 12 2026 audit — Fix 4):
+    #   Frontend now writes section-prefixed snake_case keys (applicant_city,
+    #   respondent_province, situation_were_married, situation_separation_date).
+    #   Legacy camelCase keys are still checked as fallbacks so older cases
+    #   continue to fill.
+    ap_name = _pick(d, 'applicantFullName', 'applicant_full_name')
+    ap_dob  = _pick(d, 'applicantDob', 'applicant_dob')
+    ap_unit = _pick(d, 'applicantUnit', 'applicant_unit')
+    ap_street = _pick(d, 'applicantAddress', 'applicant_address')
+    ap_city = _pick(d, 'applicantCity', 'applicant_city')
+    ap_prov = _pick(d, 'applicantProvince', 'applicant_province') or 'ON'
+    ap_postal = _pick(d, 'applicantPostalCode', 'applicant_postal_code')
+    ap_addr = _fmt_addr(ap_street, ap_unit, ap_city, ap_prov, ap_postal)
+    ap_phone = format_phone(_pick(d, 'applicantPhone', 'applicant_phone'))
+    ap_email = _pick(d, 'applicantEmail', 'applicant_email')
 
     fields['Applicant(s) - Full legal name'] = ap_name
     fields['Applicant(s) - Address'] = ap_addr
@@ -485,33 +545,29 @@ def fill_form8(input_path, output_path, form_data_list):
     fields['Age - applicant'] = calc_age(ap_dob)
     fields['Birthdate: (d, m, y) - Applicant'] = format_dob(ap_dob)
 
-    city_prov_ap = ', '.join(p for p in [
-        d.get('applicantCity', ''), 'ON'] if p)
-    fields['Municipality & province - applicant'] = city_prov_ap
-    fields['Date - start of residency - applicant'] = d.get('applicantResidencyDate', '')
+    fields['Municipality & province - applicant'] = _fmt_muni(ap_city, ap_prov)
+    fields['Date - start of residency - applicant'] = _pick(d, 'applicantResidencyDate', 'applicant_residency_date')
 
-    ap_name_parts = ap_name.split()
-    fields['First name on the day before the marriage date - applicant'] = (
-        d.get('applicantPremarriageFirst', ap_name_parts[0] if ap_name_parts else ''))
-    fields['Last name on the day before the marriage date - applicant'] = (
-        d.get('applicantPremarriageLast', ' '.join(ap_name_parts[1:]) if len(ap_name_parts) > 1 else ''))
-    fields['Place and date of previous divorce - applicant'] = d.get('applicantPreviousDivorce', '')
-
-    ap_gender = d.get('applicantGender', '').lower()
+    ap_gender = _pick(d, 'applicantGender', 'applicant_gender').lower()
     if ap_gender in ('male', 'm'):      checkboxes['Male - applicant'] = True
     elif ap_gender in ('female', 'f'):  checkboxes['Female - applicant'] = True
     elif ap_gender:                     checkboxes['Another gender - applicant'] = True
 
-    ap_prev = d.get('applicantPreviousMarriage', d.get('applicant_previous_marriage', ''))
+    ap_prev = _pick(d, 'applicantPreviousMarriage', 'applicant_previous_marriage')
     if _is_yes(ap_prev):   checkboxes['Yes - applicant'] = True
     elif ap_prev == 'no':  checkboxes['No - applicant'] = True
 
     # ── Respondent ────────────────────────────────────────────────────────
-    re_name = d.get('respondentFullName', d.get('respondent_full_name', ''))
-    re_dob  = d.get('respondentDob', d.get('respondent_dob', ''))
-    re_addr = d.get('respondentAddress', d.get('respondent_address', ''))
-    re_phone = format_phone(d.get('respondentPhone', d.get('respondent_phone', '')))
-    re_email = d.get('respondentEmail', d.get('respondent_email', ''))
+    re_name = _pick(d, 'respondentFullName', 'respondent_full_name')
+    re_dob  = _pick(d, 'respondentDob', 'respondent_dob')
+    re_unit = _pick(d, 'respondentUnit', 'respondent_unit')
+    re_street = _pick(d, 'respondentAddress', 'respondent_address')
+    re_city = _pick(d, 'respondentCity', 'respondent_city')
+    re_prov = _pick(d, 'respondentProvince', 'respondent_province') or 'ON'
+    re_postal = _pick(d, 'respondentPostalCode', 'respondent_postal_code')
+    re_addr = _fmt_addr(re_street, re_unit, re_city, re_prov, re_postal)
+    re_phone = format_phone(_pick(d, 'respondentPhone', 'respondent_phone'))
+    re_email = _pick(d, 'respondentEmail', 'respondent_email')
 
     fields['Respondent(s) - Full legal name'] = re_name
     fields['Respondent(s) - Address'] = re_addr
@@ -519,40 +575,60 @@ def fill_form8(input_path, output_path, form_data_list):
     fields['Respondent(s) - Email'] = re_email
     fields['Age - respondent'] = calc_age(re_dob)
     fields['Birthdate: (d, m, y) - respondent'] = format_dob(re_dob)
-    fields['Municipality & province - respondent'] = d.get('respondentCity', '')
-    fields['Date - start of residency - respondent'] = d.get('respondentResidencyDate', '')
+    fields['Municipality & province - respondent'] = _fmt_muni(re_city, re_prov)
+    fields['Date - start of residency - respondent'] = _pick(d, 'respondentResidencyDate', 'respondent_residency_date')
 
-    re_name_parts = re_name.split()
-    fields['First name on the day before the marriage date - respondent'] = (
-        d.get('respondentPremarriageFirst', re_name_parts[0] if re_name_parts else ''))
-    fields['Last name on the day before the marriage date - respondent'] = (
-        d.get('respondentPremarriageLast', ' '.join(re_name_parts[1:]) if len(re_name_parts) > 1 else ''))
-    fields['Place and date of previous divorce - respondent'] = d.get('respondentPreviousDivorce', '')
-
-    re_gender = d.get('respondentGender', '').lower()
+    re_gender = _pick(d, 'respondentGender', 'respondent_gender').lower()
     if re_gender in ('male', 'm'):      checkboxes['Male - respondent'] = True
     elif re_gender in ('female', 'f'):  checkboxes['Female - respondent'] = True
     elif re_gender:                     checkboxes['Another gender - respondent'] = True
 
-    re_prev = d.get('respondentPreviousMarriage', d.get('respondent_previous_marriage', ''))
+    re_prev = _pick(d, 'respondentPreviousMarriage', 'respondent_previous_marriage')
     if _is_yes(re_prev):   checkboxes['Yes - respondent'] = True
     elif re_prev == 'no':  checkboxes['No - respondent'] = True
 
-    re_lawyer_name = d.get('respondentLawyerName', d.get('respondent_lawyer_name', ''))
-    re_lawyer_firm = d.get('respondentLawyerFirm', '')
-    re_lawyer_phone = format_phone(d.get('respondentLawyerPhone', ''))
+    re_lawyer_name = _pick(d, 'respondentLawyerName', 'respondent_lawyer_name')
+    re_lawyer_firm = _pick(d, 'respondentLawyerFirm', 'respondent_lawyer_firm')
+    re_lawyer_phone = format_phone(_pick(d, 'respondentLawyerPhone', 'respondent_lawyer_phone'))
     fields['Respondent(s) Lawyer - Full legal name'] = re_lawyer_name
     fields['Respondent(s) Lawyer - Address'] = re_lawyer_firm
     fields['Respondent(s) Lawyer - Phone & fax'] = re_lawyer_phone
 
     # ── Relationship / marriage dates ─────────────────────────────────────
-    marriage_date = d.get('marriageDate', d.get('marriage_date', ''))
-    sep_date      = d.get('separationDate', d.get('separation_date', ''))
-    rel_type      = d.get('relationshipType', d.get('relationship_type', ''))
+    # D4: pre-marriage name / marriage-date / previous-divorce fields must be
+    # left blank when the parties were never married. situation_were_married
+    # is the frontend answer ('yes' / 'no'); we treat missing as 'no' so old
+    # never-married cases stop leaking today's surname into the marriage
+    # panel.
+    were_married = _is_yes(_pick(d, 'situationWereMarried', 'situation_were_married',
+                                    'wereMarried', 'were_married'))
 
-    if marriage_date:
-        fields['Date - Married on'] = marriage_date
-        checkboxes['Married on'] = True
+    marriage_date = _pick(d, 'marriageDate', 'marriage_date')
+    sep_date      = _pick(d, 'separationDate', 'separation_date',
+                             'situationSeparationDate', 'situation_separation_date')
+    rel_type      = _pick(d, 'relationshipType', 'relationship_type')
+
+    if were_married:
+        # D5: pre-marriage first/last names — accept an explicit override,
+        # else split the full name using the surname-is-last-token rule
+        # ("Joshua Daniel Lance" → first="Joshua Daniel", last="Lance").
+        ap_pm_first_default, ap_pm_last_default = _split_first_last(ap_name)
+        re_pm_first_default, re_pm_last_default = _split_first_last(re_name)
+        fields['First name on the day before the marriage date - applicant'] = _pick(
+            d, 'applicantPremarriageFirst', 'applicant_premarriage_first') or ap_pm_first_default
+        fields['Last name on the day before the marriage date - applicant'] = _pick(
+            d, 'applicantPremarriageLast', 'applicant_premarriage_last') or ap_pm_last_default
+        fields['First name on the day before the marriage date - respondent'] = _pick(
+            d, 'respondentPremarriageFirst', 'respondent_premarriage_first') or re_pm_first_default
+        fields['Last name on the day before the marriage date - respondent'] = _pick(
+            d, 'respondentPremarriageLast', 'respondent_premarriage_last') or re_pm_last_default
+        fields['Place and date of previous divorce - applicant'] = _pick(
+            d, 'applicantPreviousDivorce', 'applicant_previous_divorce')
+        fields['Place and date of previous divorce - respondent'] = _pick(
+            d, 'respondentPreviousDivorce', 'respondent_previous_divorce')
+        if marriage_date:
+            fields['Date - Married on'] = marriage_date
+            checkboxes['Married on'] = True
 
     if sep_date:
         fields['Date - Separated on'] = sep_date
@@ -616,10 +692,16 @@ def fill_form8(input_path, output_path, form_data_list):
             'other': 'Other',
         }.get(str(cr).lower(), cr)
 
+        # Per-child override (child_1_city / child_1_province) beats the
+        # applicant fallback — covers cases where a child lives with the
+        # respondent or a third party.
+        child_city = d.get(f'child_{i}_city', d.get(f'child{i}City', ap_city))
+        child_prov = d.get(f'child_{i}_province', d.get(f'child{i}Province', ap_prov))
+
         fields[f'Full legal name {i}'] = cn
         fields[f'Age {i}'] = calc_age(cd)
         fields[f'Birthdate: (d, m, y) {i}'] = format_dob(cd)
-        fields[f'Resident in (municipality & province) {i}'] = d.get('applicantCity', '')
+        fields[f'Resident in (municipality & province) {i}'] = _fmt_muni(child_city, child_prov)
         lw_key = f'Now Living With (name of person and relationship to child) {i if i < 5 else i + 1}'
         fields[lw_key] = residence_label
 
