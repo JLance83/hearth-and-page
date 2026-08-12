@@ -1557,10 +1557,22 @@ def fill_form14(input_path, output_path, form_data_list):
 # Form 14A — Affidavit (General)
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form14a(input_path, output_path, form_data_list):
+    # D8 fix (Aug 12 2026 audit): source keys were unprefixed (`city`, `province`,
+    # `applicant_full_name`) but after toFillRows() these live under section
+    # prefixes. Look up the prefixed keys, fall back to the legacy bare names,
+    # and resolve `courthouse` through the same COURTHOUSE_NAMES_FE table used
+    # by _header() so v1/v2/v3 picker values all work.
     d = _fe_flat(form_data_list)
+    courthouse_raw  = d.get('courthouse', d.get('court_name', ''))
+    courthouse_name = COURTHOUSE_NAMES_FE.get(courthouse_raw, courthouse_raw)
+    courthouse_addr = COURTHOUSE_ADDRESSES_FE.get(courthouse_raw,
+                      COURTHOUSE_ADDRESSES_FE.get(courthouse_name, ''))
+    ap_city     = d.get('applicant_city', d.get('city', ''))
+    ap_province = d.get('applicant_province', d.get('province', 'Ontario'))
     fields = {
-        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', ''),
-        'form1[0].page1[0].body[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', d.get('file_number', '')),
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].nameOfCourt[0]': courthouse_name,
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].courtOfficeAddress[0]': courthouse_addr,
         'form1[0].page1[0].body[0].courtDetails[0].Dated[0]': d.get('date_sworn', ''),
         'form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[0]': d.get('applicant_full_name', ''),
         'form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[1]': d.get('applicant_address', ''),
@@ -1568,14 +1580,15 @@ def fill_form14a(input_path, output_path, form_data_list):
         'form1[0].page1[0].body[0].Payor[0].Payor[0].textfield[1]': d.get('respondent_address', ''),
         'form1[0].page1[0].body[0].conditions[0].Reasons[0]': d.get('affidavit_text', ''),
         'form1[0].page1[0].body[0].Page2[0].Reasons[0]': d.get('affidavit_continued', ''),
-        'form1[0].page1[0].body[0].Page2[0].PageHeader[0].#subform[0].courtFileNumber[0]': d.get('court_file_number', ''),
-        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Municipality[0]': d.get('city', ''),
-        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Province[0]': d.get('province', 'Ontario'),
+        'form1[0].page1[0].body[0].Page2[0].PageHeader[0].#subform[0].courtFileNumber[0]': d.get('court_file_number', d.get('file_number', '')),
+        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Municipality[0]': ap_city,
+        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Province[0]': ap_province,
         'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Date[0]': d.get('date_sworn', ''),
         'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Commissioner[0]': d.get('commissioner_name', ''),
         'form1[0].page1[0].body[0].childrensLawyer[0].Name[0]': d.get('childrens_lawyer', ''),
     }
-    n = _write_pdf(input_path, output_path, fields)
+    # form14a is a LiveCycle form — must resolve widgets by full dotted path.
+    n = _write_pdf_lc(input_path, output_path, fields)
     sys.stderr.write(f'[fill_form14a] Filled {n} fields\n')
     return n
 
@@ -2413,8 +2426,12 @@ if __name__ == '__main__':
         'form36b':  fill_form36b,
         'form30a':  fill_form30a,
         'form10a':  fill_form10a,
-        'form34a':  fill_form34a,
-        'form37':   fill_form37,
+        # form34a and form37 have handlers in this file but no PDF template
+        # shipped in dist/public/pdfs/. The server's COMING_SOON_FORMS guard
+        # intercepts these requests with a 501 before they reach the dispatch,
+        # but they are also omitted here as defense in depth (D3, Aug 12 2026).
+        # 'form34a':  fill_form34a,
+        # 'form37':   fill_form37,
     }
     fn = FORM_DISPATCH.get(form_type.lower().replace('-', '_'))
     if fn:

@@ -1010,11 +1010,21 @@ app.post('/api/cases/:caseId/pdf-checkboxes/:formType', requireAuth, requireSubs
 
 // ── Official PDF generation ──
 
+// Forms whose handlers exist in fill_pdf.py but whose PDF templates are not
+// yet shipped in dist/public/pdfs/. Any request for one of these returns a
+// 501 Not Implemented so the frontend can show a friendly "coming soon" state
+// instead of crashing (D3, Aug 12 2026 audit).
+const COMING_SOON_FORMS = new Set(['form34a', 'form37']);
+const COMING_SOON_MESSAGE = 'This form is coming soon. We are finalizing the official court template and will enable it in a future release.';
+
 app.post('/api/cases/:caseId/official-pdf/:formType', requireAuth, requirePaidExport, async (req, res) => {
   try {
     const c = await dbGet('cases', { id: `eq.${req.params.caseId}`, user_id: `eq.${req.user.id}` });
     if (!c) return res.status(404).json({ message: 'Case not found' });
     const formType = req.params.formType;
+    if (COMING_SOON_FORMS.has(formType)) {
+      return res.status(501).json({ code: 'form_coming_soon', formType, message: COMING_SOON_MESSAGE });
+    }
     const pdfPath = path.join(__dirname, 'public', 'pdfs', `${formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).json({ message: 'PDF template not found for ' + formType });
     const formData = await dbAll('form_data', { case_id: `eq.${c.id}` });
@@ -1032,6 +1042,9 @@ app.post('/api/cases/:caseId/pdf-link/:formType', requireAuth, requirePaidExport
     const { caseId, formType } = req.params;
     const c = await dbGet('cases', { id: `eq.${caseId}`, user_id: `eq.${req.user.id}` });
     if (!c) return res.status(404).json({ message: 'Case not found' });
+    if (COMING_SOON_FORMS.has(formType)) {
+      return res.status(501).json({ code: 'form_coming_soon', formType, message: COMING_SOON_MESSAGE });
+    }
     const pdfPath = path.join(__dirname, 'public', 'pdfs', `${formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).json({ message: 'PDF template not found for ' + formType });
     const token = crypto.randomBytes(32).toString('hex');
@@ -1055,6 +1068,9 @@ app.get('/api/download/:token', async (req, res) => {
     if (Date.now() > expiresAt) {
       await dbDelete('pdf_download_tokens', { token: `eq.${token}` });
       return res.status(410).send('This download link has expired. Please generate a new one from the app.');
+    }
+    if (COMING_SOON_FORMS.has(formType)) {
+      return res.status(501).send(COMING_SOON_MESSAGE);
     }
     const pdfPath = path.join(__dirname, 'public', 'pdfs', `${formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).send('PDF not found.');
