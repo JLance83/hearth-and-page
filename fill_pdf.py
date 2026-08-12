@@ -345,49 +345,84 @@ def fill_pdf(input_path, output_path, form_data_list):
 # This function reads those flat keys and maps them to AcroForm field names.
 # ─────────────────────────────────────────────────────────────────────────────
 
-COURTHOUSE_NAMES_FE = {
+# ─────────────────────────────────────────────────────────────────────────────
+# Courthouse lookups (FormEngine values)
+#
+# The intake picker has changed shape twice:
+#   v1 (legacy):  slug only            → 'sudbury', 'toronto-university'
+#   v2 (legacy):  slug + court suffix   → 'sudbury-ocj', 'sudbury-scj'
+#   v3 (current): full display string   → 'Sudbury — Superior Court of Justice'
+#
+# All three must resolve to a canonical Ontario courthouse name & address, or
+# the header on every generated PDF is blank (D1/D2 audit finding, Aug 12 2026).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# (slug, city_display, scj_address, ocj_address)
+# Any city missing an OCJ family courthouse still lists SCJ address as fallback.
+_ON_COURTHOUSES = [
+    ('barrie',         'Barrie',         '75 Mulcaster St, Barrie, ON L4M 3P2',              '75 Mulcaster St, Barrie, ON L4M 3P2'),
+    ('brampton',       'Brampton',       '7755 Hurontario St, Brampton, ON L6W 4T6',         '7755 Hurontario St, Brampton, ON L6W 4T6'),
+    ('brantford',      'Brantford',      '70 Wellington St, Brantford, ON N3T 2L9',          '70 Wellington St, Brantford, ON N3T 2L9'),
+    ('cornwall',       'Cornwall',       '29 Second St W, Cornwall, ON K6J 1G6',             '29 Second St W, Cornwall, ON K6J 1G6'),
+    ('etobicoke',      'Etobicoke',      '2201 Finch Ave W, Etobicoke, ON M9M 2Y9',          '2201 Finch Ave W, Etobicoke, ON M9M 2Y9'),
+    ('hamilton',       'Hamilton',       '45 Main St E, Hamilton, ON L8N 2B7',               '45 Main St E, Hamilton, ON L8N 2B7'),
+    ('kingston',       'Kingston',       '5 Court St, Kingston, ON K7L 2N4',                 '5 Court St, Kingston, ON K7L 2N4'),
+    ('kitchener',      'Kitchener',      '85 Frederick St, Kitchener, ON N2H 0A7',           '85 Frederick St, Kitchener, ON N2H 0A7'),
+    ('london',         'London',         '80 Dundas St, London, ON N6A 6A3',                 '80 Dundas St, London, ON N6A 6A3'),
+    ('milton',         'Milton',         '491 Steeles Ave E, Milton, ON L9T 1Y7',            '491 Steeles Ave E, Milton, ON L9T 1Y7'),
+    ('newmarket',      'Newmarket',      '50 Eagle St W, Newmarket, ON L3Y 6B1',             '50 Eagle St W, Newmarket, ON L3Y 6B1'),
+    ('north-york',     'North York',     '47 Sheppard Ave E, North York, ON M2N 5N1',        '47 Sheppard Ave E, North York, ON M2N 5N1'),
+    ('oshawa',         'Oshawa',         '150 Bond St E, Oshawa, ON L1G 0A2',                '150 Bond St E, Oshawa, ON L1G 0A2'),
+    ('ottawa',         'Ottawa',         '161 Elgin St, Ottawa, ON K2P 2K1',                 '161 Elgin St, Ottawa, ON K2P 2K1'),
+    ('peterborough',   'Peterborough',   '470 Water St, Peterborough, ON K9H 3M3',           '470 Water St, Peterborough, ON K9H 3M3'),
+    ('scarborough',    'Scarborough',    '1911 Eglinton Ave E, Scarborough, ON M1L 4P4',     '1911 Eglinton Ave E, Scarborough, ON M1L 4P4'),
+    ('st-catharines',  'St. Catharines', '59 Church St, St. Catharines, ON L2R 7N8',         '59 Church St, St. Catharines, ON L2R 7N8'),
+    ('sudbury',        'Sudbury',        '155 Elm St, Sudbury, ON P3C 1T9',                  '155 Elm St, Sudbury, ON P3C 1T9'),
+    ('thunder-bay',    'Thunder Bay',    '277 Camelot St, Thunder Bay, ON P7A 4B3',          '277 Camelot St, Thunder Bay, ON P7A 4B3'),
+    ('toronto',        'Toronto',        '393 University Ave, Toronto, ON M5G 1E6',          '60 Queen St W, Toronto, ON M5H 2M3'),
+    ('windsor',        'Windsor',        '245 Windsor Ave, Windsor, ON N9A 1J2',             '245 Windsor Ave, Windsor, ON N9A 1J2'),
+]
+
+def _build_courthouse_tables():
+    names, addrs = {}, {}
+    for slug, city, scj_addr, ocj_addr in _ON_COURTHOUSES:
+        scj_name = f'Superior Court of Justice - {city}'
+        ocj_name = f'Ontario Court of Justice - {city}'
+        # bare slug → default SCJ
+        names[slug] = scj_name
+        addrs[slug] = scj_addr
+        # slug + court suffix (v2 picker)
+        names[f'{slug}-scj'] = scj_name
+        addrs[f'{slug}-scj'] = scj_addr
+        names[f'{slug}-ocj'] = ocj_name
+        addrs[f'{slug}-ocj'] = ocj_addr
+        # v3 display strings (from hp-patches.js current picker)
+        names[f'{city} \u2014 Superior Court of Justice'] = scj_name
+        addrs[f'{city} \u2014 Superior Court of Justice'] = scj_addr
+        names[f'{city} \u2014 Ontario Court of Justice']  = ocj_name
+        addrs[f'{city} \u2014 Ontario Court of Justice']  = ocj_addr
+        # canonical name → address
+        addrs[scj_name] = scj_addr
+        addrs[ocj_name] = ocj_addr
+    return names, addrs
+
+COURTHOUSE_NAMES_FE, COURTHOUSE_ADDRESSES_FE = _build_courthouse_tables()
+
+# Legacy explicit entries kept for back-compat with any older DB rows
+COURTHOUSE_NAMES_FE.update({
     'Ontario Court of Justice': 'Ontario Court of Justice',
     'Superior Court of Justice': 'Superior Court of Justice',
     'Superior Court of Justice (Family Court Branch)': 'Superior Court of Justice (Family Court Branch)',
-    # legacy keys from old onboarding
     'toronto-university':  'Superior Court of Justice - Toronto (393 University Ave.)',
     'toronto-old':         'Ontario Court of Justice - Toronto (Old City Hall)',
-    'ottawa':              'Superior Court of Justice - Ottawa',
-    'hamilton':            'Superior Court of Justice - Hamilton',
-    'london':              'Superior Court of Justice - London',
-    'kitchener':           'Superior Court of Justice - Kitchener (Waterloo Region)',
-    'windsor':             'Superior Court of Justice - Windsor',
-    'barrie':              'Superior Court of Justice - Barrie',
-    'oshawa':              'Superior Court of Justice - Oshawa (Durham Region)',
-    'brampton':            'Superior Court of Justice - Brampton',
-    'newmarket':           'Superior Court of Justice - Newmarket (York Region)',
-    'kingston':            'Superior Court of Justice - Kingston',
-    'thunder-bay':         'Superior Court of Justice - Thunder Bay',
-    'sudbury':             'Superior Court of Justice - Sudbury',
-    'north-york':          'Ontario Court of Justice - North York',
-    'scarborough':         'Ontario Court of Justice - Scarborough',
-    'etobicoke':           'Ontario Court of Justice - Etobicoke',
-}
-
-COURTHOUSE_ADDRESSES_FE = {
+})
+COURTHOUSE_ADDRESSES_FE.update({
     'Superior Court of Justice': '393 University Ave, Toronto, ON M5G 1E6',
-    'Ontario Court of Justice': '60 Queen St W, Toronto, ON M5H 2M3',
+    'Ontario Court of Justice':  '60 Queen St W, Toronto, ON M5H 2M3',
     'Superior Court of Justice (Family Court Branch)': '393 University Ave, Toronto, ON M5G 1E6',
     'toronto-university': '393 University Ave, Toronto, ON M5G 1E6',
     'toronto-old':        '60 Queen St W, Toronto, ON M5H 2M3',
-    'ottawa':             '161 Elgin St, Ottawa, ON K2P 2K1',
-    'hamilton':           '45 Main St E, Hamilton, ON L8N 2B7',
-    'london':             '80 Dundas St, London, ON N6A 6A3',
-    'kitchener':          '85 Frederick St, Kitchener, ON N2H 0A7',
-    'windsor':            '245 Windsor Ave, Windsor, ON N9A 1J2',
-    'barrie':             '75 Mulcaster St, Barrie, ON L4M 3P2',
-    'oshawa':             '150 Bond St E, Oshawa, ON L1G 0A2',
-    'brampton':           '7755 Hurontario St, Brampton, ON L6W 4T6',
-    'newmarket':          '50 Eagle St W, Newmarket, ON L3Y 6B1',
-    'kingston':           '5 Court St, Kingston, ON K7L 2N4',
-    'thunder-bay':        '277 Camelot St, Thunder Bay, ON P7A 4B3',
-    'sudbury':            '155 Elm St, Sudbury, ON P3C 1T9',
-}
+})
 
 
 def _fe_flat(form_data_list):

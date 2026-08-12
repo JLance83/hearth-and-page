@@ -895,7 +895,15 @@ function toFillRows(dbRows) {
     } else if (section && section !== '__meta__') {
       // applicant + full_name → applicant_full_name
       // court + courthouse   → courthouse (no double-prefix when key already contains section)
-      if (snakeKey === section || snakeKey.startsWith(`${section}_`)) {
+      // KNOWN_BARE: keys under `court`/etc that fill_pdf.py reads unprefixed. Must survive as-is.
+      const KNOWN_BARE = new Set([
+        'courthouse', 'courtFileNumber', 'court_file_number',
+        'fileNumber', 'file_number',
+        'court_name', 'courtName',
+      ]);
+      if (KNOWN_BARE.has(rawKey) || KNOWN_BARE.has(snakeKey)) {
+        fieldKey = snakeKey;
+      } else if (snakeKey === section || snakeKey.startsWith(`${section}_`)) {
         fieldKey = snakeKey;
       } else {
         fieldKey = `${section}_${snakeKey}`;
