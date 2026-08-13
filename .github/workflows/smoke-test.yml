@@ -14,9 +14,11 @@ on:
   workflow_dispatch: {}
 
 env:
-  # Public Railway URL. Once app.hearthandpage.ca SSL is fixed, replace this
-  # with the custom domain — no other change should be needed.
-  PROD_HOST: api-production-2334.up.railway.app
+  # Public custom domain, live on Let's Encrypt via Railway as of Aug 13 2026.
+  # api-production-2334.up.railway.app is still valid as a fallback if the
+  # custom domain ever regresses — keep the previous value handy:
+  #   PROD_HOST: api-production-2334.up.railway.app
+  PROD_HOST: app.hearthandpage.ca
   # Max minutes to wait for Railway to finish deploying + rotate traffic.
   DEPLOY_WAIT_MINUTES: "6"
 
