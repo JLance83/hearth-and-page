@@ -284,7 +284,39 @@ app.use((req, res, next) => {
 // Strip sensitive fields before sending user objects to client
 function sanitizeUser(u) { if (!u) return u; const { passwordHash, ...safe } = u; return safe; }
 
-app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString(), db: 'supabase', keyRole: SUPABASE_KEY.includes('service_role') ? 'service_role' : 'anon' }));
+// Cached at boot so smoke tests can verify the running commit without
+// paying a subprocess-spawn cost on every /api/health probe. See
+// scripts/health_extras.js for the collector.
+const { BOOT_INFO, checkPdfRuntime } = require('./health_extras');
+app.get('/api/health', (req, res) => res.json({
+  ok: true,
+  time: new Date().toISOString(),
+  db: 'supabase',
+  keyRole: SUPABASE_KEY.includes('service_role') ? 'service_role' : 'anon',
+  commit: BOOT_INFO.commit,
+  commitShort: BOOT_INFO.commit ? BOOT_INFO.commit.slice(0, 7) : null,
+  startTime: BOOT_INFO.startTime,
+  uptimeSec: Math.round((Date.now() - BOOT_INFO.startTimeMs) / 1000),
+  node: BOOT_INFO.node,
+  version: BOOT_INFO.version,
+}));
+// PDF runtime health: shells out to fill_pdf.py --self-check to prove the
+// vendored pypdf wheel loads inside the actual Python subprocess Railway
+// will use for real PDF requests. Cached for 60s to avoid subprocess spam.
+let _pdfRuntimeCache = { at: 0, payload: null };
+app.get('/api/pdf-runtime-check', async (req, res) => {
+  const now = Date.now();
+  if (_pdfRuntimeCache.payload && (now - _pdfRuntimeCache.at) < 60_000) {
+    return res.json({ ..._pdfRuntimeCache.payload, cached: true });
+  }
+  try {
+    const payload = await checkPdfRuntime();
+    _pdfRuntimeCache = { at: now, payload };
+    return res.json({ ...payload, cached: false });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
 app.post('/api/auth/login-debug', async (req, res) => {
   try {
     const { email, password } = req.body;

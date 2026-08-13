@@ -2485,8 +2485,27 @@ def fill_form30a(input_path, output_path, form_data_list):
 
 
 if __name__ == '__main__':
+    # Self-check mode: prints a small JSON payload proving pypdf loads from the
+    # vendored wheel. Used by /api/pdf-runtime-check to verify runtime health
+    # without needing an authenticated PDF request.
+    if len(sys.argv) >= 2 and sys.argv[1] == '--self-check':
+        try:
+            payload = {
+                'ok': True,
+                'pypdfVersion': getattr(pypdf, '__version__', None),
+                'pypdfPath': pypdf.__file__,
+                'python': sys.version.split()[0],
+                'vendorDir': [p for p in sys.path if p.endswith('.whl')],
+            }
+            print(json.dumps(payload))
+            sys.exit(0)
+        except Exception as _e:
+            print(json.dumps({'ok': False, 'error': str(_e)}))
+            sys.exit(1)
+
     if len(sys.argv) < 4:
         sys.stderr.write(f'Usage: {sys.argv[0]} <input_pdf> <output_pdf> <json_data_file> [form_type]\n')
+        sys.stderr.write(f'   or: {sys.argv[0]} --self-check\n')
         sys.exit(1)
 
     input_pdf = sys.argv[1]
