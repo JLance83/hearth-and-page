@@ -1,1 +1,8 @@
-pypdf>=4.0.0
+# This file documents the Python dependencies used by fill_pdf.py, but it is
+# NO LONGER installed at build or run time. Wheels are vendored under
+# vendor/*.whl and loaded via zipimport — see vendor/README.md.
+#
+# Kept here only so tools like Dependabot/Renovate and local `pip install -r`
+# reproductions still work.
+pypdf>=4.0.0,<7.0.0
+typing_extensions>=4.0

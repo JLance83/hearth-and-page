@@ -7,25 +7,44 @@ Usage: python3 fill_pdf.py <input_pdf> <output_pdf> <json_data_file>
 import sys
 import json
 import os
+import glob
 from datetime import date
+
+# ---------------------------------------------------------------------------
+# Vendored dependencies (Aug 12 2026)
+# ---------------------------------------------------------------------------
+# pypdf and typing_extensions are shipped in `vendor/*.whl` and loaded via
+# Python's built-in zipimport. This removes the previous cold-start behaviour
+# that shelled out to `pip install pypdf` on the first PDF request — which
+# failed on read-only Railway file systems and turned every fresh deploy into
+# an installer race.
+#
+# `vendor/` sits alongside this file (repo root: fill_pdf.py + vendor/; also
+# copied to dist/fill_pdf.py + dist/vendor/ if the build did that, but we look
+# in both spots either way). See vendor/README.md for refresh instructions.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _candidate in (
+    os.path.join(_HERE, 'vendor'),
+    os.path.join(_HERE, '..', 'vendor'),
+):
+    _candidate = os.path.abspath(_candidate)
+    if not os.path.isdir(_candidate):
+        continue
+    for _whl in sorted(glob.glob(os.path.join(_candidate, '*.whl'))):
+        if _whl not in sys.path:
+            sys.path.insert(0, _whl)
 
 try:
     import pypdf
     from pypdf import PdfWriter, PdfReader
     import pypdf.generic as g
-except ImportError:
-    import subprocess
-    sys.stderr.write("[fill_pdf] pypdf not found, installing...\n")
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "pypdf>=4.0.0"],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        import pypdf
-        from pypdf import PdfWriter, PdfReader
-        import pypdf.generic as g
-        sys.stderr.write("[fill_pdf] pypdf installed OK\n")
-    except Exception as e:
-        sys.stderr.write(f"[fill_pdf] Could not install pypdf: {e}\n")
-        sys.exit(1)
+except ImportError as _e:
+    sys.stderr.write(
+        f"[fill_pdf] pypdf could not be loaded from vendor/*.whl or the system\n"
+        f"           interpreter. Import error: {_e}\n"
+        f"           Expected wheels under: {os.path.join(_HERE, 'vendor')}\n"
+    )
+    sys.exit(1)
 
 def format_phone(raw):
     if not raw:
@@ -345,49 +364,84 @@ def fill_pdf(input_path, output_path, form_data_list):
 # This function reads those flat keys and maps them to AcroForm field names.
 # ─────────────────────────────────────────────────────────────────────────────
 
-COURTHOUSE_NAMES_FE = {
+# ─────────────────────────────────────────────────────────────────────────────
+# Courthouse lookups (FormEngine values)
+#
+# The intake picker has changed shape twice:
+#   v1 (legacy):  slug only            → 'sudbury', 'toronto-university'
+#   v2 (legacy):  slug + court suffix   → 'sudbury-ocj', 'sudbury-scj'
+#   v3 (current): full display string   → 'Sudbury — Superior Court of Justice'
+#
+# All three must resolve to a canonical Ontario courthouse name & address, or
+# the header on every generated PDF is blank (D1/D2 audit finding, Aug 12 2026).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# (slug, city_display, scj_address, ocj_address)
+# Any city missing an OCJ family courthouse still lists SCJ address as fallback.
+_ON_COURTHOUSES = [
+    ('barrie',         'Barrie',         '75 Mulcaster St, Barrie, ON L4M 3P2',              '75 Mulcaster St, Barrie, ON L4M 3P2'),
+    ('brampton',       'Brampton',       '7755 Hurontario St, Brampton, ON L6W 4T6',         '7755 Hurontario St, Brampton, ON L6W 4T6'),
+    ('brantford',      'Brantford',      '70 Wellington St, Brantford, ON N3T 2L9',          '70 Wellington St, Brantford, ON N3T 2L9'),
+    ('cornwall',       'Cornwall',       '29 Second St W, Cornwall, ON K6J 1G6',             '29 Second St W, Cornwall, ON K6J 1G6'),
+    ('etobicoke',      'Etobicoke',      '2201 Finch Ave W, Etobicoke, ON M9M 2Y9',          '2201 Finch Ave W, Etobicoke, ON M9M 2Y9'),
+    ('hamilton',       'Hamilton',       '45 Main St E, Hamilton, ON L8N 2B7',               '45 Main St E, Hamilton, ON L8N 2B7'),
+    ('kingston',       'Kingston',       '5 Court St, Kingston, ON K7L 2N4',                 '5 Court St, Kingston, ON K7L 2N4'),
+    ('kitchener',      'Kitchener',      '85 Frederick St, Kitchener, ON N2H 0A7',           '85 Frederick St, Kitchener, ON N2H 0A7'),
+    ('london',         'London',         '80 Dundas St, London, ON N6A 6A3',                 '80 Dundas St, London, ON N6A 6A3'),
+    ('milton',         'Milton',         '491 Steeles Ave E, Milton, ON L9T 1Y7',            '491 Steeles Ave E, Milton, ON L9T 1Y7'),
+    ('newmarket',      'Newmarket',      '50 Eagle St W, Newmarket, ON L3Y 6B1',             '50 Eagle St W, Newmarket, ON L3Y 6B1'),
+    ('north-york',     'North York',     '47 Sheppard Ave E, North York, ON M2N 5N1',        '47 Sheppard Ave E, North York, ON M2N 5N1'),
+    ('oshawa',         'Oshawa',         '150 Bond St E, Oshawa, ON L1G 0A2',                '150 Bond St E, Oshawa, ON L1G 0A2'),
+    ('ottawa',         'Ottawa',         '161 Elgin St, Ottawa, ON K2P 2K1',                 '161 Elgin St, Ottawa, ON K2P 2K1'),
+    ('peterborough',   'Peterborough',   '470 Water St, Peterborough, ON K9H 3M3',           '470 Water St, Peterborough, ON K9H 3M3'),
+    ('scarborough',    'Scarborough',    '1911 Eglinton Ave E, Scarborough, ON M1L 4P4',     '1911 Eglinton Ave E, Scarborough, ON M1L 4P4'),
+    ('st-catharines',  'St. Catharines', '59 Church St, St. Catharines, ON L2R 7N8',         '59 Church St, St. Catharines, ON L2R 7N8'),
+    ('sudbury',        'Sudbury',        '155 Elm St, Sudbury, ON P3C 1T9',                  '155 Elm St, Sudbury, ON P3C 1T9'),
+    ('thunder-bay',    'Thunder Bay',    '277 Camelot St, Thunder Bay, ON P7A 4B3',          '277 Camelot St, Thunder Bay, ON P7A 4B3'),
+    ('toronto',        'Toronto',        '393 University Ave, Toronto, ON M5G 1E6',          '60 Queen St W, Toronto, ON M5H 2M3'),
+    ('windsor',        'Windsor',        '245 Windsor Ave, Windsor, ON N9A 1J2',             '245 Windsor Ave, Windsor, ON N9A 1J2'),
+]
+
+def _build_courthouse_tables():
+    names, addrs = {}, {}
+    for slug, city, scj_addr, ocj_addr in _ON_COURTHOUSES:
+        scj_name = f'Superior Court of Justice - {city}'
+        ocj_name = f'Ontario Court of Justice - {city}'
+        # bare slug → default SCJ
+        names[slug] = scj_name
+        addrs[slug] = scj_addr
+        # slug + court suffix (v2 picker)
+        names[f'{slug}-scj'] = scj_name
+        addrs[f'{slug}-scj'] = scj_addr
+        names[f'{slug}-ocj'] = ocj_name
+        addrs[f'{slug}-ocj'] = ocj_addr
+        # v3 display strings (from hp-patches.js current picker)
+        names[f'{city} \u2014 Superior Court of Justice'] = scj_name
+        addrs[f'{city} \u2014 Superior Court of Justice'] = scj_addr
+        names[f'{city} \u2014 Ontario Court of Justice']  = ocj_name
+        addrs[f'{city} \u2014 Ontario Court of Justice']  = ocj_addr
+        # canonical name → address
+        addrs[scj_name] = scj_addr
+        addrs[ocj_name] = ocj_addr
+    return names, addrs
+
+COURTHOUSE_NAMES_FE, COURTHOUSE_ADDRESSES_FE = _build_courthouse_tables()
+
+# Legacy explicit entries kept for back-compat with any older DB rows
+COURTHOUSE_NAMES_FE.update({
     'Ontario Court of Justice': 'Ontario Court of Justice',
     'Superior Court of Justice': 'Superior Court of Justice',
     'Superior Court of Justice (Family Court Branch)': 'Superior Court of Justice (Family Court Branch)',
-    # legacy keys from old onboarding
     'toronto-university':  'Superior Court of Justice - Toronto (393 University Ave.)',
     'toronto-old':         'Ontario Court of Justice - Toronto (Old City Hall)',
-    'ottawa':              'Superior Court of Justice - Ottawa',
-    'hamilton':            'Superior Court of Justice - Hamilton',
-    'london':              'Superior Court of Justice - London',
-    'kitchener':           'Superior Court of Justice - Kitchener (Waterloo Region)',
-    'windsor':             'Superior Court of Justice - Windsor',
-    'barrie':              'Superior Court of Justice - Barrie',
-    'oshawa':              'Superior Court of Justice - Oshawa (Durham Region)',
-    'brampton':            'Superior Court of Justice - Brampton',
-    'newmarket':           'Superior Court of Justice - Newmarket (York Region)',
-    'kingston':            'Superior Court of Justice - Kingston',
-    'thunder-bay':         'Superior Court of Justice - Thunder Bay',
-    'sudbury':             'Superior Court of Justice - Sudbury',
-    'north-york':          'Ontario Court of Justice - North York',
-    'scarborough':         'Ontario Court of Justice - Scarborough',
-    'etobicoke':           'Ontario Court of Justice - Etobicoke',
-}
-
-COURTHOUSE_ADDRESSES_FE = {
+})
+COURTHOUSE_ADDRESSES_FE.update({
     'Superior Court of Justice': '393 University Ave, Toronto, ON M5G 1E6',
-    'Ontario Court of Justice': '60 Queen St W, Toronto, ON M5H 2M3',
+    'Ontario Court of Justice':  '60 Queen St W, Toronto, ON M5H 2M3',
     'Superior Court of Justice (Family Court Branch)': '393 University Ave, Toronto, ON M5G 1E6',
     'toronto-university': '393 University Ave, Toronto, ON M5G 1E6',
     'toronto-old':        '60 Queen St W, Toronto, ON M5H 2M3',
-    'ottawa':             '161 Elgin St, Ottawa, ON K2P 2K1',
-    'hamilton':           '45 Main St E, Hamilton, ON L8N 2B7',
-    'london':             '80 Dundas St, London, ON N6A 6A3',
-    'kitchener':          '85 Frederick St, Kitchener, ON N2H 0A7',
-    'windsor':            '245 Windsor Ave, Windsor, ON N9A 1J2',
-    'barrie':             '75 Mulcaster St, Barrie, ON L4M 3P2',
-    'oshawa':             '150 Bond St E, Oshawa, ON L1G 0A2',
-    'brampton':           '7755 Hurontario St, Brampton, ON L6W 4T6',
-    'newmarket':          '50 Eagle St W, Newmarket, ON L3Y 6B1',
-    'kingston':           '5 Court St, Kingston, ON K7L 2N4',
-    'thunder-bay':        '277 Camelot St, Thunder Bay, ON P7A 4B3',
-    'sudbury':            '155 Elm St, Sudbury, ON P3C 1T9',
-}
+})
 
 
 def _fe_flat(form_data_list):
@@ -403,6 +457,63 @@ def _fe_flat(form_data_list):
 
 def _is_yes(val):
     return str(val).strip().lower() in ('yes', 'true', '1', 'on')
+
+
+# ─── Small helpers introduced during the Aug 12 2026 audit (Fix 4) ───────────
+def _pick(d, *keys):
+    """Return the first non-empty stripped value from d for the given keys.
+
+    Frontend now writes section-prefixed snake_case (e.g. `respondent_city`),
+    but legacy cases used camelCase (`respondentCity`). Callers pass both
+    spellings so old data still fills.
+    """
+    for k in keys:
+        v = d.get(k, '')
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s:
+            return s
+    return ''
+
+
+def _fmt_addr(street, unit, city, province, postal):
+    """Compose a single-line address; drops empty pieces without doubled commas.
+
+    Unit is prefixed as 'Unit N, <street>' so it lands where humans expect it.
+    """
+    street = (street or '').strip()
+    unit   = (unit   or '').strip()
+    city   = (city   or '').strip()
+    province = (province or '').strip()
+    postal = (postal or '').strip()
+    head = f'Unit {unit}, {street}' if unit and street else (street or (f'Unit {unit}' if unit else ''))
+    parts = [head, city, province, postal]
+    return ', '.join(p for p in parts if p)
+
+
+def _fmt_muni(city, province):
+    """'City, Province' — omits pieces that are blank."""
+    city = (city or '').strip()
+    province = (province or '').strip()
+    return ', '.join(p for p in [city, province] if p)
+
+
+def _split_first_last(full_name):
+    """Split a full name into (first+middle, last).
+
+    Ontario court forms expect the surname alone in the 'last name' box,
+    with any middle names kept with the given name. The prior code did
+    `parts[0], ' '.join(parts[1:])` which mis-labelled 'Joshua Daniel Lance'
+    as first='Joshua', last='Daniel Lance'. Fix 4 (D5) uses the
+    surname-is-last-token convention instead.
+    """
+    parts = (full_name or '').strip().split()
+    if not parts:
+        return '', ''
+    if len(parts) == 1:
+        return parts[0], ''
+    return ' '.join(parts[:-1]), parts[-1]
 
 
 def fill_form8(input_path, output_path, form_data_list):
@@ -430,18 +541,21 @@ def fill_form8(input_path, output_path, form_data_list):
         fields[f'Court File Number, page {pg}'] = file_number
 
     # ── Applicant ─────────────────────────────────────────────────────────
-    ap_name = d.get('applicantFullName', d.get('applicant_full_name', ''))
-    ap_dob  = d.get('applicantDob', d.get('applicant_dob', ''))
-    ap_addr_parts = [
-        d.get('applicantAddress', d.get('applicant_address', '')),
-        d.get('applicantUnit', d.get('applicant_unit', '')),
-        d.get('applicantCity', d.get('applicant_city', '')),
-        d.get('applicantProvince', 'ON'),
-        d.get('applicantPostalCode', d.get('applicant_postal_code', '')),
-    ]
-    ap_addr = ', '.join(p for p in ap_addr_parts if p)
-    ap_phone = format_phone(d.get('applicantPhone', d.get('applicant_phone', '')))
-    ap_email = d.get('applicantEmail', d.get('applicant_email', ''))
+    # NOTE (Aug 12 2026 audit — Fix 4):
+    #   Frontend now writes section-prefixed snake_case keys (applicant_city,
+    #   respondent_province, situation_were_married, situation_separation_date).
+    #   Legacy camelCase keys are still checked as fallbacks so older cases
+    #   continue to fill.
+    ap_name = _pick(d, 'applicantFullName', 'applicant_full_name')
+    ap_dob  = _pick(d, 'applicantDob', 'applicant_dob')
+    ap_unit = _pick(d, 'applicantUnit', 'applicant_unit')
+    ap_street = _pick(d, 'applicantAddress', 'applicant_address')
+    ap_city = _pick(d, 'applicantCity', 'applicant_city')
+    ap_prov = _pick(d, 'applicantProvince', 'applicant_province') or 'ON'
+    ap_postal = _pick(d, 'applicantPostalCode', 'applicant_postal_code')
+    ap_addr = _fmt_addr(ap_street, ap_unit, ap_city, ap_prov, ap_postal)
+    ap_phone = format_phone(_pick(d, 'applicantPhone', 'applicant_phone'))
+    ap_email = _pick(d, 'applicantEmail', 'applicant_email')
 
     fields['Applicant(s) - Full legal name'] = ap_name
     fields['Applicant(s) - Address'] = ap_addr
@@ -450,33 +564,29 @@ def fill_form8(input_path, output_path, form_data_list):
     fields['Age - applicant'] = calc_age(ap_dob)
     fields['Birthdate: (d, m, y) - Applicant'] = format_dob(ap_dob)
 
-    city_prov_ap = ', '.join(p for p in [
-        d.get('applicantCity', ''), 'ON'] if p)
-    fields['Municipality & province - applicant'] = city_prov_ap
-    fields['Date - start of residency - applicant'] = d.get('applicantResidencyDate', '')
+    fields['Municipality & province - applicant'] = _fmt_muni(ap_city, ap_prov)
+    fields['Date - start of residency - applicant'] = _pick(d, 'applicantResidencyDate', 'applicant_residency_date')
 
-    ap_name_parts = ap_name.split()
-    fields['First name on the day before the marriage date - applicant'] = (
-        d.get('applicantPremarriageFirst', ap_name_parts[0] if ap_name_parts else ''))
-    fields['Last name on the day before the marriage date - applicant'] = (
-        d.get('applicantPremarriageLast', ' '.join(ap_name_parts[1:]) if len(ap_name_parts) > 1 else ''))
-    fields['Place and date of previous divorce - applicant'] = d.get('applicantPreviousDivorce', '')
-
-    ap_gender = d.get('applicantGender', '').lower()
+    ap_gender = _pick(d, 'applicantGender', 'applicant_gender').lower()
     if ap_gender in ('male', 'm'):      checkboxes['Male - applicant'] = True
     elif ap_gender in ('female', 'f'):  checkboxes['Female - applicant'] = True
     elif ap_gender:                     checkboxes['Another gender - applicant'] = True
 
-    ap_prev = d.get('applicantPreviousMarriage', d.get('applicant_previous_marriage', ''))
+    ap_prev = _pick(d, 'applicantPreviousMarriage', 'applicant_previous_marriage')
     if _is_yes(ap_prev):   checkboxes['Yes - applicant'] = True
     elif ap_prev == 'no':  checkboxes['No - applicant'] = True
 
     # ── Respondent ────────────────────────────────────────────────────────
-    re_name = d.get('respondentFullName', d.get('respondent_full_name', ''))
-    re_dob  = d.get('respondentDob', d.get('respondent_dob', ''))
-    re_addr = d.get('respondentAddress', d.get('respondent_address', ''))
-    re_phone = format_phone(d.get('respondentPhone', d.get('respondent_phone', '')))
-    re_email = d.get('respondentEmail', d.get('respondent_email', ''))
+    re_name = _pick(d, 'respondentFullName', 'respondent_full_name')
+    re_dob  = _pick(d, 'respondentDob', 'respondent_dob')
+    re_unit = _pick(d, 'respondentUnit', 'respondent_unit')
+    re_street = _pick(d, 'respondentAddress', 'respondent_address')
+    re_city = _pick(d, 'respondentCity', 'respondent_city')
+    re_prov = _pick(d, 'respondentProvince', 'respondent_province') or 'ON'
+    re_postal = _pick(d, 'respondentPostalCode', 'respondent_postal_code')
+    re_addr = _fmt_addr(re_street, re_unit, re_city, re_prov, re_postal)
+    re_phone = format_phone(_pick(d, 'respondentPhone', 'respondent_phone'))
+    re_email = _pick(d, 'respondentEmail', 'respondent_email')
 
     fields['Respondent(s) - Full legal name'] = re_name
     fields['Respondent(s) - Address'] = re_addr
@@ -484,40 +594,60 @@ def fill_form8(input_path, output_path, form_data_list):
     fields['Respondent(s) - Email'] = re_email
     fields['Age - respondent'] = calc_age(re_dob)
     fields['Birthdate: (d, m, y) - respondent'] = format_dob(re_dob)
-    fields['Municipality & province - respondent'] = d.get('respondentCity', '')
-    fields['Date - start of residency - respondent'] = d.get('respondentResidencyDate', '')
+    fields['Municipality & province - respondent'] = _fmt_muni(re_city, re_prov)
+    fields['Date - start of residency - respondent'] = _pick(d, 'respondentResidencyDate', 'respondent_residency_date')
 
-    re_name_parts = re_name.split()
-    fields['First name on the day before the marriage date - respondent'] = (
-        d.get('respondentPremarriageFirst', re_name_parts[0] if re_name_parts else ''))
-    fields['Last name on the day before the marriage date - respondent'] = (
-        d.get('respondentPremarriageLast', ' '.join(re_name_parts[1:]) if len(re_name_parts) > 1 else ''))
-    fields['Place and date of previous divorce - respondent'] = d.get('respondentPreviousDivorce', '')
-
-    re_gender = d.get('respondentGender', '').lower()
+    re_gender = _pick(d, 'respondentGender', 'respondent_gender').lower()
     if re_gender in ('male', 'm'):      checkboxes['Male - respondent'] = True
     elif re_gender in ('female', 'f'):  checkboxes['Female - respondent'] = True
     elif re_gender:                     checkboxes['Another gender - respondent'] = True
 
-    re_prev = d.get('respondentPreviousMarriage', d.get('respondent_previous_marriage', ''))
+    re_prev = _pick(d, 'respondentPreviousMarriage', 'respondent_previous_marriage')
     if _is_yes(re_prev):   checkboxes['Yes - respondent'] = True
     elif re_prev == 'no':  checkboxes['No - respondent'] = True
 
-    re_lawyer_name = d.get('respondentLawyerName', d.get('respondent_lawyer_name', ''))
-    re_lawyer_firm = d.get('respondentLawyerFirm', '')
-    re_lawyer_phone = format_phone(d.get('respondentLawyerPhone', ''))
+    re_lawyer_name = _pick(d, 'respondentLawyerName', 'respondent_lawyer_name')
+    re_lawyer_firm = _pick(d, 'respondentLawyerFirm', 'respondent_lawyer_firm')
+    re_lawyer_phone = format_phone(_pick(d, 'respondentLawyerPhone', 'respondent_lawyer_phone'))
     fields['Respondent(s) Lawyer - Full legal name'] = re_lawyer_name
     fields['Respondent(s) Lawyer - Address'] = re_lawyer_firm
     fields['Respondent(s) Lawyer - Phone & fax'] = re_lawyer_phone
 
     # ── Relationship / marriage dates ─────────────────────────────────────
-    marriage_date = d.get('marriageDate', d.get('marriage_date', ''))
-    sep_date      = d.get('separationDate', d.get('separation_date', ''))
-    rel_type      = d.get('relationshipType', d.get('relationship_type', ''))
+    # D4: pre-marriage name / marriage-date / previous-divorce fields must be
+    # left blank when the parties were never married. situation_were_married
+    # is the frontend answer ('yes' / 'no'); we treat missing as 'no' so old
+    # never-married cases stop leaking today's surname into the marriage
+    # panel.
+    were_married = _is_yes(_pick(d, 'situationWereMarried', 'situation_were_married',
+                                    'wereMarried', 'were_married'))
 
-    if marriage_date:
-        fields['Date - Married on'] = marriage_date
-        checkboxes['Married on'] = True
+    marriage_date = _pick(d, 'marriageDate', 'marriage_date')
+    sep_date      = _pick(d, 'separationDate', 'separation_date',
+                             'situationSeparationDate', 'situation_separation_date')
+    rel_type      = _pick(d, 'relationshipType', 'relationship_type')
+
+    if were_married:
+        # D5: pre-marriage first/last names — accept an explicit override,
+        # else split the full name using the surname-is-last-token rule
+        # ("Joshua Daniel Lance" → first="Joshua Daniel", last="Lance").
+        ap_pm_first_default, ap_pm_last_default = _split_first_last(ap_name)
+        re_pm_first_default, re_pm_last_default = _split_first_last(re_name)
+        fields['First name on the day before the marriage date - applicant'] = _pick(
+            d, 'applicantPremarriageFirst', 'applicant_premarriage_first') or ap_pm_first_default
+        fields['Last name on the day before the marriage date - applicant'] = _pick(
+            d, 'applicantPremarriageLast', 'applicant_premarriage_last') or ap_pm_last_default
+        fields['First name on the day before the marriage date - respondent'] = _pick(
+            d, 'respondentPremarriageFirst', 'respondent_premarriage_first') or re_pm_first_default
+        fields['Last name on the day before the marriage date - respondent'] = _pick(
+            d, 'respondentPremarriageLast', 'respondent_premarriage_last') or re_pm_last_default
+        fields['Place and date of previous divorce - applicant'] = _pick(
+            d, 'applicantPreviousDivorce', 'applicant_previous_divorce')
+        fields['Place and date of previous divorce - respondent'] = _pick(
+            d, 'respondentPreviousDivorce', 'respondent_previous_divorce')
+        if marriage_date:
+            fields['Date - Married on'] = marriage_date
+            checkboxes['Married on'] = True
 
     if sep_date:
         fields['Date - Separated on'] = sep_date
@@ -581,10 +711,16 @@ def fill_form8(input_path, output_path, form_data_list):
             'other': 'Other',
         }.get(str(cr).lower(), cr)
 
+        # Per-child override (child_1_city / child_1_province) beats the
+        # applicant fallback — covers cases where a child lives with the
+        # respondent or a third party.
+        child_city = d.get(f'child_{i}_city', d.get(f'child{i}City', ap_city))
+        child_prov = d.get(f'child_{i}_province', d.get(f'child{i}Province', ap_prov))
+
         fields[f'Full legal name {i}'] = cn
         fields[f'Age {i}'] = calc_age(cd)
         fields[f'Birthdate: (d, m, y) {i}'] = format_dob(cd)
-        fields[f'Resident in (municipality & province) {i}'] = d.get('applicantCity', '')
+        fields[f'Resident in (municipality & province) {i}'] = _fmt_muni(child_city, child_prov)
         lw_key = f'Now Living With (name of person and relationship to child) {i if i < 5 else i + 1}'
         fields[lw_key] = residence_label
 
@@ -1522,10 +1658,22 @@ def fill_form14(input_path, output_path, form_data_list):
 # Form 14A — Affidavit (General)
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form14a(input_path, output_path, form_data_list):
+    # D8 fix (Aug 12 2026 audit): source keys were unprefixed (`city`, `province`,
+    # `applicant_full_name`) but after toFillRows() these live under section
+    # prefixes. Look up the prefixed keys, fall back to the legacy bare names,
+    # and resolve `courthouse` through the same COURTHOUSE_NAMES_FE table used
+    # by _header() so v1/v2/v3 picker values all work.
     d = _fe_flat(form_data_list)
+    courthouse_raw  = d.get('courthouse', d.get('court_name', ''))
+    courthouse_name = COURTHOUSE_NAMES_FE.get(courthouse_raw, courthouse_raw)
+    courthouse_addr = COURTHOUSE_ADDRESSES_FE.get(courthouse_raw,
+                      COURTHOUSE_ADDRESSES_FE.get(courthouse_name, ''))
+    ap_city     = d.get('applicant_city', d.get('city', ''))
+    ap_province = d.get('applicant_province', d.get('province', 'Ontario'))
     fields = {
-        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', ''),
-        'form1[0].page1[0].body[0].courtDetails[0].court[0].courtOfficeAddress[0]': COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), ''),
+        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': d.get('court_file_number', d.get('file_number', '')),
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].nameOfCourt[0]': courthouse_name,
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].courtOfficeAddress[0]': courthouse_addr,
         'form1[0].page1[0].body[0].courtDetails[0].Dated[0]': d.get('date_sworn', ''),
         'form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[0]': d.get('applicant_full_name', ''),
         'form1[0].page1[0].body[0].applicants[0].Recipient[0].textfield[1]': d.get('applicant_address', ''),
@@ -1533,14 +1681,15 @@ def fill_form14a(input_path, output_path, form_data_list):
         'form1[0].page1[0].body[0].Payor[0].Payor[0].textfield[1]': d.get('respondent_address', ''),
         'form1[0].page1[0].body[0].conditions[0].Reasons[0]': d.get('affidavit_text', ''),
         'form1[0].page1[0].body[0].Page2[0].Reasons[0]': d.get('affidavit_continued', ''),
-        'form1[0].page1[0].body[0].Page2[0].PageHeader[0].#subform[0].courtFileNumber[0]': d.get('court_file_number', ''),
-        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Municipality[0]': d.get('city', ''),
-        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Province[0]': d.get('province', 'Ontario'),
+        'form1[0].page1[0].body[0].Page2[0].PageHeader[0].#subform[0].courtFileNumber[0]': d.get('court_file_number', d.get('file_number', '')),
+        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Municipality[0]': ap_city,
+        'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Province[0]': ap_province,
         'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Date[0]': d.get('date_sworn', ''),
         'form1[0].page1[0].body[0].Page2[0].BottomSection[0].Section3[0].Commissioner[0]': d.get('commissioner_name', ''),
         'form1[0].page1[0].body[0].childrensLawyer[0].Name[0]': d.get('childrens_lawyer', ''),
     }
-    n = _write_pdf(input_path, output_path, fields)
+    # form14a is a LiveCycle form — must resolve widgets by full dotted path.
+    n = _write_pdf_lc(input_path, output_path, fields)
     sys.stderr.write(f'[fill_form14a] Filled {n} fields\n')
     return n
 
@@ -2378,8 +2527,12 @@ if __name__ == '__main__':
         'form36b':  fill_form36b,
         'form30a':  fill_form30a,
         'form10a':  fill_form10a,
-        'form34a':  fill_form34a,
-        'form37':   fill_form37,
+        # form34a and form37 have handlers in this file but no PDF template
+        # shipped in dist/public/pdfs/. The server's COMING_SOON_FORMS guard
+        # intercepts these requests with a 501 before they reach the dispatch,
+        # but they are also omitted here as defense in depth (D3, Aug 12 2026).
+        # 'form34a':  fill_form34a,
+        # 'form37':   fill_form37,
     }
     fn = FORM_DISPATCH.get(form_type.lower().replace('-', '_'))
     if fn:

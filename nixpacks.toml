@@ -1,17 +1,28 @@
 [phases.setup]
-pkgs = ["nodejs_20"]
+# - python3 runs fill_pdf.py. pypdf is vendored under vendor/*.whl and loaded
+#   via zipimport — no pip install at build or runtime. Python 3.9+ required
+#   (see vendor/README.md).
+# - qpdf strips the empty-password encryption from bundled court PDFs at
+#   build time so pypdf never needs the `cryptography` library at runtime.
+#   Ontario court templates are "encrypted" with an empty user password as
+#   an Adobe-Reader hint, not real crypto; qpdf --decrypt is byte-for-byte
+#   lossless (typical 240 KB → 242 KB). See scripts/unlock_pdfs.py.
+pkgs = ["nodejs_20", "python3", "qpdf"]
 
 [phases.install]
 cmds = [
-  "npm install --production",
-  "pip3 install -r requirements.txt 2>/dev/null || pip install -r requirements.txt 2>/dev/null || true"
+  "npm install --production"
 ]
 
 [phases.build]
 cmds = [
   "cp fill_pdf.py dist/fill_pdf.py || true",
+  "mkdir -p dist/vendor && cp vendor/*.whl dist/vendor/ 2>/dev/null || true",
+  "python3 scripts/unlock_pdfs.py --dir dist/public/pdfs",
   "(which python3 2>/dev/null || which python 2>/dev/null) | head -1 > dist/python3_path.txt",
-  "echo '[build] python3_path.txt:' && cat dist/python3_path.txt"
+  "echo '[build] python3_path.txt:' && cat dist/python3_path.txt",
+  "echo '[build] vendored wheels:' && ls -la dist/vendor/ 2>/dev/null || echo '(none)'",
+  "echo '[build] qpdf version:' && qpdf --version | head -1"
 ]
 
 [start]
@@ -19,4 +30,4 @@ cmd = "NODE_ENV=production node dist/index.cjs"
 
 [variables]
 PORT = "8080"
-# cache bust: 2026-08-04-v3-apt
+# cache bust: 2026-08-12-v5-vendored-pypdf-plus-qpdf-unlock

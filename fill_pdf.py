@@ -7,25 +7,44 @@ Usage: python3 fill_pdf.py <input_pdf> <output_pdf> <json_data_file>
 import sys
 import json
 import os
+import glob
 from datetime import date
+
+# ---------------------------------------------------------------------------
+# Vendored dependencies (Aug 12 2026)
+# ---------------------------------------------------------------------------
+# pypdf and typing_extensions are shipped in `vendor/*.whl` and loaded via
+# Python's built-in zipimport. This removes the previous cold-start behaviour
+# that shelled out to `pip install pypdf` on the first PDF request — which
+# failed on read-only Railway file systems and turned every fresh deploy into
+# an installer race.
+#
+# `vendor/` sits alongside this file (repo root: fill_pdf.py + vendor/; also
+# copied to dist/fill_pdf.py + dist/vendor/ if the build did that, but we look
+# in both spots either way). See vendor/README.md for refresh instructions.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _candidate in (
+    os.path.join(_HERE, 'vendor'),
+    os.path.join(_HERE, '..', 'vendor'),
+):
+    _candidate = os.path.abspath(_candidate)
+    if not os.path.isdir(_candidate):
+        continue
+    for _whl in sorted(glob.glob(os.path.join(_candidate, '*.whl'))):
+        if _whl not in sys.path:
+            sys.path.insert(0, _whl)
 
 try:
     import pypdf
     from pypdf import PdfWriter, PdfReader
     import pypdf.generic as g
-except ImportError:
-    import subprocess
-    sys.stderr.write("[fill_pdf] pypdf not found, installing...\n")
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "pypdf>=4.0.0"],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        import pypdf
-        from pypdf import PdfWriter, PdfReader
-        import pypdf.generic as g
-        sys.stderr.write("[fill_pdf] pypdf installed OK\n")
-    except Exception as e:
-        sys.stderr.write(f"[fill_pdf] Could not install pypdf: {e}\n")
-        sys.exit(1)
+except ImportError as _e:
+    sys.stderr.write(
+        f"[fill_pdf] pypdf could not be loaded from vendor/*.whl or the system\n"
+        f"           interpreter. Import error: {_e}\n"
+        f"           Expected wheels under: {os.path.join(_HERE, 'vendor')}\n"
+    )
+    sys.exit(1)
 
 def format_phone(raw):
     if not raw:
