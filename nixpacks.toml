@@ -22,7 +22,12 @@ cmds = [
   "(which python3 2>/dev/null || which python 2>/dev/null) | head -1 > dist/python3_path.txt",
   "echo '[build] python3_path.txt:' && cat dist/python3_path.txt",
   "echo '[build] vendored wheels:' && ls -la dist/vendor/ 2>/dev/null || echo '(none)'",
-  "echo '[build] qpdf version:' && qpdf --version | head -1"
+  "echo '[build] qpdf version:' && qpdf --version | head -1",
+  # Syntax-check every .js file in dist/public/assets/. A single bad character
+  # in one of these bundles used to ship silently and break the whole UI at
+  # runtime. `node --check` fails the build before the bad code deploys.
+  # Uses a shell loop so new .js files are picked up automatically.
+  "echo '[build] node --check on all frontend bundles:' && for f in dist/public/assets/*.js; do node --check \"$f\" && echo \"  $f: OK\"; done"
 ]
 
 [start]

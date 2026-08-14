@@ -2296,15 +2296,6 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     setTimeout(tryFix, 1500);
   })();
 
-  // Signal the bootstrap that hp-patches.js has fully loaded and all functions are ready
-  window.__hp_patches_ready = true;
-  // Drain any queued calls that arrived before we finished loading
-  if (Array.isArray(window.__hp_patches_queue)) {
-    var _q = window.__hp_patches_queue;
-    window.__hp_patches_queue = [];
-    for (var _i = 0; _i < _q.length; _i++) { try { _q[_i](); } catch(e) {} }
-  }
-  console.log('[HP] hp-patches.js ready');
 
   // ── Email Verification Screen ────────────────────────────────
   function checkAndHandleVerification() {
@@ -9821,4 +9812,21 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     applyCollaborateCS();
   });
   _csObs.observe(document.body, { childList: true, subtree: true });
+})();
+
+// ─── Ready signal (relocated to end of file 2026-08-13) ──────────────────────
+// Previously buried at line ~2300 inside the safety-overlay IIFE, which meant
+// anything defined AFTER that point (Support Calc, Deadline Dashboard, Quiz,
+// Preflight Checklist, Nav fixes, etc.) was not guaranteed to be ready when
+// downstream code checked window.__hp_patches_ready. This intermittently
+// caused "PDF download button doesn't appear after login" and missing UI
+// elements. See project note: frontend safety-net PR.
+(function(){
+  window.__hp_patches_ready = true;
+  if (Array.isArray(window.__hp_patches_queue)) {
+    var _q = window.__hp_patches_queue;
+    window.__hp_patches_queue = [];
+    for (var _i = 0; _i < _q.length; _i++) { try { _q[_i](); } catch(e) {} }
+  }
+  console.log('[HP] hp-patches.js ready');
 })();

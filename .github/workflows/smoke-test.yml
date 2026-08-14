@@ -2,11 +2,16 @@ name: post-deploy smoke test
 
 # Runs after every push to main. Waits for Railway to deploy the pushed
 # commit, then verifies:
-#   1. GET /api/health returns 200 and reports the pushed commit SHA.
-#   2. GET /api/pdf-runtime-check returns 200 with ok:true (proves vendored
-#      pypdf loads inside the actual Python subprocess used for PDF fills).
-#
-# TODO after item 5 (SSL): flip PROD_HOST to app.hearthandpage.ca.
+#   API tier (smoke job):
+#     1. GET /api/health returns 200 and reports the pushed commit SHA.
+#     2. GET /api/pdf-runtime-check returns 200 with ok:true (proves vendored
+#        pypdf loads inside the actual Python subprocess used for PDF fills).
+#   Frontend tier (frontend-smoke job, needs: smoke):
+#     3. Landing page loads, hp-patches.js signals ready, all critical
+#        window.__ globals defined, no console errors.
+#     4. All critical form template PDFs are reachable with correct MIME.
+#     5. A static PDF template serves valid %PDF bytes (cold-start check).
+#     6. /api/pdf-runtime-check succeeds twice back-to-back (cold+warm Python).
 
 on:
   push:
@@ -69,3 +74,35 @@ jobs:
           test "$(jq -r '.ok' /tmp/pdfcheck.json)" = "true"
           # Log the runtime pypdf version for the record.
           echo "pypdf on prod: $(jq -r '.pypdfVersion' /tmp/pdfcheck.json)"
+
+  # Frontend smoke — runs after the API smoke passes. Guards against the three
+  # named symptoms: PDF download button missing after login, incomplete form
+  # list, and cold-start PDF silent failures. See tests/smoke/frontend-smoke.spec.js
+  # for full docstring.
+  frontend-smoke:
+    needs: smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm install --no-save @playwright/test@^1.62.0
+          npx playwright install --with-deps chromium
+
+      - name: Run frontend smoke tests
+        env:
+          PROD_HOST: ${{ env.PROD_HOST }}
+        run: npx playwright test
+
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: test-results/
+          retention-days: 7

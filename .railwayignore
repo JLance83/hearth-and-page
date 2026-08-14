@@ -1,5 +1,10 @@
 node_modules
 __pycache__
 *.py.bak
-hp-patches.js.bak
 *.log
+
+# Test files and Playwright config are not needed at runtime
+tests/
+playwright.config.js
+test-results/
+playwright-report/
