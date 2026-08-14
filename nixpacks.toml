@@ -16,12 +16,17 @@ cmds = [
   # Frontend build tooling (Vite, React, TypeScript, Tailwind). Kept in a
   # separate node_modules under frontend/ so it doesn't bloat the runtime
   # image — the built artifacts land in dist/public/new/ and only those
-  # ship; frontend/node_modules is excluded via .railwayignore.
-  "npm --prefix frontend ci --no-audit --no-fund"
+  # ship. NODE_ENV=development forces devDependencies to install even if
+  # nixpacks sets NODE_ENV=production during the install phase (Vite, tsc,
+  # tailwind are all devDeps).
+  "NODE_ENV=development npm --prefix frontend ci --no-audit --no-fund --include=dev"
 ]
 
 [phases.build]
 cmds = [
+  "echo '[build] === STAGE 1: sanity checks ===' && pwd && ls -la",
+  "echo '[build] frontend/ present?' && ls -la frontend/ | head -15",
+  "echo '[build] frontend/node_modules present?' && ls -la frontend/node_modules/.bin/vite 2>&1 | head -3",
   "cp fill_pdf.py dist/fill_pdf.py || true",
   "mkdir -p dist/vendor && cp vendor/*.whl dist/vendor/ 2>/dev/null || true",
   "python3 scripts/unlock_pdfs.py --dir dist/public/pdfs",
@@ -32,8 +37,9 @@ cmds = [
   # Build the new Vite/React frontend into dist/public/new/. The tsc step
   # runs first (via 'npm run build' inside frontend/) and hard-fails on any
   # TypeScript error, so a bad type never ships.
-  "echo '[build] building frontend v2:' && npm --prefix frontend run build",
-  "echo '[build] frontend v2 output:' && ls -la dist/public/new/ | head -20",
+  "echo '[build] === STAGE 2: building frontend v2 ===' && npm --prefix frontend run build",
+  "echo '[build] frontend v2 output:' && ls -la dist/public/new/",
+  "echo '[build] verifying frontend v2 index.html:' && test -f dist/public/new/index.html && echo 'OK: index.html present' || (echo 'FAIL: index.html MISSING' && exit 1)",
   # Syntax-check every .js file in dist/public/assets/. A single bad character
   # in one of these bundles used to ship silently and break the whole UI at
   # runtime. `node --check` fails the build before the bad code deploys.
@@ -46,4 +52,4 @@ cmd = "NODE_ENV=production node dist/index.cjs"
 
 [variables]
 PORT = "8080"
-# cache bust: 2026-08-12-v5-vendored-pypdf-plus-qpdf-unlock
+# cache bust: 2026-08-14-v6-add-frontend-v2-vite-build
