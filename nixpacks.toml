@@ -11,22 +11,14 @@ pkgs = ["nodejs_20", "python3", "qpdf"]
 
 [phases.install]
 cmds = [
-  # Backend runtime deps.
-  "npm install --production",
-  # Frontend build tooling (Vite, React, TypeScript, Tailwind). Kept in a
-  # separate node_modules under frontend/ so it doesn't bloat the runtime
-  # image — the built artifacts land in dist/public/new/ and only those
-  # ship. NODE_ENV=development forces devDependencies to install even if
-  # nixpacks sets NODE_ENV=production during the install phase (Vite, tsc,
-  # tailwind are all devDeps).
-  "NODE_ENV=development npm --prefix frontend ci --no-audit --no-fund --include=dev"
+  # Backend runtime deps. The frontend v2 build is NOT run on Railway —
+  # dist/public/new/ is committed to git (same pattern as dist/public/assets/).
+  # Rebuild locally with `npm --prefix frontend run build` before committing.
+  "npm install --production"
 ]
 
 [phases.build]
 cmds = [
-  "echo '[build] === STAGE 1: sanity checks ===' && pwd && ls -la",
-  "echo '[build] frontend/ present?' && ls -la frontend/ | head -15",
-  "echo '[build] frontend/node_modules present?' && ls -la frontend/node_modules/.bin/vite 2>&1 | head -3",
   "cp fill_pdf.py dist/fill_pdf.py || true",
   "mkdir -p dist/vendor && cp vendor/*.whl dist/vendor/ 2>/dev/null || true",
   "python3 scripts/unlock_pdfs.py --dir dist/public/pdfs",
@@ -34,17 +26,17 @@ cmds = [
   "echo '[build] python3_path.txt:' && cat dist/python3_path.txt",
   "echo '[build] vendored wheels:' && ls -la dist/vendor/ 2>/dev/null || echo '(none)'",
   "echo '[build] qpdf version:' && qpdf --version | head -1",
-  # Build the new Vite/React frontend into dist/public/new/. The tsc step
-  # runs first (via 'npm run build' inside frontend/) and hard-fails on any
-  # TypeScript error, so a bad type never ships.
-  "echo '[build] === STAGE 2: building frontend v2 ===' && npm --prefix frontend run build",
-  "echo '[build] frontend v2 output:' && ls -la dist/public/new/",
-  "echo '[build] verifying frontend v2 index.html:' && test -f dist/public/new/index.html && echo 'OK: index.html present' || (echo 'FAIL: index.html MISSING' && exit 1)",
+  # Verify the pre-built frontend v2 bundle is present (committed to git).
+  # If missing, someone forgot to run 'npm --prefix frontend run build' before
+  # committing frontend/ changes — fail loud instead of shipping legacy fallback.
+  "echo '[build] verifying frontend v2 index.html:' && test -f dist/public/new/index.html && echo 'OK: v2 index.html present' && ls -la dist/public/new/ || (echo 'FAIL: dist/public/new/index.html MISSING — run npm --prefix frontend run build before committing' && exit 1)",
   # Syntax-check every .js file in dist/public/assets/. A single bad character
   # in one of these bundles used to ship silently and break the whole UI at
   # runtime. `node --check` fails the build before the bad code deploys.
   # Uses a shell loop so new .js files are picked up automatically.
-  "echo '[build] node --check on all legacy frontend bundles:' && for f in dist/public/assets/*.js; do node --check \"$f\" && echo \"  $f: OK\"; done"
+  "echo '[build] node --check on all legacy frontend bundles:' && for f in dist/public/assets/*.js; do node --check \"$f\" && echo \"  $f: OK\"; done",
+  # Also syntax-check the frontend v2 bundle now that it's a committed artifact.
+  "echo '[build] node --check on frontend v2 bundle:' && for f in dist/public/new/assets/*.js; do node --check \"$f\" && echo \"  $f: OK\"; done"
 ]
 
 [start]
@@ -52,4 +44,4 @@ cmd = "NODE_ENV=production node dist/index.cjs"
 
 [variables]
 PORT = "8080"
-# cache bust: 2026-08-14-v6-add-frontend-v2-vite-build
+# cache bust: 2026-08-14-v7-commit-frontend-v2-artifacts

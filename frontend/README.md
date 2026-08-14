@@ -40,15 +40,30 @@ are proxied to `http://localhost:3000` (see `vite.config.ts`).
 ## Build
 
 ```
-cd frontend && npm run build
+npm --prefix frontend run build
 ```
 
 Output lands in `../dist/public/new/`. The Express server (see
 `dist/index.cjs`) serves anything under `/app-v2/*` from that directory with
 SPA-style fallback to `index.html`.
 
-The nixpacks build phase runs `npm ci --prefix frontend` + `npm --prefix
-frontend run build` automatically on every deploy.
+**IMPORTANT**: `dist/public/new/` IS committed to git (same pattern as the
+legacy `dist/public/assets/*.js` bundles). This means every change to
+`frontend/src/**` requires:
+
+1. `npm --prefix frontend run build` locally
+2. `git add dist/public/new/` (and any frontend/src changes)
+3. `git commit && git push`
+
+The nixpacks build phase includes a hard-fail guard that blocks the deploy if
+`dist/public/new/index.html` is missing — so forgetting the build step
+results in a clean failure at deploy time, not a broken /app-v2/ in prod.
+
+Why not build on Railway? Nixpacks was silently skipping the frontend build
+step despite explicit configuration (confirmed by observing dist/public/new/
+absent in the deployed container even after all install/build commands
+should have run). Committing the build artifacts is more reliable and
+matches the pattern the legacy bundle already uses.
 
 ## Adding a new screen
 

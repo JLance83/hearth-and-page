@@ -17,7 +17,10 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, '../dist/public/new'),
     emptyOutDir: true,
-    sourcemap: true,
+    // Sourcemaps disabled in production. Adds 700 KB per build to git repo
+    // and gives attackers a full readable source of the frontend. Re-enable
+    // during a debugging session if a hard-to-repro prod bug needs it.
+    sourcemap: false,
     // Keep the manifest so the server can look up hashed filenames if we ever
     // need SSR or asset-preloading. Cheap insurance.
     manifest: true,
