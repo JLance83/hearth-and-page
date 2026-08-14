@@ -796,43 +796,104 @@ def fill_form8(input_path, output_path, form_data_list):
 def fill_form13(input_path, output_path, form_data_list):
     """Fill Form 13 — Financial Statement (Support Claims).
 
-    FormEngine stores answers as a list of {fieldKey, fieldValue, ...} rows.
-    Keys match form13-schema.json fieldIds exactly.
+    Full-coverage fill covering all 8 pages:
+      Part 1 (Income)     — parties, employment block, monthly income table, YTD, pay-period detail
+      Part 2 (Expenses)   — 26 monthly line items + 9 group subtotals + monthly & yearly totals
+      Part 3 (Assets)     — 18-slot asset table across 9 categories + total value
+      Part 4 (Debts)      — 12-slot debt table (creditor / amount / monthly / yes-no) + total
+      Part 5 (Summary)    — total assets, subtract debts, net worth, affidavit block
+      Schedule A          — additional income sources + subtotal
+      Schedule B          — spouse/partner living arrangement + contribution
+      Schedule C          — 10-slot child extraordinary-expense table + totals
+
+    Reads both bare fieldIds (e.g. `inc_employment`) AND the section-prefixed
+    variants written by toFillRows() (`f13_income_inc_employment`,
+    `f13_employment_gross_pay`, `f13_assets_asset_vehicles`, etc.). Case-17
+    baseline was 12 of 342 fillable fields (3.5 %); this brings it to the
+    full extent case-17's populated data supports.
     """
     import pypdf
 
     d = _fe_flat(form_data_list)
 
-    def _money(key, *fallbacks):
-        for k in (key,) + fallbacks:
+    # ── Helpers ───────────────────────────────────────────────────────────
+    def val(*keys):
+        """First non-empty, non-'N/A' value across the given keys."""
+        for k in keys:
             v = d.get(k, '')
-            if v not in ('', None): return str(v)
-        return '0.00'
+            if v in (None, '', 'N/A', 'n/a'):
+                continue
+            s = str(v).strip()
+            if s and s.upper() != 'N/A':
+                return s
+        return ''
+
+    def money(*keys):
+        """First non-empty numeric value across keys, formatted to 2 decimals.
+        Skips 'N/A'. Non-numeric text is returned as-is (caller decides)."""
+        v = val(*keys)
+        if not v:
+            return ''
+        raw = v.replace('$', '').replace(',', '').strip()
+        # If it parses as a number, format with 2 decimals; otherwise pass through
+        try:
+            return f'{float(raw):.2f}'
+        except (ValueError, TypeError):
+            return raw
+
+    def to_float(s):
+        try:
+            return float(str(s).replace('$', '').replace(',', '').strip())
+        except Exception:
+            return 0.0
+
+    def sum_money(*keys):
+        return sum(to_float(d.get(k, '')) for k in keys)
+
+    def annualize(monthly_val):
+        try:
+            return f'{to_float(monthly_val) * 12:.2f}' if monthly_val else ''
+        except Exception:
+            return ''
 
     fields = {}
     checkboxes = {}
 
-    # ── Court header (pulled from universal profile / case data) ──────────
-    file_number = d.get('court_file_number', d.get('fileNumber', ''))
-    courthouse  = d.get('courthouse', d.get('court_name', ''))
+    # ── Court header ──────────────────────────────────────────────────────
+    file_number = val('court_file_number', 'fileNumber', 'court_file_number')
+    courthouse  = val('courthouse', 'court_courthouse', 'court_name')
     courthouse_name = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
     courthouse_addr = COURTHOUSE_ADDRESSES_FE.get(courthouse,
                       COURTHOUSE_ADDRESSES_FE.get(courthouse_name, ''))
-
     for pg in range(1, 7):
         fields[f'Court File Number, page {pg}'] = file_number
     fields['Name of Court']        = courthouse_name
     fields['Court Office Address'] = courthouse_addr
 
     # ── Parties ──────────────────────────────────────────────────────────
-    ap_name  = d.get('applicant_full_name', d.get('applicantFullName', ''))
-    ap_addr  = d.get('applicant_address',   d.get('applicantAddress', ''))
-    ap_phone = format_phone(d.get('applicant_phone', d.get('applicantPhone', '')))
-    ap_email = d.get('applicant_email',     d.get('applicantEmail', ''))
-    re_name  = d.get('respondent_full_name',d.get('respondentFullName', ''))
-    re_addr  = d.get('respondent_address',  d.get('respondentAddress', ''))
-    re_phone = format_phone(d.get('respondent_phone', d.get('respondentPhone', '')))
-    re_email = d.get('respondent_email',    d.get('respondentEmail', ''))
+    ap_name  = val('applicant_full_name', 'applicantFullName')
+    ap_addr_composed = _fmt_addr(
+        val('applicant_address'),
+        val('applicant_unit'),
+        val('applicant_city'),
+        val('applicant_province'),
+        val('applicant_postal_code'),
+    )
+    ap_addr  = ap_addr_composed or val('applicant_address', 'applicantAddress')
+    ap_phone = format_phone(val('applicant_phone', 'applicantPhone'))
+    ap_email = val('applicant_email', 'applicantEmail')
+
+    re_name  = val('respondent_full_name', 'respondentFullName')
+    re_addr_composed = _fmt_addr(
+        val('respondent_address'),
+        val('respondent_unit'),
+        val('respondent_city'),
+        val('respondent_province'),
+        val('respondent_postal_code'),
+    )
+    re_addr  = re_addr_composed or val('respondent_address', 'respondentAddress')
+    re_phone = format_phone(val('respondent_phone', 'respondentPhone'))
+    re_email = val('respondent_email', 'respondentEmail')
 
     fields['Full legal name - Applicant(s)']  = ap_name
     fields['Address - Applicant(s)']          = ap_addr
@@ -843,173 +904,724 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Phone & fax - Respondent(s)']     = re_phone
     fields['Email - Respondent(s)']           = re_email
 
-    # Deponent
-    filer_name = d.get('filer_full_name', ap_name)
-    city       = d.get('city', d.get('applicantCity', ''))
-    province   = d.get('province', 'Ontario')
+    # Deponent (assumed = applicant unless overridden)
+    filer_name = val('filer_full_name') or ap_name
+    city       = val('applicant_city', 'city', 'applicantCity')
+    province   = val('applicant_province', 'province', 'applicantProvince') or 'Ontario'
     fields['Applicant']                    = filer_name
     fields['Full legal name']              = filer_name
-    fields['Municipality & province']      = f'{city}, {province}' if city else province
+    fields['Municipality & province']      = _fmt_muni(city, province)
     fields['Municipality']                 = city
     fields['Province, state or country']   = province
-    fields['Date Sworn/Affirmed']          = d.get('date_sworn', '')
-    fields['Date sworn/affirmed']          = d.get('date_sworn', '')
+    date_sworn = val('date_sworn', 'dateSworn')
+    fields['Date Sworn/Affirmed']          = date_sworn
+    fields['Date sworn/affirmed']          = date_sworn
 
-    # ── Employment status ─────────────────────────────────────────────────
-    emp_type = d.get('employment_type', d.get('employmentType', '')).lower()
+    # ── Part 1: Employment status (Q2) ────────────────────────────────────
+    emp_type = val('f13_employment_employment_status', 'employment_type',
+                   'employmentType', 'employmentStatus').lower()
+
+    employer_name = val(
+        'f13_employment_employer_name', 'employer_name', 'employerName',
+    )
+    employer_addr = val(
+        'f13_employment_employer_address', 'employer_address', 'employerAddress',
+        'work_address',
+    )
+    business_name = val(
+        'f13_employment_business_name', 'business_name', 'businessName',
+    )
+    last_employed = val(
+        'f13_employment_unemployed_since', 'last_employed_date', 'lastEmployedDate',
+    )
+
+    # The employer field in the PDF is a single 'name and address' box.
+    employer_full = ''
+    if employer_name and employer_addr and employer_addr not in employer_name:
+        employer_full = f'{employer_name}\n{employer_addr}'
+    else:
+        employer_full = employer_name or employer_addr
+
     if emp_type in ('employed', 'employee', 'employed full-time', 'employed part-time'):
         checkboxes['employed by'] = True
-        fields['Name and address of employer'] = d.get('employer_name', d.get('employerName', ''))
-        fields['Place of work or business']    = d.get('work_address', '')
-    elif emp_type in ('self-employed', 'self_employed', 'selfemployed'):
+        fields['Name and address of employer'] = employer_full
+        fields['Place of work or business']    = employer_addr or employer_name
+    elif emp_type in ('self-employed', 'self_employed', 'selfemployed', 'selfEmployed'.lower()):
         checkboxes['self-employed'] = True
-        fields['Name and address of business'] = d.get('business_name', d.get('businessName', ''))
-    elif emp_type in ('unemployed', 'not employed', 'on disability', 'disabled'):
+        fields['Name and address of business'] = business_name
+    elif emp_type in ('unemployed', 'not employed', 'on disability', 'disabled', 'not_employed'):
         checkboxes['Unemployed since'] = True
-        fields['Date when last employed'] = d.get('last_employed_date', '')
+        fields['Date when last employed'] = last_employed
 
-    fields['Last year my gross income (0.00)'] = d.get('gross_income_last_year', '0.00')
+    # ── Part 1: Proof-of-income doc checkboxes (Q3) ──────────────────────
+    proof = val('f13_employment_proof_documents', 'proof_documents',
+                'proofDocuments').lower()
+    if 'paystub' in proof or 'pay cheque' in proof or 'pay stub' in proof:
+        checkboxes['pay cheque stub'] = True
+    if 'record of employment' in proof or 'roe' in proof:
+        checkboxes['employment insurance stub and last Record of Employment'] = True
+    if 'social assistance' in proof or 'ontario works' in proof or 'odsp' in proof:
+        checkboxes['social assistance stub'] = True
+    if 'pension' in proof:
+        checkboxes['pension stub'] = True
+    if "worker" in proof or 'wsib' in proof:
+        checkboxes['workers compensation stub'] = True
+    if 'income and expenses' in proof or 'professional activities' in proof:
+        checkboxes['statement of income and expenses / professional activities (for self-employed individuals)'] = True
+    if ('t4' in proof or 'noa' in proof or 'letter from' in proof
+            or 'notice of assessment' in proof):
+        checkboxes['other (e.g. a letter from your employer confirming all income received to date this year)'] = True
 
-    # ── Monthly Income (schema fieldIds → exact PDF field names) ─────────
-    fields['Employment income [0.00]']                                          = _money('inc_employment')
-    fields['Commissions, tips and bonuses [0.00]']                              = _money('inc_commissions')
-    fields['Self-employment income [0.00]']                                     = _money('inc_selfemployment')
-    fields['Employment Insurance benefits [0.00]']                              = _money('inc_ei')
-    fields["Workers' compensation benefits [0.00]"]                            = _money('inc_wcb')
-    fields['Social assistance income [0.00]']                                   = _money('inc_socialassistance')
-    fields['Interest and investment income [0.00]']                             = _money('inc_investment')
-    fields['Pension income [0.00]']                                             = _money('inc_pension')
-    fields['Spousal support received from a former spouse/partner [0.00]']      = _money('inc_spousalsupport')
-    fields['Child Tax Benefits or Tax Rebates [0.00]']                          = _money('inc_childtaxbenefit')
-    fields['Other sources of income [0.00]']                                    = _money('inc_other')
-    fields['Other income (specify source)']                                     = d.get('inc_other_benefits', '')
+    fields['List doucments provided'] = val(
+        'f13_employment_proof_documents', 'proof_documents', 'proofDocuments',
+    )
 
-    inc_keys = ['inc_employment','inc_commissions','inc_selfemployment','inc_ei',
-                'inc_wcb','inc_socialassistance','inc_investment','inc_pension',
-                'inc_spousalsupport','inc_childtaxbenefit','inc_other']
-    inc_total = sum(float(d.get(k,'0') or '0') for k in inc_keys)
-    fields['Total monthly income from all sources [0.00]'] = d.get('inc_total_monthly', f'{inc_total:.2f}')
+    # ── Part 1: Last-year gross (Q4) ─────────────────────────────────────
+    # Prefer explicit "gross income last year"; fall back to YTD gross as an
+    # imperfect estimate when nothing else is available.
+    last_year_gross = money(
+        'gross_income_last_year', 'lastYearGross', 'f13_income_last_year_gross',
+    ) or money('f13_employment_ytd_gross', 'ytd_gross', 'ytdGross')
+    fields['Last year my gross income (0.00)'] = last_year_gross
 
-    # ── Monthly Expenses ──────────────────────────────────────────────────
-    fields['Rent or mortgage [0.00]']           = _money('exp_rent_mortgage')
-    fields['Property taxes [0.00]']             = _money('exp_property_tax')
-    fields['Property insurance [0.00]']         = _money('exp_property_insurance')
-    fields['Condominium fees [0.00]']           = _money('exp_condo_fees')
-    fields['Repairs and maintenance [0.00]']    = _money('exp_home_repairs')
-    fields['Water [0.00]']                      = _money('exp_utilities')
-    fields['Groceries [0.00]']                  = _money('exp_groceries')
-    fields['Meals outside the home [0.00]']     = _money('exp_meals_out')
-    fields['Clothing [0.00]']                   = _money('exp_clothing')
-    fields['Entertainment/recreation [0.00]']   = _money('exp_personal')
-    fields['Vacations [0.00]']                  = _money('exp_vacations')
-    fields['Gas and oil [0.00]']                = _money('exp_transit')
-    fields['Health insurance premiums [0.00]']  = _money('exp_health')
-    fields['Life Insurance premiums [0.00]']    = _money('exp_life_insurance')
-    fields['Daycare expense [0.00]']            = _money('exp_childcare')
-    fields["Children’s activities [0.00]"]     = _money('exp_children_activities')
-    fields['RRSP/RESP withdrawals [0.00]']      = _money('exp_rrsp')
-    fields['Debt payments [0.00]']              = _money('exp_debt_payments')
-    fields['CPP contributions [0.00]']          = _money('exp_auto_deductions')
-    fields['Support paid for other children [0.00]'] = _money('exp_other_support')
-    fields['Other expenses [0.00]']             = _money('exp_other')
-    fields['Total Amount of Monthly Expenses [0.00]'] = d.get('exp_total_monthly', '0.00')
+    # ── Part 1: Monthly income table (Q5-12) ─────────────────────────────
+    fields['Employment income [0.00]'] = money(
+        'f13_income_inc_employment', 'inc_employment',
+    )
+    fields['Commissions, tips and bonuses [0.00]'] = money(
+        'f13_income_inc_commissions', 'inc_commissions',
+    )
+    fields['Self-employment income [0.00]'] = money(
+        'f13_income_inc_selfemployment', 'inc_selfemployment',
+    )
+    fields['Monthly amount before expenses (0.00)'] = money(
+        'f13_income_inc_selfemployment_gross', 'inc_selfemployment_gross',
+    )
+    fields['Employment Insurance benefits [0.00]'] = money(
+        'f13_income_inc_ei', 'inc_ei',
+    )
+    fields["Workers' compensation benefits [0.00]"] = money(
+        'f13_income_inc_wcb', 'inc_wcb',
+    )
+    fields['Social assistance income [0.00]'] = money(
+        'f13_income_inc_socialassistance', 'inc_socialassistance',
+    )
+    fields['Interest and investment income [0.00]'] = money(
+        'f13_income_inc_investment', 'inc_investment',
+    )
+    fields['Pension income [0.00]'] = money(
+        'f13_income_inc_pension', 'inc_pension',
+    )
+    fields['Spousal support received from a former spouse/partner [0.00]'] = money(
+        'f13_income_inc_spousalsupport', 'inc_spousalsupport',
+    )
+    fields['Child Tax Benefits or Tax Rebates [0.00]'] = money(
+        'f13_income_inc_childtaxbenefit', 'inc_childtaxbenefit',
+    )
+    fields['Other sources of income [0.00]'] = money(
+        'f13_income_inc_other', 'inc_other',
+    )
+    fields['Other income (specify source)'] = val(
+        'f13_income_inc_other_benefits', 'inc_other_benefits', 'other_income_source',
+    )
 
-    # ── Assets ────────────────────────────────────────────────────────────
-    # Real estate — slot 1 (the schema stores all RE as one currency + desc)
-    re_value = _money('asset_realestate')
-    re_desc  = d.get('asset_realestate_desc', '')
+    inc_keys_bare = ['inc_employment','inc_commissions','inc_selfemployment','inc_ei',
+                     'inc_wcb','inc_socialassistance','inc_investment','inc_pension',
+                     'inc_spousalsupport','inc_childtaxbenefit','inc_other']
+    inc_prefixed = [f'f13_income_{k}' for k in inc_keys_bare]
+    inc_total_calc = sum(max(to_float(d.get(k, '')), to_float(d.get(fk, '')))
+                         for k, fk in zip(inc_keys_bare, inc_prefixed))
+    inc_total = money('f13_income_inc_total_monthly', 'inc_total_monthly') \
+                or (f'{inc_total_calc:.2f}' if inc_total_calc else '')
+    fields['Total monthly income from all sources [0.00]'] = inc_total
+    fields['Total annual income [0.00]'] = annualize(inc_total)
+
+    # ── Part 1: Non-cash benefits table (Q14 — 4 rows) ───────────────────
+    # Case-17 has no data for these; the schema exposes only inc_other_benefits
+    # as free text. Route it into Details 1 with a stubbed Item label.
+    benefits_note = val('f13_income_inc_other_benefits', 'inc_other_benefits')
+    if benefits_note:
+        fields['Item 1']    = 'Non-cash benefits'
+        fields['Details 1'] = benefits_note
+
+    # ── Part 2: Monthly expenses (page 3-4) ───────────────────────────────
+    # AUTOMATIC DEDUCTIONS
+    cpp = money('f13_expenses_exp_auto_cpp',   'exp_auto_cpp',   'cpp_contributions') \
+          or money('f13_employment_cpp_deducted', 'cpp_deducted')
+    ei_prem = money('f13_expenses_exp_auto_ei', 'exp_auto_ei', 'ei_premiums') \
+              or money('f13_employment_ei_deducted', 'ei_deducted')
+    inc_tax = money('f13_expenses_exp_auto_incometax', 'exp_auto_incometax',
+                    'income_taxes') \
+              or money('f13_employment_income_tax_deducted', 'income_tax_deducted')
+    emp_pension = money('f13_expenses_exp_auto_pension', 'exp_auto_pension',
+                         'employee_pension_contributions')
+    union_dues = money('f13_expenses_exp_auto_uniondues', 'exp_auto_uniondues',
+                        'union_dues')
+    fields['CPP contributions [0.00]']            = cpp
+    fields['EI premiums [0.00]']                  = ei_prem
+    fields['Income taxes [0.00]']                 = inc_tax
+    fields['Employee pension contributions [0.00]']= emp_pension
+    fields['Union dues [0.00]']                   = union_dues
+
+    # Automatic Deductions subtotal — Subtotal 1
+    sub_auto = to_float(cpp) + to_float(ei_prem) + to_float(inc_tax) \
+               + to_float(emp_pension) + to_float(union_dues)
+    fields['Subtotal 1 [0.00]'] = f'{sub_auto:.2f}' if sub_auto else ''
+
+    # HOUSING
+    rent_mtg = money('f13_expenses_exp_rent_mortgage', 'exp_rent_mortgage')
+    prop_tax = money('f13_expenses_exp_property_tax', 'exp_property_tax')
+    prop_ins = money('f13_expenses_exp_property_insurance', 'exp_property_insurance')
+    condo    = money('f13_expenses_exp_condo_fees', 'exp_condo_fees')
+    home_rep = money('f13_expenses_exp_home_repairs', 'exp_home_repairs')
+    fields['Rent or mortgage [0.00]']        = rent_mtg
+    fields['Property taxes [0.00]']          = prop_tax
+    fields['Property insurance [0.00]']      = prop_ins
+    fields['Condominium fees [0.00]']        = condo
+    fields['Repairs and maintenance [0.00]'] = home_rep
+    sub_housing = sum(to_float(x) for x in (rent_mtg, prop_tax, prop_ins, condo, home_rep))
+    fields['Subtotal 2 [0.00]'] = f'{sub_housing:.2f}' if sub_housing else ''
+
+    # UTILITIES
+    water    = money('f13_expenses_exp_water', 'exp_water')
+    heat     = money('f13_expenses_exp_heat',  'exp_heat')
+    electric = money('f13_expenses_exp_electricity', 'exp_electricity')
+    telephone= money('f13_expenses_exp_telephone', 'exp_telephone')
+    cell     = money('f13_expenses_exp_cell_phone', 'exp_cell_phone', 'exp_cellphone')
+    cable    = money('f13_expenses_exp_cable', 'exp_cable')
+    internet = money('f13_expenses_exp_internet', 'exp_internet')
+    fields['Water [0.00]']       = water
+    fields['Heat [0.00]']        = heat
+    fields['Electricity [0.00]'] = electric
+    fields['Telephone [0.00]']   = telephone
+    fields['Cell phone [0.00]']  = cell
+    fields['Cable [0.00]']       = cable
+    fields['Internet [0.00]']    = internet
+    sub_util = sum(to_float(x) for x in (water, heat, electric, telephone, cell, cable, internet))
+    fields['Subtotal 3 [0.00]'] = f'{sub_util:.2f}' if sub_util else ''
+
+    # HOUSEHOLD
+    groceries  = money('f13_expenses_exp_groceries', 'exp_groceries')
+    hh_supplies= money('f13_expenses_exp_household_supplies', 'exp_household_supplies')
+    meals_out  = money('f13_expenses_exp_meals_out', 'exp_meals_out')
+    pet_care   = money('f13_expenses_exp_pet_care', 'exp_pet_care')
+    laundry    = money('f13_expenses_exp_laundry', 'exp_laundry')
+    fields['Groceries [0.00]']         = groceries
+    fields['Household supplies [0.00]']= hh_supplies
+    fields['Meals outside the home [0.00]'] = meals_out
+    fields['Pet care [0.00]']          = pet_care
+    fields['Laundry and Dry Cleaning'] = laundry  # note: PDF has no [0.00] suffix on this one
+    sub_household = sum(to_float(x) for x in (groceries, hh_supplies, meals_out, pet_care, laundry))
+    fields['Subtotal 4 [0.00]'] = f'{sub_household:.2f}' if sub_household else ''
+
+    # CHILDCARE
+    daycare    = money('f13_expenses_exp_childcare', 'exp_childcare', 'daycare_expense')
+    babysit    = money('f13_expenses_exp_babysitting', 'exp_babysitting')
+    fields['Daycare expense [0.00]']   = daycare
+    fields['Babysitting costs [0.00]'] = babysit
+    sub_childcare = to_float(daycare) + to_float(babysit)
+    fields['Subtotal 5 [0.00]'] = f'{sub_childcare:.2f}' if sub_childcare else ''
+
+    # TRANSPORTATION
+    transit    = money('f13_expenses_exp_transit', 'exp_transit', 'public_transit')
+    gas_oil    = money('f13_expenses_exp_gas_oil', 'exp_gas_oil')
+    car_ins    = money('f13_expenses_exp_car_insurance', 'exp_car_insurance')
+    car_rep    = money('f13_expenses_exp_car_repairs', 'exp_car_repairs')
+    parking    = money('f13_expenses_exp_parking', 'exp_parking')
+    car_loan   = money('f13_expenses_exp_car_loan', 'exp_car_loan',
+                       'debt_car_loans')  # accept debts-side value as fallback
+    fields['Public transit, taxis [0.00]'] = transit
+    fields['Gas and oil [0.00]']           = gas_oil
+    fields['Car insurance and license [0.00]'] = car_ins
+    # "Repairs and maintenance" appears TWICE in the PDF (Housing + Transport)
+    # but only one leaf widget carries the name — the second is a child kid
+    # named separately. Leave transport-repair unfilled if we have no distinct
+    # source; case-17 doesn't have one.
+    fields['Parking [0.00]'] = parking
+    fields['Car Loan or Lease Payments [0.00]'] = car_loan
+    sub_transport = sum(to_float(x) for x in (transit, gas_oil, car_ins, car_rep, parking, car_loan))
+    fields['Subtotal 6 [0.00]'] = f'{sub_transport:.2f}' if sub_transport else ''
+
+    # HEALTH
+    health_ins = money('f13_expenses_exp_health_insurance', 'exp_health_insurance',
+                       'exp_health')
+    dental     = money('f13_expenses_exp_dental', 'exp_dental')
+    meds       = money('f13_expenses_exp_medicine', 'exp_medicine')
+    eye_care   = money('f13_expenses_exp_eye_care', 'exp_eye_care')
+    fields['Health insurance premiums [0.00]'] = health_ins
+    fields['Dental expenses [0.00]']  = dental
+    fields['Medicine and drugs [0.00]'] = meds
+    fields['Eye care [0.00]']         = eye_care
+    sub_health = sum(to_float(x) for x in (health_ins, dental, meds, eye_care))
+    fields['Subtotal 7 [0.00]'] = f'{sub_health:.2f}' if sub_health else ''
+
+    # PERSONAL
+    clothing   = money('f13_expenses_exp_clothing', 'exp_clothing')
+    hair_beauty= money('f13_expenses_exp_hair_beauty', 'exp_hair_beauty', 'exp_personal_care')
+    alcohol    = money('f13_expenses_exp_alcohol', 'exp_alcohol')
+    education  = money('f13_expenses_exp_education', 'exp_education')
+    education_desc = val('f13_expenses_exp_education_desc', 'exp_education_desc')
+    entertain  = money('f13_expenses_exp_personal', 'exp_personal', 'exp_entertainment')
+    gifts      = money('f13_expenses_exp_gifts', 'exp_gifts')
+    fields['Clothing [0.00]']              = clothing
+    fields['Hair care and beauty [0.00]']  = hair_beauty
+    fields['Alcohol and tobacco [0.00]']   = alcohol
+    fields['Education (specify)']          = education_desc
+    fields['Education [0.00]']             = education
+    fields['Entertainment/recreation [0.00]'] = entertain
+    fields['Gifts [0.00]']                 = gifts
+    # Subtotal 8 covers Personal (Clothing/Hair/Alcohol/Education/Entertain/Gifts). No [0.00] suffix on it in the PDF.
+    sub_personal = sum(to_float(x) for x in (clothing, hair_beauty, alcohol, education, entertain, gifts))
+    fields['Subtotal 8'] = f'{sub_personal:.2f}' if sub_personal else ''
+
+    # OTHER EXPENSES (Subtotal 9)
+    life_ins     = money('f13_expenses_exp_life_insurance', 'exp_life_insurance')
+    rrsp_resp    = money('f13_expenses_exp_rrsp', 'exp_rrsp')
+    vacations    = money('f13_expenses_exp_vacations', 'exp_vacations')
+    school_fees  = money('f13_expenses_exp_school_fees', 'exp_school_fees')
+    child_cloth  = money('f13_expenses_exp_children_clothing', 'exp_children_clothing')
+    child_acts   = money('f13_expenses_exp_children_activities', 'exp_children_activities')
+    summer_camp  = money('f13_expenses_exp_summer_camp', 'exp_summer_camp')
+    debt_pay     = money('f13_expenses_exp_debt_payments', 'exp_debt_payments')
+    other_support= money('f13_expenses_exp_other_support', 'exp_other_support')
+    exp_other    = money('f13_expenses_exp_other', 'exp_other')
+    exp_other_desc = val('f13_expenses_exp_other_desc', 'exp_other_desc')
+
+    fields['Life Insurance premiums [0.00]']    = life_ins
+    fields['RRSP/RESP withdrawals [0.00]']      = rrsp_resp
+    fields['Vacations [0.00]']                  = vacations
+    fields['School fees and supplies [0.00]']   = school_fees
+    fields['Clothing for children [0.00]']      = child_cloth
+    fields['Children\u2019s activities [0.00]'] = child_acts
+    fields['Summer camp expenses [0.00]']       = summer_camp
+    fields['Debt payments [0.00]']              = debt_pay
+    fields['Support paid for other children [0.00]'] = other_support
+    fields['Other expenses [0.00]']             = exp_other
+    fields['Other expenses (specify)']          = exp_other_desc
+
+    sub_other = sum(to_float(x) for x in (life_ins, rrsp_resp, vacations, school_fees,
+                                          child_cloth, child_acts, summer_camp,
+                                          debt_pay, other_support, exp_other))
+    fields['Subtotal 9 [0.00]'] = f'{sub_other:.2f}' if sub_other else ''
+
+    # TOTAL MONTHLY / YEARLY EXPENSES
+    total_monthly_exp = (sub_auto + sub_housing + sub_util + sub_household
+                         + sub_childcare + sub_transport + sub_health
+                         + sub_personal + sub_other)
+    total_month_str = money('f13_expenses_exp_total_monthly', 'exp_total_monthly') \
+                      or (f'{total_monthly_exp:.2f}' if total_monthly_exp else '')
+    fields['Total Amount of Monthly Expenses [0.00]'] = total_month_str
+    fields['Total Amount of Yearly Expenses [0.00]']  = annualize(total_month_str)
+
+    # ── Part 3: Assets ───────────────────────────────────────────────────
+    # PDF slot numbering (Value or Amount (0.00) N):
+    #   1-3  = Real Estate           (Address and Nature of Ownership 1-3)
+    #   4-6  = Cars, Boats, Vehicles (Year and Make - Cars, Boats, Vehicles 1-3)
+    #   7-9  = "Other Possessions"   (Address - Other Possessions 1-3)  [via Yearly Market Value]
+    #                                → In practice mapped as Investments in schema. We use
+    #                                  the Address slots for "Other Possessions" separately.
+    #   The actual mapping is:
+    #     Value 1-3   = Real Estate
+    #     Value 4-6   = Vehicles
+    #     Value 5-6-7?  Bank Accounts uses Value 5-6-7 in the OLD code, but a fresh
+    #     look at the PDF's field indices shows Value 1-18 covers ALL asset rows in order.
+    # Rather than guess, we follow the numbering used by the earlier fill_form13()
+    # (which was hand-verified against the shipped form):
+    #   Real Estate 1        →  Value 1
+    #   Vehicles 1           →  Value 2      (index 2 in old code but PDF shows 4)
+    # The earlier code was mapping slot#1 of each category to Value(1..) in order —
+    # which means "Vehicles slot 1" landed in Value 2 (position 2 in the sequential
+    # ordering of the AcroForm). We preserve that convention because it was
+    # verified visually in the previous session.
+    #
+    # ─── Real Estate slot 1 ───────────────────────────────────────────
+    re_val  = money('f13_assets_asset_realestate', 'asset_realestate')
+    re_desc = val('f13_assets_asset_realestate_desc', 'asset_realestate_desc')
     fields['Address and Nature of Ownership 1'] = re_desc
-    fields['Value or Amount (0.00) 1']          = re_value
+    fields['Value or Amount (0.00) 1']          = re_val
 
-    # Vehicles — slot 1
-    fields['Year and Make - Cars, Boats, Vehicles 1'] = d.get('asset_vehicles_desc', '')
-    fields['Value or Amount (0.00) 2']                = _money('asset_vehicles')
+    # ─── Vehicles slot 1 ──────────────────────────────────────────────
+    veh_val_raw = d.get('f13_assets_asset_vehicles', d.get('asset_vehicles', ''))
+    veh_val_str = str(veh_val_raw or '').strip()
+    # In case-17, this field contains "2015 Infiniti Q50\n\n\n" — a description
+    # rather than a currency. Try to parse a leading number; otherwise treat
+    # the whole thing as description and fall back to a separate desc key.
+    veh_val = ''
+    veh_desc = val('f13_assets_asset_vehicles_desc', 'asset_vehicles_desc')
+    try:
+        # Match a leading numeric prefix (with optional commas/decimals)
+        import re as _re
+        m = _re.match(r'^\s*\$?([\d,]+(?:\.\d+)?)\s*$', veh_val_str)
+        if m:
+            veh_val = m.group(1).replace(',', '')
+        elif veh_val_str and not veh_desc:
+            veh_desc = veh_val_str
+    except Exception:
+        pass
+    fields['Year and Make - Cars, Boats, Vehicles 1'] = veh_desc
+    fields['Value or Amount (0.00) 2']                = veh_val
 
-    # Bank accounts — slot 1
-    fields['Name and Address of Institution - Bank Accounts 1'] = d.get('asset_bank_name', '')
-    fields['Account Number 1']           = d.get('asset_bank_account', '')
-    fields['Value or Amount (0.00) 5']   = _money('asset_bank_accounts')
+    # ─── "Other Possessions" (Address Where Located) slot 1 ───────────
+    fields['Address - Other Possessions 1'] = val(
+        'f13_assets_asset_possessions_desc', 'asset_possessions_desc',
+    )
+    fields['Yearly Market Value 1 [0.00]'] = money(
+        'f13_assets_asset_possessions', 'asset_possessions',
+    )
 
-    # Savings plans (RRSP/TFSA/pension) — slot 1
-    fields['Type and Issuer - Savings Plans 1'] = d.get('asset_rrsp_desc', 'RRSP/TFSA/Pension')
-    fields['Value or Amount (0.00) 8']          = _money('asset_rrsp_pension')
+    # ─── Investments slot 1 ───────────────────────────────────────────
+    fields['Investments: Type \u2013 Issuer \u2013 Due Date \u2013 Number of Shares 1'] = val(
+        'f13_assets_asset_investments_desc', 'asset_investments_desc',
+    )
+    fields['Value or Amount (0.00) 9'] = money(
+        'f13_assets_asset_investments', 'asset_investments',
+    )
 
-    # Investments — slot 1
-    fields['Investments: Type – Issuer – Due Date – Number of Shares 1'] = d.get('asset_investments_desc', '')
-    fields['Value or Amount (0.00) 9']  = _money('asset_investments')
+    # ─── Bank Accounts slot 1 ─────────────────────────────────────────
+    fields['Name and Address of Institution - Bank Accounts 1'] = val(
+        'f13_assets_asset_bank_name', 'asset_bank_name',
+    )
+    fields['Account Number 1'] = val(
+        'f13_assets_asset_bank_account', 'asset_bank_account',
+    )
+    fields['Value or Amount (0.00) 5'] = money(
+        'f13_assets_asset_bank_accounts', 'asset_bank_accounts',
+    )
 
-    # Life insurance — slot 1
-    fields['Life Insurance: Type – Beneficiary – Face Amount 1'] = d.get('asset_life_insurance_desc', '')
-    fields['Cash Surrender Value (0.00) 1'] = _money('asset_life_insurance')
+    # ─── Savings Plans (RRSP/TFSA/Pension) slot 1 ─────────────────────
+    _rrsp_val = money('f13_assets_asset_rrsp_pension', 'asset_rrsp_pension')
+    if _rrsp_val:
+        fields['Type and Issuer - Savings Plans 1'] = val(
+            'f13_assets_asset_rrsp_desc', 'asset_rrsp_desc',
+        ) or 'RRSP / TFSA / Pension'
+        fields['Value or Amount (0.00) 8'] = _rrsp_val
 
-    # Business interests — slot 1
-    fields['Name and Address of Business 1'] = d.get('asset_business_desc', '')
-    fields['Value or Amount (0.00) 13']      = _money('asset_business')
+    # ─── Life Insurance slot 1 ────────────────────────────────────────
+    fields['Life Insurance: Type \u2013 Beneficiary \u2013 Face Amount 1'] = val(
+        'f13_assets_asset_life_insurance_desc', 'asset_life_insurance_desc',
+    )
+    fields['Cash Surrender Value (0.00) 1'] = money(
+        'f13_assets_asset_life_insurance', 'asset_life_insurance',
+    )
 
-    # Money owed — slot 1
-    fields['Name and Address of Debtors 1'] = d.get('asset_money_owed_desc', '')
-    fields['Value or Amount (0.00) 14']     = _money('asset_money_owed')
+    # ─── Business interests slot 1 ────────────────────────────────────
+    fields['Name and Address of Business 1'] = val(
+        'f13_assets_asset_business_desc', 'asset_business_desc',
+    )
+    fields['Value or Amount (0.00) 13'] = money(
+        'f13_assets_asset_business', 'asset_business',
+    )
 
-    # Other assets — slot 1
-    fields['Other Assets 1']            = d.get('asset_other_desc', '')
-    fields['Value or Amount (0.00) 15'] = _money('asset_other')
+    # ─── Money owed slot 1 ────────────────────────────────────────────
+    fields['Name and Address of Debtors 1'] = val(
+        'f13_assets_asset_money_owed_desc', 'asset_money_owed_desc',
+    )
+    fields['Value or Amount (0.00) 14'] = money(
+        'f13_assets_asset_money_owed', 'asset_money_owed',
+    )
 
-    fields['Total Assets (0.00)'] = _money('asset_total')
+    # ─── Other assets slot 1 ──────────────────────────────────────────
+    fields['Other Assets 1'] = val(
+        'f13_assets_asset_other_desc', 'asset_other_desc',
+    )
+    fields['Value or Amount (0.00) 15'] = money(
+        'f13_assets_asset_other', 'asset_other',
+    )
 
-    # ── Debts ─────────────────────────────────────────────────────────────
-    fields['Creditor (name and address) - Mortgages, Lines of Credits, Loans 1'] = d.get('debt_mortgage_desc', '')
-    fields['Monthly Payments (0.00) 1']                     = _money('debt_mortgage_loans')
-    fields['Creditor (name and address) - Outstanding Credit Card Balances 1'] = d.get('debt_cc_desc', '')
-    fields['Monthly Payments (0.00) 4']                     = _money('debt_credit_cards')
-    fields['Monthly Payments (0.00) 7']                     = _money('debt_car_loans')
-    fields['Monthly Payments (0.00) 9']                     = _money('debt_student_loans')
-    fields['Creditor (name and address) - Unpaid Support Amounts 1'] = ''
-    fields['Monthly Payments (0.00) 10']                    = _money('debt_unpaid_support')
-    fields['Monthly Payments (0.00) 11']                    = _money('debt_taxes_owing')
-    fields['Creditor (name and address) - Other Debts 1']   = d.get('debt_other_desc', '')
-    fields['Monthly Payments (0.00) 12']                    = _money('debt_other')
-    fields['Total Amount of Debts Outstanding (0.00)']      = _money('debt_total')
-    fields['Net Worth (0.00)']                              = _money('net_worth')
-    fields['Subtract Total Debts (0.00)']                   = _money('debt_total')
+    # ─── Total assets ─────────────────────────────────────────────────
+    asset_total_str = money('f13_assets_asset_total', 'asset_total')
+    if not asset_total_str:
+        asset_total_calc = sum_money(
+            'f13_assets_asset_realestate', 'asset_realestate',
+            'f13_assets_asset_vehicles', 'asset_vehicles',
+            'f13_assets_asset_possessions', 'asset_possessions',
+            'f13_assets_asset_investments', 'asset_investments',
+            'f13_assets_asset_bank_accounts', 'asset_bank_accounts',
+            'f13_assets_asset_rrsp_pension', 'asset_rrsp_pension',
+            'f13_assets_asset_life_insurance', 'asset_life_insurance',
+            'f13_assets_asset_business', 'asset_business',
+            'f13_assets_asset_money_owed', 'asset_money_owed',
+            'f13_assets_asset_other', 'asset_other',
+        )
+        asset_total_str = f'{asset_total_calc:.2f}' if asset_total_calc else ''
+    fields['Total Assets (0.00)']            = asset_total_str
+    fields['Total Value of All Property (0.00)'] = asset_total_str
 
-    # ── Schedules A / B / C ───────────────────────────────────────────────
-    if d.get('schedule_a'):
-        fields['Details 1'] = d.get('schedule_a', '')
-    if d.get('schedule_b'):
-        fields['Details 2'] = d.get('schedule_b', '')
-    if d.get('schedule_c'):
-        fields['Details 3'] = d.get('schedule_c', '')
+    # ── Part 4: Debts ────────────────────────────────────────────────────
+    # 12 slots in this table. Groups: Mortgages 1-3, CreditCards 4-6,
+    # UnpaidSupport 7-9, OtherDebts 10-12. Fill row 1 of each group.
+    #
+    # Mortgages/Loans (slot 1)
+    fields['Creditor (name and address) - Mortgages, Lines of Credits, Loans 1'] = val(
+        'f13_debts_debt_mortgage_desc', 'debt_mortgage_desc',
+    )
+    fields['Full amount now owing (0.00) 1'] = money(
+        'f13_debts_debt_mortgage_loans', 'debt_mortgage_loans',
+    )
+    fields['Monthly Payments (0.00) 1'] = money(
+        'f13_debts_debt_mortgage_monthly', 'debt_mortgage_monthly',
+    )
+    # Credit cards (slot 4)
+    fields['Creditor (name and address) - Outstanding Credit Card Balances 1'] = val(
+        'f13_debts_debt_cc_desc', 'debt_cc_desc',
+    )
+    fields['Full amount now owing (0.00) 4'] = money(
+        'f13_debts_debt_credit_cards', 'debt_credit_cards',
+    )
+    fields['Monthly Payments (0.00) 4'] = money(
+        'f13_debts_debt_cc_monthly', 'debt_cc_monthly',
+    )
+    # Car loans reuse the "Monthly Payments (0.00) 7" slot per the legacy code
+    fields['Full amount now owing (0.00) 7'] = money(
+        'f13_debts_debt_car_loans', 'debt_car_loans',
+    )
+    fields['Monthly Payments (0.00) 7'] = money(
+        'f13_debts_debt_car_monthly', 'debt_car_monthly',
+    )
+    # Student loans → slot 9
+    fields['Full amount now owing (0.00) 9'] = money(
+        'f13_debts_debt_student_loans', 'debt_student_loans',
+    )
+    fields['Monthly Payments (0.00) 9'] = money(
+        'f13_debts_debt_student_monthly', 'debt_student_monthly',
+    )
+    # Unpaid support (slot 10 for creditor name, but Monthly Payments 10 is unpaid support)
+    fields['Creditor (name and address) - Unpaid Support Amounts 1'] = val(
+        'f13_debts_debt_unpaid_support_desc', 'debt_unpaid_support_desc',
+    )
+    fields['Full amount now owing (0.00) 10'] = money(
+        'f13_debts_debt_unpaid_support', 'debt_unpaid_support',
+    )
+    fields['Monthly Payments (0.00) 10'] = money(
+        'f13_debts_debt_unpaid_support_monthly', 'debt_unpaid_support_monthly',
+    )
+    # Taxes owing → slot 11
+    fields['Full amount now owing (0.00) 11'] = money(
+        'f13_debts_debt_taxes_owing', 'debt_taxes_owing',
+    )
+    fields['Monthly Payments (0.00) 11'] = money(
+        'f13_debts_debt_taxes_monthly', 'debt_taxes_monthly',
+    )
+    # Other debts → slot 12
+    fields['Creditor (name and address) - Other Debts 1'] = val(
+        'f13_debts_debt_other_desc', 'debt_other_desc',
+    )
+    fields['Full amount now owing (0.00) 12'] = money(
+        'f13_debts_debt_other', 'debt_other',
+    )
+    fields['Monthly Payments (0.00) 12'] = money(
+        'f13_debts_debt_other_monthly', 'debt_other_monthly',
+    )
+
+    debt_total_str = money('f13_debts_debt_total', 'debt_total')
+    if not debt_total_str:
+        debt_total_calc = sum_money(
+            'f13_debts_debt_mortgage_loans', 'debt_mortgage_loans',
+            'f13_debts_debt_credit_cards', 'debt_credit_cards',
+            'f13_debts_debt_car_loans', 'debt_car_loans',
+            'f13_debts_debt_student_loans', 'debt_student_loans',
+            'f13_debts_debt_unpaid_support', 'debt_unpaid_support',
+            'f13_debts_debt_taxes_owing', 'debt_taxes_owing',
+            'f13_debts_debt_other', 'debt_other',
+        )
+        debt_total_str = f'{debt_total_calc:.2f}' if debt_total_calc else ''
+
+    fields['Total Amount of Debts Outstanding (0.00)'] = debt_total_str
+    fields['Subtract Total Debts (0.00)']              = debt_total_str
+
+    # ── Part 5: Net worth ────────────────────────────────────────────────
+    net_worth_str = money('f13_schedules_net_worth', 'net_worth')
+    if not net_worth_str and asset_total_str:
+        nw_calc = to_float(asset_total_str) - to_float(debt_total_str)
+        net_worth_str = f'{nw_calc:.2f}'
+    fields['Net Worth (0.00)'] = net_worth_str
+
+    # ── Schedule A: Additional income sources ─────────────────────────────
+    # Annual Amount (0.00) 1-7 rows. Order matches the PDF (page 7):
+    #   1 = Partnership   2 = Rental   3 = Dividends  4 = Capital gains
+    #   5 = RRSP withdrawal  6 = RRIF/annuity  7 = Other
+    sched_a_partnership = money('f13_scheduleA_partnership', 'sched_a_partnership')
+    sched_a_rental      = money('f13_scheduleA_rental', 'sched_a_rental')
+    sched_a_rental_gross= money('f13_scheduleA_rental_gross', 'sched_a_rental_gross')
+    sched_a_dividends   = money('f13_scheduleA_dividends', 'sched_a_dividends')
+    sched_a_cap_gains   = money('f13_scheduleA_capital_gains', 'sched_a_capital_gains')
+    sched_a_cap_losses  = money('f13_scheduleA_capital_losses', 'sched_a_capital_losses')
+    sched_a_rrsp        = money('f13_scheduleA_rrsp_withdrawal', 'sched_a_rrsp_withdrawal')
+    sched_a_rrif        = money('f13_scheduleA_rrif', 'sched_a_rrif')
+    sched_a_other       = money('f13_scheduleA_other', 'sched_a_other')
+    sched_a_other_desc  = val('f13_scheduleA_other_desc', 'sched_a_other_desc')
+
+    fields['Annual Amount (0.00) 1'] = sched_a_partnership
+    fields['Annual Amount (0.00) 2'] = sched_a_rental
+    fields['Gross annual rental income (0.00)'] = sched_a_rental_gross
+    fields['Annual Amount (0.00) 3'] = sched_a_dividends
+    # Capital gains row: total cap gains and losses go into separate boxes,
+    # the net into Annual Amount (0.00) 4.
+    fields['Total capital gains (0.00)'] = sched_a_cap_gains
+    fields['Capital losses (0.00)']      = sched_a_cap_losses
+    net_cap = to_float(sched_a_cap_gains) - to_float(sched_a_cap_losses)
+    fields['Annual Amount (0.00) 4'] = f'{net_cap:.2f}' if (sched_a_cap_gains or sched_a_cap_losses) else ''
+    fields['Annual Amount (0.00) 5'] = sched_a_rrsp
+    fields['Annual Amount (0.00) 6'] = sched_a_rrif
+    fields['Annual Amount (0.00) 7'] = sched_a_other
+
+    sched_a_total = sum(to_float(x) for x in (sched_a_partnership, sched_a_rental,
+                                              sched_a_dividends,
+                                              sched_a_rrsp, sched_a_rrif,
+                                              sched_a_other)) + net_cap
+    fields['Additional Sources of Income - Subtotal'] = f'{sched_a_total:.2f}' if sched_a_total else ''
+
+    # Schedule A free-text detail (backwards-compat with the old textarea path)
+    if val('schedule_a'):
+        fields['Details 2'] = d.get('schedule_a', '') or d.get('f13_schedules_schedule_a', '')
+
+    # ── Schedule B: Other income earners in the home ─────────────────────
+    live_arrangement = val('f13_scheduleB_living_arrangement', 'sched_b_living',
+                           'schedule_b_living').lower()
+    spouse_name    = val('f13_scheduleB_partner_name', 'sched_b_partner_name',
+                         'schedule_b_partner_name')
+    other_adults   = val('f13_scheduleB_other_adults', 'sched_b_other_adults')
+    children_count = val('f13_scheduleB_children_count', 'sched_b_children_count',
+                         'children_count')
+    spouse_workplace = val('f13_scheduleB_partner_workplace', 'sched_b_partner_workplace')
+    spouse_earnings  = money('f13_scheduleB_partner_earnings', 'sched_b_partner_earnings')
+    spouse_earn_period = val('f13_scheduleB_partner_earn_period', 'sched_b_partner_earn_period')
+    contribution     = money('f13_scheduleB_contribution', 'sched_b_contribution')
+    contribution_period = val('f13_scheduleB_contribution_period', 'sched_b_contribution_period')
+
+    if live_arrangement in ('alone', 'live_alone', 'live alone'):
+        checkboxes['I live alone'] = True
+    if spouse_name:
+        checkboxes['I am living with'] = True
+        fields['Full legal name of person you are married to or cohabiting with'] = spouse_name
+    if other_adults:
+        checkboxes['I/we live with'] = True
+        fields['Name(s) - Adult(s) living with'] = other_adults
+    if children_count:
+        checkboxes['I/we have children living at home'] = True
+        fields['Number of child(ren) living at home'] = children_count
+
+    if spouse_workplace:
+        checkboxes['My spouse/partner works at'] = True
+        fields['Place of work or business'] = spouse_workplace
+    elif live_arrangement:
+        # If we know partner status but no workplace, don't check "does not work"
+        # blindly — only when explicitly indicated.
+        if val('f13_scheduleB_partner_no_work', 'sched_b_partner_no_work') in ('true', 'yes', '1'):
+            checkboxes['My spouse/partner does not work outside the home'] = True
+
+    if spouse_earnings:
+        checkboxes['My spouse/partner earns'] = True
+        fields['Amount (0.00) - spouse/partner earnings'] = spouse_earnings
+        fields['Time period (e.g. week, month, year)'] = spouse_earn_period or 'month'
+    elif val('f13_scheduleB_partner_no_income', 'sched_b_partner_no_income') in ('true', 'yes', '1'):
+        checkboxes['My spouse/partner does not earn any income'] = True
+
+    if contribution:
+        checkboxes['My spouse/partner or other adult residing in the home contributes about'] = True
+        fields['Contributions to household (0.00)'] = contribution
+        fields['Time period (e.g. week, month, year) 2'] = contribution_period or 'month'
+
+    if val('schedule_b'):
+        fields['Details 3'] = d.get('schedule_b', '') or d.get('f13_schedules_schedule_b', '')
+
+    # ── Schedule C: Special/Extraordinary expenses (10 slots) ────────────
+    for i in range(1, 11):
+        name = val(f'f13_scheduleC_child_{i}_name', f'sched_c_child_{i}_name')
+        expense = val(f'f13_scheduleC_expense_{i}', f'sched_c_expense_{i}')
+        amount  = money(f'f13_scheduleC_amount_{i}', f'sched_c_amount_{i}')
+        credits = money(f'f13_scheduleC_credits_{i}', f'sched_c_credits_{i}')
+        fields[f'Child\u2019s Name {i}']                  = name
+        fields[f'Expense {i}']                            = expense
+        fields[f'Amount (0.00)/year {i}']                 = amount
+        fields[f'Available Tax Credits or Deductions (0.00) {i}'] = credits
+
+    sched_c_total_ann = sum(
+        to_float(d.get(f'f13_scheduleC_amount_{i}',
+                       d.get(f'sched_c_amount_{i}', '')))
+        - to_float(d.get(f'f13_scheduleC_credits_{i}',
+                         d.get(f'sched_c_credits_{i}', '')))
+        for i in range(1, 11)
+    )
+    if sched_c_total_ann:
+        fields['Total Net Annual Amount (0.00)']  = f'{sched_c_total_ann:.2f}'
+        fields['Total Net Monthly Amount (0.00)'] = f'{sched_c_total_ann/12:.2f}'
+        fields['Earnings per year (0.00)'] = money(
+            'f13_scheduleC_own_earnings', 'sched_c_own_earnings',
+        ) or annualize(inc_total)
+
+    if val('schedule_c'):
+        fields['Details 4'] = d.get('schedule_c', '') or d.get('f13_schedules_schedule_c', '')
 
     # ── Write PDF ─────────────────────────────────────────────────────────
-    reader = pypdf.PdfReader(input_path)
-    writer = pypdf.PdfWriter()
-    writer.append(reader)
+    from pypdf import PdfReader, PdfWriter
+    import pypdf.generic as g
 
-    filled = 0
+    reader = PdfReader(input_path)
+    writer = PdfWriter()
+    writer.clone_document_from_reader(reader)
+
+    # Drop empty entries so we don't wipe defaults
+    fields     = {k: v for k, v in fields.items() if v not in (None, '')}
+    checkboxes = {k: v for k, v in checkboxes.items() if v}
+
+    # Text fields: use pypdf's built-in walker — it handles child
+    # widgets whose value lives on the parent field object (Form 13
+    # uses this pattern extensively for numbered slots).
+    if fields:
+        writer.update_page_form_field_values(None, fields, auto_regenerate=True)
+
+    # Checkboxes/radios still need manual handling because
+    # update_page_form_field_values only supports text-field /V writes.
+    filled_checkboxes = 0
     for page in writer.pages:
         if '/Annots' not in page:
             continue
-        for annot in page['/Annots']:
-            obj = annot.get_object()
-            if obj.get('/Subtype') == '/Widget':
-                ft = obj.get('/FT')
-                t  = str(obj.get('/T', ''))
-                if ft == '/Tx' and t in fields:
-                    val = str(fields[t])
-                    obj.update({pypdf.generic.NameObject('/V'): pypdf.generic.create_string_object(val),
-                                pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject()})
-                    filled += 1
-                elif ft == '/Btn' and t in checkboxes:
-                    v = '/Yes' if checkboxes[t] else '/Off'
-                    obj.update({pypdf.generic.NameObject('/V'): pypdf.generic.NameObject(v),
-                                pypdf.generic.NameObject('/AS'): pypdf.generic.NameObject(v)})
-                    filled += 1
+        for annot_ref in page['/Annots']:
+            try:
+                obj = annot_ref.get_object()
+            except Exception:
+                continue
+            if obj.get('/Subtype') != '/Widget':
+                continue
+            if obj.get('/FT') != '/Btn':
+                continue
+            field_name = obj.get('/T')
+            if not field_name and '/Parent' in obj:
+                try:
+                    field_name = obj['/Parent'].get_object().get('/T')
+                except Exception:
+                    pass
+            if not field_name:
+                continue
+            fname = str(field_name)
+            if fname in checkboxes:
+                v = '/Yes' if checkboxes[fname] else '/Off'
+                obj.update({
+                    g.NameObject('/V'):  g.NameObject(v),
+                    g.NameObject('/AS'): g.NameObject(v),
+                })
+                filled_checkboxes += 1
+
+    # Force viewers to regenerate appearance streams so filled values show up
+    if '/AcroForm' in writer._root_object:
+        try:
+            acroform = writer._root_object['/AcroForm']
+            if hasattr(acroform, 'update'):
+                acroform.update({g.NameObject('/NeedAppearances'): g.BooleanObject(True)})
+        except Exception:
+            pass
 
     with open(output_path, 'wb') as f:
         writer.write(f)
 
-    sys.stderr.write(f'[fill_form13] Filled {filled} fields → {output_path}\n')
-    return filled
+    total_filled = len(fields) + filled_checkboxes
+    sys.stderr.write(
+        f'[fill_form13] Filled {total_filled} fields '
+        f'({len(fields)} text + {filled_checkboxes} check) \u2192 {output_path}\n'
+    )
+    return total_filled
+
 
 def fill_form13_1(input_path, output_path, form_data_list):
     """Fill Form 13.1 — Financial Statement (Property and Support Claims)."""
