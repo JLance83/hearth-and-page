@@ -1,0 +1,29 @@
+{
+  "name": "hearth-and-page-frontend-v2",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Modern React/Vite frontend for Hearth & Page. Ships alongside the legacy hp-patches.js bundle. Serves under /app-v2/*. New feature UI is built here; the existing app at / stays untouched.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  }
+}

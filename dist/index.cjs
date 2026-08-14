@@ -2051,6 +2051,9 @@ Return ONLY valid JSON:
 // Static frontend
 // ──────────────────────────────────────────────
 const publicDir = path.join(__dirname, 'public');
+const newFrontendDir = path.join(publicDir, 'new');
+const hasNewFrontend = fs.existsSync(path.join(newFrontendDir, 'index.html'));
+
 if (fs.existsSync(publicDir)) {
   app.use(express.static(publicDir, {
     maxAge: NODE_ENV === 'production' ? '1d' : '0',
@@ -2059,6 +2062,36 @@ if (fs.existsSync(publicDir)) {
       if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
     }
   }));
+
+  // /app-v2/* — new Vite/React frontend (Path C hybrid). Serves its own SPA
+  // fallback so react-router routes deep-link correctly. Ordered BEFORE the
+  // catch-all so /app-v2 doesn't fall through to the legacy index.html.
+  //
+  // Note: express.static above serves files under publicDir at their file
+  // paths (e.g. GET /new/foo.js — which we don't want to expose). We mount
+  // a second static handler at /app-v2 pointing at newFrontendDir so that
+  // GET /app-v2/assets/index-XXX.js resolves to newFrontendDir/assets/index-XXX.js
+  // with the correct Content-Type.
+  if (hasNewFrontend) {
+    app.use('/app-v2', express.static(newFrontendDir, {
+      maxAge: NODE_ENV === 'production' ? '1d' : '0',
+      // The hashed asset filenames (Vite adds a content hash) are
+      // safely cacheable long-term; index.html must not be cached so
+      // clients pick up the new hashes after each deploy.
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+        if (/\.(?:js|css|svg|woff2?)$/.test(filePath)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      }
+    }));
+    // SPA fallback: any /app-v2/... path that didn't match a static file
+    // returns the shell HTML so react-router can handle client-side routing.
+    app.get('/app-v2/*', (req, res) => {
+      res.sendFile(path.join(newFrontendDir, 'index.html'));
+    });
+  }
+
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) return res.status(404).json({ message: 'Not found' });
     res.sendFile(path.join(publicDir, 'index.html'));

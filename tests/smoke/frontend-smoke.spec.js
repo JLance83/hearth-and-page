@@ -152,3 +152,71 @@ test.describe('Frontend smoke', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Frontend v2 (Vite/React under /app-v2/*)
+//
+// Separate describe so an /app-v2 failure doesn't obscure legacy-app checks.
+// These tests only verify the plumbing is correct: nixpacks built the bundle,
+// Express serves it under /app-v2, assets resolve with correct Content-Type,
+// and react-router deep links fall back to index.html correctly.
+// ---------------------------------------------------------------------------
+test.describe('Frontend v2 (/app-v2)', () => {
+  test.setTimeout(30_000);
+
+  test('/app-v2/ serves the v2 shell', async ({ request }) => {
+    const res = await request.get(`${BASE}/app-v2/`);
+    expect(res.status(), `${BASE}/app-v2/ should return 200`).toBe(200);
+    const html = await res.text();
+    expect(html, 'html should be the v2 shell').toContain('Hearth &amp; Page (v2)');
+    // Vite build emits hashed asset URLs prefixed with /app-v2/
+    expect(html, 'assets should be /app-v2/-prefixed').toMatch(/\/app-v2\/assets\/index-\w+\.js/);
+  });
+
+  test('/app-v2/status deep link falls back to the SPA shell', async ({ request }) => {
+    // react-router handles /status client-side; server must return the shell.
+    const res = await request.get(`${BASE}/app-v2/status`);
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('Hearth &amp; Page (v2)');
+  });
+
+  test('/app-v2 assets serve with correct Content-Type', async ({ page, request }) => {
+    // First fetch the shell and extract the hashed asset filename dynamically,
+    // so this test doesn't need to be updated on every rebuild.
+    const html = await (await request.get(`${BASE}/app-v2/`)).text();
+    const jsMatch = html.match(/\/app-v2\/(assets\/index-\w+\.js)/);
+    const cssMatch = html.match(/\/app-v2\/(assets\/index-\w+\.css)/);
+    expect(jsMatch, 'shell should reference a hashed JS bundle').not.toBeNull();
+    expect(cssMatch, 'shell should reference a hashed CSS bundle').not.toBeNull();
+
+    const jsRes = await request.get(`${BASE}/app-v2/${jsMatch[1]}`);
+    expect(jsRes.status()).toBe(200);
+    expect(jsRes.headers()['content-type']).toMatch(/javascript/);
+
+    const cssRes = await request.get(`${BASE}/app-v2/${cssMatch[1]}`);
+    expect(cssRes.status()).toBe(200);
+    expect(cssRes.headers()['content-type']).toMatch(/css/);
+  });
+
+  test('/app-v2 renders without console errors and calls /api/health', async ({ page }) => {
+    const consoleErrors = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+
+    // The StatusPage component calls /api/health on mount — wait for the
+    // response to confirm the same-origin API bridge works end-to-end.
+    const healthPromise = page.waitForResponse(
+      r => r.url().endsWith('/api/health') && r.status() === 200,
+      { timeout: 15_000 },
+    );
+    await page.goto(`${BASE}/app-v2/`, { waitUntil: 'domcontentloaded' });
+    await healthPromise;
+
+    // React should have rendered the heading by now.
+    await expect(page.getByRole('heading', { name: /production status/i })).toBeVisible({ timeout: 5_000 });
+
+    expect(consoleErrors, 'no console errors on /app-v2/').toEqual([]);
+  });
+});
