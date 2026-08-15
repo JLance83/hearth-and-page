@@ -460,7 +460,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         fetch(RAILWAY_EP + '/api/stripe/create-checkout', {
           method: 'POST',
           headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
-          body: JSON.stringify({ priceId: 'price_1Tduf0DyokC7Tv7bDRAZBk57', successUrl: window.location.href + '?checkout=success', cancelUrl: window.location.href })
+          body: JSON.stringify({ priceId: 'price_1U4j1iDyokC7Tv7bhSLHEHSW', successUrl: window.location.href + '?checkout=success', cancelUrl: window.location.href })
         }).then(function(r){ return r.json(); }).then(function(d){ if (d && d.url) window.location.href = d.url; }).catch(function(){});
       });
       document.getElementById('hp-ep-plus').addEventListener('click', function() {
@@ -468,7 +468,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         fetch(RAILWAY_EP + '/api/stripe/create-checkout', {
           method: 'POST',
           headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
-          body: JSON.stringify({ priceId: 'price_1TduyXDyokC7Tv7bKKoeeh1v', successUrl: window.location.href + '?checkout=success', cancelUrl: window.location.href })
+          body: JSON.stringify({ priceId: 'price_1U4j5QDyokC7Tv7bHYFxxOvG', successUrl: window.location.href + '?checkout=success', cancelUrl: window.location.href })
         }).then(function(r){ return r.json(); }).then(function(d){ if (d && d.url) window.location.href = d.url; }).catch(function(){});
       });
       return;
@@ -1843,7 +1843,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   }
 
   function launchCheckout(plan) {
-    var priceId = plan === 'plus' ? 'price_1TduyXDyokC7Tv7bKKoeeh1v' : 'price_1Tduf0DyokC7Tv7bDRAZBk57';
+    var priceId = plan === 'plus' ? 'price_1U4j5QDyokC7Tv7bHYFxxOvG' : 'price_1U4j1iDyokC7Tv7bhSLHEHSW';
     fetch(_RW + '/api/stripe/create-checkout', {
       method: 'POST',
       headers: Object.assign({'Content-Type':'application/json'}, __authHdr()),
@@ -3054,8 +3054,8 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         .then(function(d){ if (d && d.url) window.location.href = d.url; else { btn.disabled = false; btn.textContent = btn.id === 'hp-acct-std' ? 'Standard \u2014 $9.99/mo CAD' : 'Plus \u2014 $19.99/mo CAD'; } })
         .catch(function(){ btn.disabled = false; });
     }
-    if (stdBtn) stdBtn.addEventListener('click', function() { launchAcctCheckout('price_1Tduf0DyokC7Tv7bDRAZBk57', stdBtn); });
-    if (plusBtn) plusBtn.addEventListener('click', function() { launchAcctCheckout('price_1TduyXDyokC7Tv7bKKoeeh1v', plusBtn); });
+    if (stdBtn) stdBtn.addEventListener('click', function() { launchAcctCheckout('price_1U4j1iDyokC7Tv7bhSLHEHSW', stdBtn); });
+    if (plusBtn) plusBtn.addEventListener('click', function() { launchAcctCheckout('price_1U4j5QDyokC7Tv7bHYFxxOvG', plusBtn); });
 
     // Change password
     document.getElementById('hp-pw-submit').addEventListener('click', async function() {
@@ -4775,8 +4775,8 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
   // Expose env shim so the inline pricing cards can read Stripe price IDs
   window.__hp_env = {
-    VITE_STRIPE_PRICE_STANDARD: 'price_1Tduf0DyokC7Tv7bDRAZBk57',
-    VITE_STRIPE_PRICE_PLUS:     'price_1TduyXDyokC7Tv7bKKoeeh1v'
+    VITE_STRIPE_PRICE_STANDARD: 'price_1U4j1iDyokC7Tv7bhSLHEHSW',
+    VITE_STRIPE_PRICE_PLUS:     'price_1U4j5QDyokC7Tv7bHYFxxOvG'
   };
 
   // Expose auth helpers for the inline checkout
