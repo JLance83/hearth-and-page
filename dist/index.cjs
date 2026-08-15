@@ -339,6 +339,13 @@ app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: BO
 
 // ── Auth ──
 
+// B1 alias: frontend bundle POSTs /api/auth/signup; keep both routes wired
+// to the same handler until the frontend source is updated to /register.
+app.post('/api/auth/signup', (req, res, next) => {
+  req.url = '/api/auth/register';
+  return app.handle(req, res, next);
+});
+
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, firstName } = req.body;

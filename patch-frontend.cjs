@@ -96,6 +96,21 @@ if (content.includes('__HP_LAZY__ v5')) {
     "window.__emailPDF&&!h"
   );
 
+  // B2 patch: swallow raw HTML error bodies from e2(). Original falls back to
+  // the raw response body when JSON.parse fails, which dumped `<!DOCTYPE html>
+  // …Cannot POST /api/auth/signup` into the signup UI on 404s. This replaces
+  // the fallback with a friendly HTTP-status-based message.
+  const B2_OLD = 'function e2(t){if(!t.ok){let e=t.statusText;try{const n=await t.text();try{e=JSON.parse(n).message||n}catch{e=n||t.statusText}}catch{}const r=new Error(e);throw r.status=t.status,r}}';
+  const B2_NEW = 'function e2(t){if(!t.ok){let e=t.statusText||("Request failed ("+t.status+")");try{const n=await t.text();try{const j=JSON.parse(n);if(j&&j.message)e=j.message;}catch{if(t.status>=500)e="The server had a problem. Please try again in a moment.";else if(t.status===404)e="That page or action isn\'t available.";else if(t.status===401)e="Please sign in again.";else if(t.status===403)e="You don\'t have access to that.";else e="Something went wrong. Please try again.";try{console.warn("[hp] non-JSON error body from "+t.url,n.slice(0,500));}catch{}}}catch{}const r=new Error(e);throw r.status=t.status,r}}';
+  if (patched.includes(B2_OLD)) {
+    patched = patched.replace(B2_OLD, B2_NEW);
+    console.log('[patch] B2: friendly error handler installed in e2()');
+  } else if (patched.includes('B2: friendly error handler') || patched.includes('non-JSON error body from')) {
+    console.log('[patch] B2 already applied');
+  } else {
+    console.warn('[patch] WARNING: B2 target e2() not found — friendly error handler NOT installed');
+  }
+
   // Inject shield/safety button before the logout button in the navbar
   const SHIELD_BUTTON = `s.jsx("button",{type:"button",onClick:()=>{if(typeof window.__openSafetyOverlay==="function")window.__openSafetyOverlay();},style:{display:"inline-flex",alignItems:"center",justifyContent:"center",height:"2.25rem",width:"2.25rem",minWidth:"44px",minHeight:"44px",borderRadius:"0.375rem",background:"transparent",border:"none",cursor:"pointer",color:"rgba(237,232,223,0.6)",flexShrink:0},"data-testid":"button-safety","aria-label":"Safety & emergency",title:"Safety & emergency resources",children:s.jsx("svg",{width:16,height:16,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round",children:s.jsx("path",{d:"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"})})}),`;
   const LOGOUT_TARGET = `s.jsx(rt,{variant:"ghost",size:"sm",onClick:()=>n(),className:"h-9 w-9 p-0","data-testid":"button-logout"`;
