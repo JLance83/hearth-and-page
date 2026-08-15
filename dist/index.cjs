@@ -268,6 +268,39 @@ app.use((req, res, next) => {
   next();
 });
 
+// Security headers (Batch 1a — Aug 14 2026)
+// CSP: allows self + known third-party origins used by the client bundle.
+// - script-src includes 'unsafe-inline' because hp-patches.js uses inline
+//   onclick= handlers in the invite/join flow. Real fix (refactor to
+//   addEventListener) is a follow-up; for now this at least blocks external
+//   script origins, which is the main XSS exfil vector for B10.
+// - style-src includes 'unsafe-inline' because index.html has an inline
+//   <style id="hp-nav-mobile-hide"> block and the React bundle uses inline
+//   style attributes extensively.
+// - connect-src allows the Railway API, Nominatim (address autocomplete),
+//   and self.
+// - frame-src allows Stripe checkout hosts (defensive — checkout is a
+//   redirect, not an embed, but leaving room).
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://api-production-2334.up.railway.app https://nominatim.openstreetmap.org",
+    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self' https://checkout.stripe.com",
+    "frame-ancestors 'none'"
+  ].join('; '));
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 // Logging
 app.use((req, res, next) => {
   const start = Date.now();
@@ -1164,9 +1197,20 @@ app.delete('/api/account', requireAuth, async (req, res) => {
 
 app.get('/api/account/export', requireAuth, async (req, res) => {
   try {
-    const user = await dbGet('users', { id: `eq.${req.user.id}` });
+    const rawUser = await dbGet('users', { id: `eq.${req.user.id}` });
+    // B9 fix (Batch 1a — Aug 14 2026): strip passwordHash + Stripe IDs from PIPEDA export.
+    // sanitizeUser() already removes passwordHash; we additionally drop the Stripe
+    // customer/subscription IDs since they are billing-provider identifiers, not
+    // personal information the user has a PIPEDA right of access to.
+    const safe = rawUser ? (() => {
+      const s = { ...rawUser };
+      delete s.passwordHash;
+      delete s.stripeCustomerId;
+      delete s.stripeSubscriptionId;
+      return s;
+    })() : rawUser;
     const cases = await dbAll('cases', { user_id: `eq.${req.user.id}` });
-    const exportData = { exportedAt: new Date().toISOString(), user, cases: [] };
+    const exportData = { exportedAt: new Date().toISOString(), user: safe, cases: [] };
     for (const c of cases) {
       const formData = await dbAll('form_data', { case_id: `eq.${c.id}` });
       const checkboxes = await dbAll('pdf_checkboxes', { case_id: `eq.${c.id}` });
