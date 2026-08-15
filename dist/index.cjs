@@ -1339,7 +1339,15 @@ app.post('/api/stripe/create-checkout', requireAuth, async (req, res) => {
     const userRow = await dbGet('users', { id: `eq.${req.user.id}` });
     let customerId = userRow?.stripeCustomerId;
     if (!customerId) {
-      const customer = await stripe.customers.create({ email: req.user.email, metadata: { userId: String(req.user.id) } });
+      // B8 defensive fix (Batch 2a — Aug 14 2026): default new customers to Canada
+      // so Stripe Checkout pre-fills the billing address country as CA instead of US.
+      // Does not fix the USD Price object (that's a dashboard change — Batch 2b) but
+      // eliminates the "billing address defaults to United States" half of B8.
+      const customer = await stripe.customers.create({
+        email: req.user.email,
+        address: { country: 'CA' },
+        metadata: { userId: String(req.user.id) }
+      });
       customerId = customer.id;
       await dbUpdate('users', { id: `eq.${req.user.id}` }, { stripeCustomerId: customerId });
     }
