@@ -7,7 +7,7 @@
 //   4. MutationObserver to inject "Email me this PDF" button into the download dialog
 
 // ─── Global constants (must be at top-level before any IIFE) ─────────────────
-var _RW = 'https://api-production-2334.up.railway.app';
+var _RW = ''; // same-origin: SPA and API on app.hearthandpage.ca (Batch 1b)
 
 // ─── Auth token ───────────────────────────────────────────────────────────────
 function __getFlap35Token() {
@@ -1229,7 +1229,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         e.stopPropagation();
 
         // Fetch the case to get its current caseType
-        fetch('https://api-production-2334.up.railway.app/api/cases', { headers: __authHdr() })
+        fetch('/api/cases', { headers: __authHdr() })
           .then(function(r) { return r.json(); })
           .then(function(cases) {
             var thisCase = cases.find(function(c) { return String(c.id) === String(caseId); });
@@ -1376,7 +1376,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
 
     btn.addEventListener('click', function() {
       // Fetch cases to get current caseType
-      fetch('https://api-production-2334.up.railway.app/api/cases', { headers: __authHdr() })
+      fetch('/api/cases', { headers: __authHdr() })
         .then(function(r) { return r.json(); })
         .then(function(cases) {
           var thisCase = cases.find(function(c) { return String(c.id) === String(caseId); });
