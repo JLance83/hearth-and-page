@@ -170,12 +170,41 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// ─── Session cookie helpers (Batch 1b — Aug 16 2026) ─────────────────────────
+// HttpOnly session cookie so the token can't be read by JS (B10 in the
+// prelaunch audit). Additive: requireAuth also still accepts the legacy
+// Bearer header so old sessions keep working through the client migration.
+const SESSION_COOKIE_NAME = 'hp_session';
+const SESSION_MAX_AGE_S = 30 * 24 * 60 * 60; // 30 days — matches DB session ttl
+function sessionCookieAttrs() {
+  // SameSite=None + Secure so the browser sends it on cross-origin XHRs from
+  // app.hearthandpage.ca → api-production-2334.up.railway.app (Railway aliases).
+  return 'HttpOnly; Secure; SameSite=None; Path=/';
+}
+function setSessionCookie(res, token) {
+  res.setHeader('Set-Cookie', SESSION_COOKIE_NAME + '=' + encodeURIComponent(token) + '; Max-Age=' + SESSION_MAX_AGE_S + '; ' + sessionCookieAttrs());
+}
+function clearSessionCookie(res) {
+  res.setHeader('Set-Cookie', SESSION_COOKIE_NAME + '=; Max-Age=0; ' + sessionCookieAttrs());
+}
+function readSessionCookie(req) {
+  const raw = req.headers.cookie || '';
+  const m = raw.match(/(?:^|;\s*)hp_session=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 async function requireAuth(req, res, next) {
+  // Prefer Bearer header (legacy path), fall back to HttpOnly hp_session cookie.
+  let token = null;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else {
+    token = readSessionCookie(req);
+  }
+  if (!token) {
     return res.status(401).json({ message: 'Not signed in' });
   }
-  const token = authHeader.slice(7);
   try {
     // 1. Get session
     const session = await dbGet('sessions', { token: `eq.${token}`, expires_at: `gt.${Date.now()}` });
@@ -430,6 +459,7 @@ app.post('/api/auth/register', async (req, res) => {
       text: 'Welcome to Hearth & Page, ' + name + '. Verify your email here: ' + verifyUrl
     }).catch(err => console.error('[auth] verify email send failed:', err.message));
     const user = await dbGet('users', { id: `eq.${userId}` });
+    setSessionCookie(res, token);
     res.json({ user: sanitizeUser(user), token, expiresAt, requiresVerification: true });
   } catch (e) {
     console.error('[auth] register error:', e.message);
@@ -449,6 +479,7 @@ app.post('/api/auth/login', async (req, res) => {
     const token = generateToken();
     const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
     await dbInsert('sessions', { userId: user.id, token, expiresAt, createdAt: Date.now() });
+    setSessionCookie(res, token);
     res.json({
       user: { id: user.id, email: user.email, firstName: user.firstName, emailVerified: !!user.emailVerified, plan: user.plan, subscriptionStatus: user.subscriptionStatus, subscriptionCurrentPeriodEnd: user.subscriptionCurrentPeriodEnd, gracePeriodEnd: user.gracePeriodEnd, createdAt: user.createdAt },
       token, expiresAt,
@@ -462,6 +493,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.post('/api/auth/logout', requireAuth, async (req, res) => {
   try {
     await dbDelete('sessions', { token: `eq.${req.token}` });
+    clearSessionCookie(res);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ message: 'Logout failed' }); }
 });
