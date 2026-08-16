@@ -213,6 +213,12 @@ function requirePaidExport(req, res, next) {
   const status = req.user?.subscriptionStatus;
   const plan   = req.user?.plan;
   if ((status === 'active' || status === 'past_due') && plan !== 'free') return next();
+  // Batch 3b (Aug 15 2026): Free users get the official (fill_pdf.py) Form 8
+  // export. This matches the pricing card copy shipped in Batch 2a and the
+  // dashboard 'Form 8 is free' banner. Other forms remain paid-only.
+  const formType = req.params?.formType || req.body?.formType || req.query?.formType || '';
+  const baseForm = String(formType).split('-')[0];
+  if (FREE_FORMS.includes(baseForm)) return next();
   return res.status(403).json({ message: 'PDF download requires a subscription', code: 'PDF_LOCKED', upgradeUrl: '/pricing' });
 }
 
