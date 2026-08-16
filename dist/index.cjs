@@ -21,6 +21,11 @@ const PORT = process.env.PORT || 5000;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = 'Hearth & Page <support@hearthandpage.ca>';
 const APP_URL = process.env.APP_URL || 'https://hearthandpage.ca';
+// Batch 4 (B3): the SPA is a wouter hash-router served at
+// app.hearthandpage.ca. Emails linking users into the app MUST hit the
+// subdomain + hash-router path or they 404. Do not use APP_URL for these —
+// it is the marketing-apex domain that returns 404 on client-router routes.
+const SPA_HASH_URL = process.env.SPA_HASH_URL || 'https://app.hearthandpage.ca/#';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // ──────────────────────────────────────────────
@@ -407,9 +412,8 @@ app.post('/api/auth/register', async (req, res) => {
     const verifyToken = generateToken();
     const verifyExpires = Date.now() + 24 * 60 * 60 * 1000;
     await dbInsert('email_verify_tokens', { userId, token: verifyToken, expiresAt: verifyExpires });
-    // Send verification email
-    const appUrl = APP_URL;
-    const verifyUrl = appUrl + '#/verify?token=' + verifyToken;
+    // Send verification email — use SPA subdomain + hash-router path (B3)
+    const verifyUrl = SPA_HASH_URL + '/verify?token=' + verifyToken;
     const name = firstName || 'there';
     sendViaResend({
       from: 'Hearth & Page <support@hearthandpage.ca>',
@@ -538,7 +542,8 @@ app.post('/api/auth/forgot', async (req, res) => {
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetExpiry = Date.now() + 60 * 60 * 1000;
     await dbInsert('sessions', { userId: user.id, token: 'reset_' + resetToken, expiresAt: resetExpiry, createdAt: Date.now() });
-    const resetUrl = APP_URL + '/forgot?token=' + resetToken + '&step=reset';
+    // Password reset link must land on SPA subdomain (B3)
+    const resetUrl = SPA_HASH_URL + '/forgot?token=' + resetToken + '&step=reset';
     try {
       await sendViaResend({
         from: FROM_EMAIL, to: [user.email],
@@ -613,8 +618,8 @@ app.post('/api/auth/resend-verify', requireAuth, async (req, res) => {
     const verifyToken = generateToken();
     const verifyExpires = Date.now() + 24 * 60 * 60 * 1000;
     await dbInsert('email_verify_tokens', { userId: user.id, token: verifyToken, expiresAt: verifyExpires });
-    const appUrl = APP_URL;
-    const verifyUrl = appUrl + '#/verify?token=' + verifyToken;
+    // Resend verification link must land on SPA subdomain (B3)
+    const verifyUrl = SPA_HASH_URL + '/verify?token=' + verifyToken;
     const name = user.firstName || 'there';
     await sendViaResend({
       from: 'Hearth & Page <support@hearthandpage.ca>',
