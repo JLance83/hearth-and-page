@@ -1865,7 +1865,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         .then(function(d) {
           window.history.replaceState({}, '', clean);
           // Update token with new plan info if returned
-          if (d && d.token) { window.__hp_token = d.token; }
+          if (d && d.token) { /*B10:no-heap*/void 0; }
           // Show a success toast before reload
           var toast = document.createElement('div');
           toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a3a2a;color:#6fcf97;padding:14px 24px;border-radius:12px;font-size:15px;font-weight:600;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
@@ -2791,7 +2791,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         return r.clone().json().catch(function() { return {}; });
       }).then(function(d) {
         if (d.token) {
-          window.__hp_token = d.token;
+          /*B10:no-heap*/void 0;
           if (d.user) window.__hp_currentUser = d.user;
           setTimeout(function() {
             checkAndHandleVerification();
