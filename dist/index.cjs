@@ -294,7 +294,12 @@ function sendViaResend(payload) {
 // ──────────────────────────────────────────────
 const app = express();
 
-app.use(express.json({ limit: '50mb' }));
+app.use((req, res, next) => {
+  // Stripe webhook needs the raw body for signature verification.
+  // Skip JSON parsing on that path; express.raw() at the route handles it.
+  if (req.path === '/api/stripe/webhook') return next();
+  return express.json({ limit: '50mb' })(req, res, next);
+});
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // CORS
