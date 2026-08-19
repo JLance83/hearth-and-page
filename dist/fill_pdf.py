@@ -889,20 +889,51 @@ def fill_form8(input_path, output_path, form_data_list):
     for i in range(1, min(child_count + 1, 7)):
         cn = d.get(f'child{i}Name', d.get(f'child_{i}_name', ''))
         cd = d.get(f'child{i}Dob', d.get(f'child_{i}_dob', ''))
-        cr = d.get(f'child{i}Residence', d.get(f'child_{i}_residence', ''))
+        # Wizard writes `livesWith` → adapter emits `child_{i}_lives_with`.
+        # Legacy keys `child_{i}_residence` / `child{i}Residence` kept for
+        # older cases that predate the wizard change.
+        cr_raw = d.get(f'child_{i}_lives_with',
+                       d.get(f'child_{i}_residence',
+                             d.get(f'child{i}Residence', '')))
+        cr_norm = str(cr_raw).strip().lower()
 
-        residence_label = {
-            'applicant': ap_name or 'Applicant',
-            'respondent': re_name or 'Respondent',
-            'both': f'{ap_name or "Applicant"} and {re_name or "Respondent"}',
-            'other': 'Other',
-        }.get(str(cr).lower(), cr)
+        # Human-readable value for the "Now living with" column.
+        # Handles both structured legacy tokens ('applicant', 'respondent',
+        # 'both', 'other') and the free-text values the current wizard
+        # writes (e.g. "With Other Parent", "With me", "With grandparent").
+        if cr_norm in ('applicant', 'with me', 'with the applicant', 'me'):
+            residence_label = ap_name or 'Applicant'
+            lives_with_other = False
+        elif cr_norm in ('respondent', 'with other parent',
+                         'with the other parent', 'with the respondent'):
+            residence_label = f'{re_name} (other parent)' if re_name else 'Other parent'
+            lives_with_other = True
+        elif cr_norm == 'both':
+            residence_label = f'{ap_name or "Applicant"} and {re_name or "Respondent"}'
+            lives_with_other = False
+        elif cr_norm in ('other', ''):
+            residence_label = ''
+            lives_with_other = False
+        else:
+            # Free text we don't recognise — pass through as-is
+            residence_label = str(cr_raw)
+            lives_with_other = False
 
-        # Per-child override (child_1_city / child_1_province) beats the
-        # applicant fallback — covers cases where a child lives with the
-        # respondent or a third party.
-        child_city = d.get(f'child_{i}_city', d.get(f'child{i}City', ap_city))
-        child_prov = d.get(f'child_{i}_province', d.get(f'child{i}Province', ap_prov))
+        # Municipality: explicit per-child overrides win.
+        # If none, and the child lives with the other parent, use the
+        # respondent's city/province. Otherwise fall back to the applicant's
+        # (kids-with-applicant is still the most common single-parent case).
+        explicit_city = d.get(f'child_{i}_city', d.get(f'child{i}City', ''))
+        explicit_prov = d.get(f'child_{i}_province', d.get(f'child{i}Province', ''))
+        if explicit_city or explicit_prov:
+            child_city = explicit_city
+            child_prov = explicit_prov
+        elif lives_with_other:
+            child_city = re_city
+            child_prov = re_prov
+        else:
+            child_city = ap_city
+            child_prov = ap_prov
 
         fields[f'Full legal name {i}'] = cn
         fields[f'Age {i}'] = calc_age(cd)
@@ -2264,8 +2295,15 @@ def fill_form23c(input_path, output_path, form_data_list):
         fields[f'Full Legal NameRow{i}'] = d.get(f'child_{i}_name', '')
         fields[f'AgeRow{i}'] = d.get(f'child_{i}_age', '')
         fields[f'Birthdate d m yRow{i}'] = d.get(f'child_{i}_dob', '')
-        fields[f'Resident in municipality  provinceRow{i}'] = d.get(f'child_{i}_residence', '')
-        fields[f'Now living with name of person and relationship to childRow{i}'] = d.get(f'child_{i}_living_with', '')
+        # Wizard writes `livesWith` → adapter emits `child_{i}_lives_with`.
+        # Legacy `child_{i}_residence` / `child_{i}_living_with` kept for
+        # backwards compatibility.
+        fields[f'Resident in municipality  provinceRow{i}'] = d.get(f'child_{i}_city', '')
+        fields[f'Now living with name of person and relationship to childRow{i}'] = d.get(
+            f'child_{i}_lives_with',
+            d.get(f'child_{i}_living_with',
+                  d.get(f'child_{i}_residence', ''))
+        )
     checkboxes = {
         'married on date': d.get('relationship_type', '') == 'married',
         'separated on date': bool(d.get('date_of_separation', '')),
