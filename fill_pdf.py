@@ -23,6 +23,40 @@ from datetime import date
 # copied to dist/fill_pdf.py + dist/vendor/ if the build did that, but we look
 # in both spots either way). See vendor/README.md for refresh instructions.
 _HERE = os.path.dirname(os.path.abspath(__file__))
+
+def _wheel_needs_extract(whl_path):
+    # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
+    # Python's dynamic-library loader has to open a real file on disk. Pure-
+    # Python wheels are fine on sys.path as-is.
+    import zipfile
+    try:
+        with zipfile.ZipFile(whl_path) as zf:
+            for name in zf.namelist():
+                if name.endswith('.so') or name.endswith('.pyd'):
+                    return True
+    except Exception:
+        return True
+    return False
+
+def _extract_wheel(whl_path, cache_root):
+    # Extract once into a stable per-wheel cache dir (idempotent). Returns dir.
+    import zipfile, hashlib
+    key = hashlib.sha1(os.path.abspath(whl_path).encode()).hexdigest()[:12]
+    target = os.path.join(cache_root, os.path.basename(whl_path) + '.' + key)
+    marker = os.path.join(target, '.hp_ok')
+    if os.path.isfile(marker):
+        return target
+    os.makedirs(target, exist_ok=True)
+    with zipfile.ZipFile(whl_path) as zf:
+        zf.extractall(target)
+    with open(marker, 'w') as f:
+        f.write(whl_path)
+    return target
+
+_CACHE_ROOT = os.environ.get('HP_VENDOR_CACHE') or os.path.join(
+    (os.environ.get('TMPDIR') or '/tmp'), 'hp_vendor_cache'
+)
+
 for _candidate in (
     os.path.join(_HERE, 'vendor'),
     os.path.join(_HERE, '..', 'vendor'),
@@ -31,8 +65,16 @@ for _candidate in (
     if not os.path.isdir(_candidate):
         continue
     for _whl in sorted(glob.glob(os.path.join(_candidate, '*.whl'))):
-        if _whl not in sys.path:
-            sys.path.insert(0, _whl)
+        try:
+            if _wheel_needs_extract(_whl):
+                _extracted = _extract_wheel(_whl, _CACHE_ROOT)
+                if _extracted not in sys.path:
+                    sys.path.insert(0, _extracted)
+            else:
+                if _whl not in sys.path:
+                    sys.path.insert(0, _whl)
+        except Exception as _ve:
+            sys.stderr.write(f'[vendor] failed to load {_whl}: {_ve}\n')
 
 try:
     import pypdf

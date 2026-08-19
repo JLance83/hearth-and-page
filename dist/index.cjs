@@ -309,8 +309,6 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  // TEMP DIAGNOSTIC: expose fillPDF debug headers for cross-origin fetches (DevTools/JS visibility). Revert with fix.
-  res.setHeader('Access-Control-Expose-Headers', 'X-HP-FillDebug, X-HP-FillStderr, X-HP-FillStdout, X-HP-FillMeta');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
@@ -1038,74 +1036,25 @@ function toFillRows(dbRows) {
   });
 }
 
-// TEMP DIAGNOSTIC: returns { bytes, debug: { status, stderr, stdout, formDataRows, pythonBin, fillScript, pdfPath, tmpOut, filledSize } }
-// Every failure branch tags a status so the caller can surface it via response headers.
-// Revert with the actual fix commit.
 async function fillPDF(pdfPath, formData, formType) {
   return new Promise((resolve) => {
-    const debug = {
-      status: 'unknown',
-      stderr: '',
-      stdout: '',
-      formDataRows: Array.isArray(formData) ? formData.length : -1,
-      pythonBin: PYTHON_BIN,
-      fillScript: FILL_SCRIPT,
-      pdfPath: pdfPath,
-      tmpOut: '',
-      filledSize: 0,
-    };
     const tmpJson = path.join(os.tmpdir(), `hp_formdata_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
     const tmpOut = path.join(os.tmpdir(), `hp_filled_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`);
-    debug.tmpOut = tmpOut;
-    try { fs.writeFileSync(tmpJson, JSON.stringify(formData)); }
-    catch(e) { debug.status = 'tmpjson_write_failed'; debug.stderr = String(e && e.message || e); resolve({ bytes: fs.readFileSync(pdfPath), debug }); return; }
-    if (!fs.existsSync(FILL_SCRIPT)) { debug.status = 'fill_script_missing'; resolve({ bytes: fs.readFileSync(pdfPath), debug }); return; }
+    try { fs.writeFileSync(tmpJson, JSON.stringify(formData)); } catch(e) { console.error('[fillPDF] tmpjson write failed:', e && e.message); resolve(fs.readFileSync(pdfPath)); return; }
+    if (!fs.existsSync(FILL_SCRIPT)) { console.error('[fillPDF] fill_pdf.py not found at', FILL_SCRIPT); resolve(fs.readFileSync(pdfPath)); return; }
     const { exec } = require('child_process');
     const ftArg = formType ? ` ${JSON.stringify(String(formType))}` : '';
     const cmd = `${PYTHON_BIN} ${JSON.stringify(FILL_SCRIPT)} ${JSON.stringify(pdfPath)} ${JSON.stringify(tmpOut)} ${JSON.stringify(tmpJson)}${ftArg}`;
     const childEnv = { ...process.env, PATH: `/mise/shims:/mise/installs/python/3.11.0/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}` };
     exec(cmd, { timeout: 30000, shell: true, env: childEnv }, (err, stdout, stderr) => {
       try { fs.unlinkSync(tmpJson); } catch(e) {}
-      debug.stdout = String(stdout || '').slice(0, 800);
-      debug.stderr = String(stderr || '').slice(0, 800);
-      if (err) {
-        debug.status = 'python_error_' + (err.killed ? 'timeout' : (err.code != null ? 'exit' + err.code : 'unknown'));
-        console.error('[fillPDF] python error:', stderr);
-        try { fs.unlinkSync(tmpOut); } catch(e) {}
-        resolve({ bytes: fs.readFileSync(pdfPath), debug });
-        return;
-      }
-      if (!fs.existsSync(tmpOut)) {
-        debug.status = 'tmpout_missing';
-        resolve({ bytes: fs.readFileSync(pdfPath), debug });
-        return;
-      }
+      if (err) { console.error('[fillPDF] python error:', stderr); try { fs.unlinkSync(tmpOut); } catch(e) {} resolve(fs.readFileSync(pdfPath)); return; }
+      if (!fs.existsSync(tmpOut)) { console.error('[fillPDF] tmpOut missing after python:', tmpOut); resolve(fs.readFileSync(pdfPath)); return; }
       const filledBytes = fs.readFileSync(tmpOut);
-      debug.filledSize = filledBytes.length;
-      debug.status = 'ok';
       try { fs.unlinkSync(tmpOut); } catch(e) {}
-      resolve({ bytes: filledBytes, debug });
+      resolve(filledBytes);
     });
   });
-}
-
-// TEMP DIAGNOSTIC: sanitize + serialize debug for response header transport.
-// Header values must be ASCII and free of CR/LF; keep total < 4kb per header.
-function fillDebugToHeader(debug) {
-  const safe = (s) => String(s || '').replace(/[\r\n]+/g, ' \u21B5 ').replace(/[^\x20-\x7E]/g, '?').slice(0, 900);
-  return {
-    status: safe(debug && debug.status),
-    stderr: safe(debug && debug.stderr),
-    stdout: safe(debug && debug.stdout),
-    meta: safe(JSON.stringify({
-      rows: debug && debug.formDataRows,
-      py: debug && debug.pythonBin,
-      script: debug && debug.fillScript,
-      pdf: debug && debug.pdfPath,
-      tmp: debug && debug.tmpOut,
-      size: debug && debug.filledSize,
-    })),
-  };
 }
 
 // ── PDF Checkboxes ──
@@ -1199,15 +1148,7 @@ app.post('/api/cases/:caseId/official-pdf/:formType', requireAuth, requirePaidEx
     const pdfPath = path.join(__dirname, 'public', 'pdfs', `${formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).json({ message: 'PDF template not found for ' + formType });
     const formData = await dbAll('form_data', { case_id: `eq.${c.id}` });
-    // TEMP DIAGNOSTIC: fillPDF now returns { bytes, debug }; surface debug on response headers.
-    const fillResult = await fillPDF(pdfPath, toFillRows(formData), formType);
-    const filledPdf = fillResult.bytes;
-    const hdr = fillDebugToHeader(fillResult.debug);
-    res.setHeader('X-HP-FillDebug', hdr.status);
-    res.setHeader('X-HP-FillStderr', hdr.stderr);
-    res.setHeader('X-HP-FillStdout', hdr.stdout);
-    res.setHeader('X-HP-FillMeta', hdr.meta);
-    console.log('[official-pdf]', { userId: req.user && req.user.id, caseId: c.id, formType, rows: (formData||[]).length, status: fillResult.debug.status, filledSize: filledPdf.length });
+    const filledPdf = await fillPDF(pdfPath, toFillRows(formData), formType);
     const formLabel = formType.replace(/_/g, '.').toUpperCase();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="HearthAndPage-${formLabel}.pdf"`);
@@ -1254,15 +1195,7 @@ app.get('/api/download/:token', async (req, res) => {
     const pdfPath = path.join(__dirname, 'public', 'pdfs', `${formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).send('PDF not found.');
     const formData = await dbAll('form_data', { case_id: `eq.${caseId}` });
-    // TEMP DIAGNOSTIC: fillPDF now returns { bytes, debug }; surface debug on response headers.
-    const fillResult = await fillPDF(pdfPath, toFillRows(formData), formType);
-    const filledPdf = fillResult.bytes;
-    const hdr = fillDebugToHeader(fillResult.debug);
-    res.setHeader('X-HP-FillDebug', hdr.status);
-    res.setHeader('X-HP-FillStderr', hdr.stderr);
-    res.setHeader('X-HP-FillStdout', hdr.stdout);
-    res.setHeader('X-HP-FillMeta', hdr.meta);
-    console.log('[download]', { caseId, formType, rows: (formData||[]).length, status: fillResult.debug.status, filledSize: filledPdf.length });
+    const filledPdf = await fillPDF(pdfPath, toFillRows(formData), formType);
     const formLabel = formType.replace(/_/g, '.').toUpperCase();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="HearthAndPage-${formLabel}.pdf"`);
