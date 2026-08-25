@@ -102,10 +102,29 @@ function supaRequest(method, table, options = {}) {
       headers,
     };
 
+    // TEMP DIAGNOSTIC — remove after write-failure fixed
+    if (table === 'form_data' && method === 'POST') {
+      const dbgHeaders = Object.assign({}, headers, {
+        apikey: (headers.apikey || '').slice(0, 15) + '...(len=' + (headers.apikey || '').length + ')',
+        Authorization: 'Bearer ' + ((headers.Authorization || '').slice(7, 22)) + '...(len=' + ((headers.Authorization || '').length - 7) + ')',
+      });
+      console.log('[SUPA-DBG-REQ]', JSON.stringify({
+        method, hostname: parsed.hostname, path: urlPath,
+        headers: dbgHeaders, bodyStr,
+      }));
+    }
+
     const req = https.request(reqOptions, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
+        // TEMP DIAGNOSTIC — remove after write-failure fixed
+        if (table === 'form_data' && method === 'POST') {
+          console.log('[SUPA-DBG-RES]', JSON.stringify({
+            method, table, statusCode: res.statusCode,
+            responseHeaders: res.headers, rawBody: data,
+          }));
+        }
         if (res.statusCode === 204 || !data.trim()) return resolve([]);
         try {
           const parsed = JSON.parse(data);
