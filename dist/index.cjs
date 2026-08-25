@@ -63,7 +63,7 @@ function toCamel(row) {
 // options: { filters{}, body, returning, upsert, ignoreConflict, order, select, single }
 function supaRequest(method, table, options = {}) {
   return new Promise((resolve, reject) => {
-    const { filters = {}, body, returning = false, upsert = false, ignoreConflict = false, order, select, single } = options;
+    const { filters = {}, body, returning = false, upsert = false, ignoreConflict = false, onConflict, order, select, single } = options;
 
     // Build query string
     const qs = [];
@@ -72,6 +72,8 @@ function supaRequest(method, table, options = {}) {
     }
     if (order) qs.push(`order=${encodeURIComponent(order)}`);
     if (select) qs.push(`select=${encodeURIComponent(select)}`);
+    // Tell PostgREST which columns to use as the conflict target for upserts
+    if ((upsert || ignoreConflict) && onConflict) qs.push(`on_conflict=${encodeURIComponent(onConflict)}`);
 
     const urlPath = `/rest/v1/${table}${qs.length ? '?' + qs.join('&') : ''}`;
 
@@ -102,29 +104,10 @@ function supaRequest(method, table, options = {}) {
       headers,
     };
 
-    // TEMP DIAGNOSTIC — remove after write-failure fixed
-    if (table === 'form_data' && method === 'POST') {
-      const dbgHeaders = Object.assign({}, headers, {
-        apikey: (headers.apikey || '').slice(0, 15) + '...(len=' + (headers.apikey || '').length + ')',
-        Authorization: 'Bearer ' + ((headers.Authorization || '').slice(7, 22)) + '...(len=' + ((headers.Authorization || '').length - 7) + ')',
-      });
-      console.log('[SUPA-DBG-REQ]', JSON.stringify({
-        method, hostname: parsed.hostname, path: urlPath,
-        headers: dbgHeaders, bodyStr,
-      }));
-    }
-
     const req = https.request(reqOptions, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
-        // TEMP DIAGNOSTIC — remove after write-failure fixed
-        if (table === 'form_data' && method === 'POST') {
-          console.log('[SUPA-DBG-RES]', JSON.stringify({
-            method, table, statusCode: res.statusCode,
-            responseHeaders: res.headers, rawBody: data,
-          }));
-        }
         if (res.statusCode === 204 || !data.trim()) return resolve([]);
         try {
           const parsed = JSON.parse(data);
@@ -159,7 +142,7 @@ async function dbInsert(table, data, opts = {}) {
   return rows.length ? toCamel(rows[0]) : null;
 }
 async function dbUpsert(table, data, opts = {}) {
-  const rows = await supaRequest('POST', table, { body: toSnake(data), upsert: true, ...opts });
+  const rows = await supaRequest('POST', table, { body: toSnake(data), upsert: true, returning: true, ...opts });
   return rows.length ? toCamel(rows[0]) : null;
 }
 async function dbUpdate(table, filters, data) {
@@ -932,7 +915,7 @@ app.post('/api/cases/:caseId/form-data', requireAuth, async (req, res) => {
     const { section, fieldKey, fieldValue } = req.body;
     if (!section || !fieldKey) return res.status(400).json({ message: 'section and fieldKey required' });
     const val = typeof fieldValue === 'object' ? JSON.stringify(fieldValue) : String(fieldValue ?? '');
-    const row = await dbUpsert('form_data', { caseId: c.id, section, fieldKey, fieldValue: val, updatedAt: Date.now() });
+    const row = await dbUpsert('form_data', { caseId: c.id, section, fieldKey, fieldValue: val, updatedAt: Date.now() }, { onConflict: 'case_id,section,field_key' });
     res.json(row);
   } catch (e) { res.status(500).json({ message: 'Failed to save form data' }); }
 });
@@ -951,7 +934,7 @@ app.put('/api/cases/:caseId/form-data', requireAuth, async (req, res) => {
       const { section, fieldKey, fieldValue } = item;
       if (!section || !fieldKey) continue;
       const val = typeof fieldValue === 'object' ? JSON.stringify(fieldValue) : String(fieldValue ?? '');
-      await dbUpsert('form_data', { caseId: c.id, section, fieldKey, fieldValue: val, updatedAt: Date.now() });
+      await dbUpsert('form_data', { caseId: c.id, section, fieldKey, fieldValue: val, updatedAt: Date.now() }, { onConflict: 'case_id,section,field_key' });
     }
     await dbUpdate('cases', { id: `eq.${c.id}` }, { updatedAt: Date.now() });
     res.json({ ok: true, count: items.length });
@@ -1145,7 +1128,7 @@ app.post('/api/cases/:caseId/pdf-checkboxes/:formType', requireAuth, requireSubs
     const { checkboxes } = req.body;
     if (!Array.isArray(checkboxes)) return res.status(400).json({ message: 'checkboxes array required' });
     for (const cb of checkboxes) {
-      await dbUpsert('pdf_checkboxes', { caseId: c.id, formType: req.params.formType, checkboxName: cb.name, checked: cb.checked ? 1 : 0, updatedAt: Date.now() });
+      await dbUpsert('pdf_checkboxes', { caseId: c.id, formType: req.params.formType, checkboxName: cb.name, checked: cb.checked ? 1 : 0, updatedAt: Date.now() }, { onConflict: 'case_id,form_type,checkbox_name' });
     }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ message: 'Failed to save checkboxes' }); }
@@ -1742,7 +1725,7 @@ app.patch('/api/cases/:caseId/pdf-fields/:formType', requireAuth, requireSubscri
         fieldKey: fieldId,
         fieldValue: val,
         updatedAt: Date.now(),
-      });
+      }, { onConflict: 'case_id,section,field_key' });
     }
     await dbUpdate('cases', { id: `eq.${c.id}` }, { updatedAt: Date.now() });
     res.json({ ok: true, saved: updates.length });
@@ -1908,7 +1891,7 @@ app.post('/api/cases/:caseId/autofill', requireAuth, async (req, res) => {
       if (!sectionFields || typeof sectionFields !== 'object') continue;
       for (const [fieldKey, fieldValue] of Object.entries(sectionFields)) {
         if (fieldValue === null || fieldValue === undefined || fieldValue === '') continue;
-        await dbUpsert('form_data', { caseId: c.id, section, fieldKey, fieldValue: String(fieldValue), updatedAt: Date.now() });
+        await dbUpsert('form_data', { caseId: c.id, section, fieldKey, fieldValue: String(fieldValue), updatedAt: Date.now() }, { onConflict: 'case_id,section,field_key' });
         saved.push({ section, fieldKey, fieldValue: String(fieldValue) });
       }
     }
