@@ -376,7 +376,9 @@ app.get('/api/health', (req, res) => res.json({
   ok: true,
   time: new Date().toISOString(),
   db: 'supabase',
-  keyRole: SUPABASE_KEY.includes('service_role') ? 'service_role' : 'anon',
+  keyRole: SUPABASE_KEY.startsWith('sb_secret_') || SUPABASE_KEY.includes('service_role') ? 'service_role'
+         : SUPABASE_KEY.startsWith('sb_publishable_') || SUPABASE_KEY.startsWith('sb_anon_') ? 'anon'
+         : 'unknown',
   commit: BOOT_INFO.commit,
   commitShort: BOOT_INFO.commit ? BOOT_INFO.commit.slice(0, 7) : null,
   startTime: BOOT_INFO.startTime,
