@@ -323,13 +323,24 @@ def build_field_values(form_data_list):
         'exclusiveContents': 'exclusive possession of contents of matrimonial home',
         'restrainingOrder': 'restraining/non-harassment order',
         'contactWithChildren': 'contact with child(ren) (this does not require court leave)',
-        'decisionMaking1': 'decision-making responsibility for child(ren) 1',
-        'parentingTime1': 'parenting time with child(ren) 1',
-        'childSupportTable1': 'support for child(ren) \u2013 table amount 1',
-        'supportForMe1': 'support for me 1',
+        'decisionMaking': 'decision-making responsibility for child(ren) 1',
+        'parentingTime': 'parenting time with child(ren) 1',
+        'childSupportTable': 'support for child(ren) \u2013 table amount 1',
+        'supportForMe': 'support for me 1',
     }
-    for key, field_name in claim_map.items():
+    # Wizard stores selected claims as comma-separated string in claims.claims
+    # (e.g. "decisionMaking,parentingTime"). Also tolerate legacy per-key
+    # boolean flags (e.g. claims.decisionMaking = 'yes').
+    selected_claims = set()
+    claims_csv = claims.get('claims', '')
+    if isinstance(claims_csv, str) and claims_csv.strip():
+        selected_claims.update(t.strip() for t in claims_csv.split(',') if t.strip())
+    for key in claim_map:
         if claims.get(key) in ('yes', True, '1', 1):
+            selected_claims.add(key)
+    for key in selected_claims:
+        field_name = claim_map.get(key)
+        if field_name:
             checkboxes[field_name] = True
 
     return fields, checkboxes
