@@ -890,17 +890,36 @@ def fill_form8(input_path, output_path, form_data_list):
         fields['Cruelty - details'] = d.get('crueltyDetails', d.get('cruelty_details', ''))
 
     # ── Claims (checkboxes) ───────────────────────────────────────────────
-    # Aug 28 2026 fix (BUG-F8-OFFICIAL-01):
+    # Aug 28 2026 fix (BUG-F8-OFFICIAL-01, BUG-F8-CLAIMS-COLUMN-01):
     # Wizard stores selected claims as a single comma-separated string in the
-    # `claims` fieldKey (e.g. "decisionMaking,parentingTime"). The legacy
-    # per-key flags (claimCustody='yes', ...) below are kept for older cases.
+    # `claims` fieldKey (e.g. "decisionMaking,parentingTime").
+    #
+    # Form 8 splits child-related claims across THREE columns:
+    #   - Divorce Act column      → field names ending in " 1"
+    #   - Family Law Act / CLRA   → field names ending in " 2"
+    #   - Property (SCJ only)     → bare property field names
+    # Non-child-related and property claims have a single field name and
+    # go in one specific column regardless.
+    #
+    # We decide the child-claim column by checking if a divorce is being
+    # requested. If yes, child claims travel with the divorce under the
+    # Divorce Act (" 1" suffix). If no, they go under the FLA/CLRA (" 2").
+    claims_csv_raw = d.get('claims', '')
+    claims_csv = str(claims_csv_raw) if isinstance(claims_csv_raw, str) else ''
+    is_divorce_case = (
+        'divorce' in [t.strip() for t in claims_csv.split(',') if t.strip()]
+        or _is_yes(d.get('claimDivorce', d.get('claim_divorce', '')))
+    )
+    # Tokens with a suffixed field name: pick " 1" (Divorce Act) or " 2" (FLA/CLRA)
+    suffix = '1' if is_divorce_case else '2'
     CLAIMS_CSV_MAP = {
         'divorce':                 'a divorce',
-        'supportForMe':            'support for me 1',
-        'childSupportTable':       'support for child(ren) \u2013 table amount 1',
-        'childSupportOther':       'support for child(ren) \u2013 other than table amount',
-        'decisionMaking':          'decision-making responsibility for child(ren) 1',
-        'parentingTime':           'parenting time with child(ren) 1',
+        'supportForMe':            f'support for me {suffix}',
+        'childSupportTable':       f'support for child(ren) \u2013 table amount {suffix}',
+        'childSupportOther':       f'support for child(ren) \u2013 other than table amount {suffix}',
+        'decisionMaking':          f'decision-making responsibility for child(ren) {suffix}',
+        'parentingTime':           f'parenting time with child(ren) {suffix}',
+        # Claims with a single field name (column is intrinsic to the field)
         'restrainingOrder':        'restraining/non-harassment order',
         'spousalSupportIndexing':  'indexing spousal support',
         'parentageDeclaration':    'declaration of parentage',
@@ -914,8 +933,7 @@ def fill_form8(input_path, output_path, form_data_list):
         'costs':                   'Costs',
         'prejudgmentInterest':     'prejudgment interest',
     }
-    claims_csv = d.get('claims', '')
-    if isinstance(claims_csv, str) and claims_csv.strip():
+    if claims_csv.strip():
         for token in claims_csv.split(','):
             token = token.strip()
             field_name = CLAIMS_CSV_MAP.get(token)
@@ -924,13 +942,13 @@ def fill_form8(input_path, output_path, form_data_list):
 
     # Legacy per-key flags (kept for backward compatibility)
     if _is_yes(d.get('claimCustody', d.get('claim_custody', ''))):
-        checkboxes['decision-making responsibility for child(ren) 1'] = True
+        checkboxes[f'decision-making responsibility for child(ren) {suffix}'] = True
     if _is_yes(d.get('claimAccess', d.get('claim_access', ''))):
-        checkboxes['parenting time with child(ren) 1'] = True
+        checkboxes[f'parenting time with child(ren) {suffix}'] = True
     if _is_yes(d.get('claimChildSupport', d.get('claim_child_support', ''))):
-        checkboxes['support for child(ren) \u2013 table amount 1'] = True
+        checkboxes[f'support for child(ren) \u2013 table amount {suffix}'] = True
     if _is_yes(d.get('claimSpousalSupport', d.get('claim_spousal_support', ''))):
-        checkboxes['support for me 1'] = True
+        checkboxes[f'support for me {suffix}'] = True
     if _is_yes(d.get('claimPropertyDivision', d.get('claim_property_division', ''))):
         checkboxes['equalization of net family properties'] = True
     if _is_yes(d.get('claimRestrainingOrder', d.get('claim_restraining_order', ''))):
