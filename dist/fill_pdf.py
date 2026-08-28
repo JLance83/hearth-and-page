@@ -380,7 +380,7 @@ def fill_pdf(input_path, output_path, form_data_list):
                 })
                 filled_count += 1
             elif fname in checkboxes:
-                val = '/Yes' if checkboxes[fname] else '/Off'
+                val = _checkbox_on_state(annot_obj) if checkboxes[fname] else '/Off'
                 annot_obj.update({
                     g.NameObject('/V'): g.NameObject(val),
                     g.NameObject('/AS'): g.NameObject(val),
@@ -644,6 +644,42 @@ def _fe_flat(form_data_list):
 
 def _is_yes(val):
     return str(val).strip().lower() in ('yes', 'true', '1', 'on')
+
+
+def _checkbox_on_state(annot_obj):
+    """Return this checkbox widget's real "on" state name.
+
+    Different PDF templates use different on-state names for checkboxes:
+    /Yes, /On, /1, /Choice1, etc. The state names are the KEYS of the
+    annotation's /AP/N appearance dictionary (excluding /Off). Preview and
+    other strict viewers only render a check when /AS matches one of these
+    exact names — hardcoding /Yes silently fails on templates that use /On.
+
+    Returns the discovered on-state Name (e.g. '/On'), falling back to
+    '/Yes' when the appearance dictionary is unreadable.
+    """
+    try:
+        ap = annot_obj.get('/AP')
+        if ap is None:
+            return '/Yes'
+        try:
+            ap = ap.get_object()
+        except Exception:
+            pass
+        n = ap.get('/N') if hasattr(ap, 'get') else None
+        if n is None:
+            return '/Yes'
+        try:
+            n = n.get_object()
+        except Exception:
+            pass
+        for key in n.keys():
+            key_str = str(key)
+            if key_str != '/Off':
+                return key_str
+    except Exception:
+        pass
+    return '/Yes'
 
 
 # ─── Small helpers introduced during the Aug 12 2026 audit (Fix 4) ───────────
@@ -1018,7 +1054,7 @@ def fill_form8(input_path, output_path, form_data_list):
                 })
                 filled_count += 1
             elif fname in checkboxes:
-                val = '/Yes' if checkboxes[fname] else '/Off'
+                val = _checkbox_on_state(annot_obj) if checkboxes[fname] else '/Off'
                 annot_obj.update({
                     g.NameObject('/V'): g.NameObject(val),
                     g.NameObject('/AS'): g.NameObject(val),
@@ -1251,7 +1287,7 @@ def fill_form13(input_path, output_path, form_data_list):
                                 pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject()})
                     filled += 1
                 elif ft == '/Btn' and t in checkboxes:
-                    v = '/Yes' if checkboxes[t] else '/Off'
+                    v = _checkbox_on_state(obj) if checkboxes[t] else '/Off'
                     obj.update({pypdf.generic.NameObject('/V'): pypdf.generic.NameObject(v),
                                 pypdf.generic.NameObject('/AS'): pypdf.generic.NameObject(v)})
                     filled += 1
@@ -1422,7 +1458,7 @@ def fill_form13_1(input_path, output_path, form_data_list):
                 })
                 filled += 1
             if fname in checkboxes:
-                val = '/Yes' if checkboxes[fname] else '/Off'
+                val = _checkbox_on_state(annot_obj) if checkboxes[fname] else '/Off'
                 annot_obj.update({
                     g.NameObject('/V'):  g.NameObject(val),
                     g.NameObject('/AS'): g.NameObject(val),
@@ -1474,7 +1510,7 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None):
                 })
                 filled += 1
             elif ft == '/Btn' and t in checkboxes:
-                v = '/Yes' if checkboxes[t] else '/Off'
+                v = _checkbox_on_state(obj) if checkboxes[t] else '/Off'
                 obj.update({
                     pypdf.generic.NameObject('/V'):  pypdf.generic.NameObject(v),
                     pypdf.generic.NameObject('/AS'): pypdf.generic.NameObject(v),
