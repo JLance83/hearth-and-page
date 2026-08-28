@@ -720,6 +720,44 @@ def fill_form8(input_path, output_path, form_data_list):
         fields['Cruelty - details'] = d.get('crueltyDetails', d.get('cruelty_details', ''))
 
     # ── Claims (checkboxes) ───────────────────────────────────────────────
+    # Aug 28 2026 fix (BUG-F8-OFFICIAL-01):
+    # Wizard stores selected claims as a single comma-separated string in the
+    # `claims` fieldKey (e.g. "decisionMaking,parentingTime"). The legacy
+    # per-key flags (claimCustody='yes', claimAccess='yes', ...) below are
+    # kept for older cases but are no longer produced by the intake wizard.
+    CLAIMS_CSV_MAP = {
+        # Divorce Act column (00-06)
+        'divorce':                 'a divorce',
+        # Family Law Act / Children's Law Reform Act column (10-21)
+        'supportForMe':            'support for me 1',
+        'childSupportTable':       'support for child(ren) \u2013 table amount 1',
+        'childSupportOther':       'support for child(ren) \u2013 other than table amount',
+        'decisionMaking':          'decision-making responsibility for child(ren) 1',
+        'parentingTime':           'parenting time with child(ren) 1',
+        'restrainingOrder':        'restraining/non-harassment order',
+        'spousalSupportIndexing':  'indexing spousal support',
+        'parentageDeclaration':    'declaration of parentage',
+        'contactWithChildren':     'contact with child(ren) (this does not require court leave)',
+        # Property column (22-26)
+        'equalization':            'equalization of net family properties',
+        'exclusivePossession':     'exclusive possession of matrimonial home',
+        'exclusiveContents':       'exclusive possession of contents of matrimonial home',
+        'freezingAssets':          'freezing assets',
+        'saleOfProperty':          'sale of family property',
+        # Other
+        'annulment':               'annulment of marriage',
+        'costs':                   'Costs',
+        'prejudgmentInterest':     'prejudgment interest',
+    }
+    claims_csv = d.get('claims', '')
+    if isinstance(claims_csv, str) and claims_csv.strip():
+        for token in claims_csv.split(','):
+            token = token.strip()
+            field_name = CLAIMS_CSV_MAP.get(token)
+            if field_name:
+                checkboxes[field_name] = True
+
+    # Legacy per-key flags (kept for backward compatibility)
     if _is_yes(d.get('claimCustody', d.get('claim_custody', ''))):
         checkboxes['decision-making responsibility for child(ren) 1'] = True
     if _is_yes(d.get('claimAccess', d.get('claim_access', ''))):
