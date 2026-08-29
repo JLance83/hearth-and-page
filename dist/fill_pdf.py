@@ -970,25 +970,35 @@ def fill_form8(input_path, output_path, form_data_list):
     #                                 who does what, why the order is needed.
     # Legacy keys (situationSummary / claimOtherDetails / factsLegalBasis)
     # are still honoured for older cases that populated them directly.
-    order_details_parts = []
-    if d.get('otherParentTime'):
-        order_details_parts.append(str(d.get('otherParentTime')).strip())
-    # Legacy override / fall-back
-    legacy_details = d.get('situationSummary', d.get('claimOtherDetails', d.get('situation_summary', '')))
-    if legacy_details and not order_details_parts:
-        order_details_parts.append(str(legacy_details).strip())
-    order_details = '\n\n'.join(p for p in order_details_parts if p)
+    # Accept multiple key shapes because the adapter (dist/index.cjs
+    # toFillRows) snake_cases keys and may prefix them with the wizard
+    # section name. Case 17 arrives as `other_parent_time` /
+    # `childcare_arrangements` (snake, no prefix). Other cases may arrive
+    # section-prefixed. Legacy keys are also honoured.
+    def _first_nonblank(keys):
+        for k in keys:
+            v = d.get(k)
+            if v is not None and str(v).strip():
+                return str(v).strip()
+        return ''
+
+    order_details = _first_nonblank([
+        'otherParentTime', 'other_parent_time',
+        'childrenPlan_otherParentTime', 'children_plan_other_parent_time',
+        'f351_plan_otherParentTime', 'f351_plan_other_parent_time',
+        # Legacy
+        'situationSummary', 'situation_summary', 'claimOtherDetails', 'claim_other_details',
+    ])
     if order_details:
         fields['Details of the order that you want the court to make'] = order_details
 
-    facts_parts = []
-    if d.get('childcareArrangements'):
-        facts_parts.append(str(d.get('childcareArrangements')).strip())
-    # Legacy override / fall-back
-    legacy_facts = d.get('factsLegalBasis', '')
-    if legacy_facts and not facts_parts:
-        facts_parts.append(str(legacy_facts).strip())
-    facts_text = '\n\n'.join(p for p in facts_parts if p)
+    facts_text = _first_nonblank([
+        'childcareArrangements', 'childcare_arrangements',
+        'childrenPlan_childcareArrangements', 'children_plan_childcare_arrangements',
+        'f351_plan_childcareArrangements', 'f351_plan_childcare_arrangements',
+        # Legacy
+        'factsLegalBasis', 'facts_legal_basis',
+    ])
     if facts_text:
         fields['Facts that form the legal basis for your other claim(s)'] = facts_text
 
