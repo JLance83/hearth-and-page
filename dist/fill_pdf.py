@@ -990,7 +990,17 @@ def fill_form8(input_path, output_path, form_data_list):
         'situationSummary', 'situation_summary', 'claimOtherDetails', 'claim_other_details',
     ])
     if order_details:
-        fields['Details of the order that you want the court to make'] = order_details
+        # Aug 29 2026 fix (BUG-F8-DETAILS-TRUNCATED):
+        # The Form 8 "Details of the order that you want the court to make"
+        # widget is only ~40pt tall (2 lines) — too small for a full
+        # parenting-plan narrative. Ontario Family Rules permit attaching a
+        # Schedule to Form 8 for content that does not fit in the printed
+        # boxes; a Schedule A page is appended to the download by the
+        # download endpoint (fillPDFWithSchedule in dist/index.cjs). Point
+        # the reader at the Schedule from the small on-form box.
+        fields['Details of the order that you want the court to make'] = (
+            'See attached Schedule A — Parenting Plan and Requested Order.'
+        )
 
     facts_text = _first_nonblank([
         'childcareArrangements', 'childcare_arrangements',

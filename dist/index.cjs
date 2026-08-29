@@ -1065,6 +1065,103 @@ async function fillPDF(pdfPath, formData, formType) {
   });
 }
 
+// ── Schedule A attachment (Form 8 only) ─────────────────────────────────
+// Aug 29 2026 fix (BUG-F8-DETAILS-TRUNCATED):
+// The Form 8 "Details of the order that you want the court to make" widget
+// is only ~40pt tall. When the wizard's parenting-plan narrative exceeds
+// what fits, we render a Schedule A page from the same wizard rows and
+// concatenate it after Form 8. This is standard Ontario family-law
+// practice (attaching a Schedule to Form 8).
+//
+// Behaviour:
+//   - Only triggered for formType === 'form8'.
+//   - Only triggered when at least one narrative field is present.
+//   - On any failure, we fall back to the raw filled PDF — the download
+//     never breaks because Schedule A generation had a problem.
+
+const SCHEDULE_SCRIPT = path.join(__dirname, 'schedule_a.py');
+
+function _hasScheduleNarrative(formData) {
+  if (!Array.isArray(formData)) return false;
+  const NARRATIVE_KEYS = new Set([
+    'otherParentTime', 'other_parent_time',
+    'childrenPlan_otherParentTime', 'children_plan_other_parent_time',
+    'f351_plan_otherParentTime', 'f351_plan_other_parent_time',
+    'childcareArrangements', 'childcare_arrangements',
+    'childrenPlan_childcareArrangements', 'children_plan_childcare_arrangements',
+    'f351_plan_childcareArrangements', 'f351_plan_childcare_arrangements',
+  ]);
+  for (const row of formData) {
+    if (!row || typeof row !== 'object') continue;
+    const k = row.fieldKey || row.field_key || '';
+    const v = row.fieldValue != null ? row.fieldValue : row.field_value;
+    if (NARRATIVE_KEYS.has(k) && typeof v === 'string' && v.trim().length > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function fillPDFWithSchedule(pdfPath, formData, formType) {
+  const baseBytes = await fillPDF(pdfPath, formData, formType);
+
+  if (formType !== 'form8') return baseBytes;
+  if (!_hasScheduleNarrative(formData)) return baseBytes;
+  if (!fs.existsSync(SCHEDULE_SCRIPT)) {
+    console.error('[fillPDFWithSchedule] schedule_a.py not found at', SCHEDULE_SCRIPT);
+    return baseBytes;
+  }
+
+  return await new Promise((resolve) => {
+    const rnd = () => `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const tmpBase = path.join(os.tmpdir(), `hp_f8base_${rnd()}.pdf`);
+    const tmpJson = path.join(os.tmpdir(), `hp_f8data_${rnd()}.json`);
+    const tmpOut  = path.join(os.tmpdir(), `hp_f8sched_${rnd()}.pdf`);
+
+    const cleanup = () => {
+      for (const p of [tmpBase, tmpJson, tmpOut]) {
+        try { fs.unlinkSync(p); } catch (e) {}
+      }
+    };
+
+    try {
+      fs.writeFileSync(tmpBase, baseBytes);
+      fs.writeFileSync(tmpJson, JSON.stringify(formData));
+    } catch (e) {
+      console.error('[fillPDFWithSchedule] tmp write failed:', e && e.message);
+      cleanup();
+      return resolve(baseBytes);
+    }
+
+    const { exec } = require('child_process');
+    const cmd = `${PYTHON_BIN} ${JSON.stringify(SCHEDULE_SCRIPT)} --append-to ${JSON.stringify(tmpBase)} ${JSON.stringify(tmpOut)} ${JSON.stringify(tmpJson)}`;
+    const childEnv = { ...process.env, PATH: `/mise/shims:/mise/installs/python/3.11.0/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}` };
+
+    exec(cmd, { timeout: 30000, shell: true, env: childEnv }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('[fillPDFWithSchedule] python error:', stderr);
+        cleanup();
+        return resolve(baseBytes);
+      }
+      if (!fs.existsSync(tmpOut)) {
+        console.error('[fillPDFWithSchedule] tmpOut missing:', tmpOut);
+        cleanup();
+        return resolve(baseBytes);
+      }
+      let combined;
+      try {
+        combined = fs.readFileSync(tmpOut);
+      } catch (e) {
+        console.error('[fillPDFWithSchedule] read combined failed:', e && e.message);
+        cleanup();
+        return resolve(baseBytes);
+      }
+      cleanup();
+      resolve(combined);
+    });
+  });
+}
+
 // ── PDF Checkboxes ──
 
 const CHECKBOX_DEFS = {
@@ -1156,7 +1253,7 @@ app.post('/api/cases/:caseId/official-pdf/:formType', requireAuth, requirePaidEx
     const pdfPath = path.join(__dirname, 'public', 'pdfs', `${formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).json({ message: 'PDF template not found for ' + formType });
     const formData = await dbAll('form_data', { case_id: `eq.${c.id}` });
-    const filledPdf = await fillPDF(pdfPath, toFillRows(formData), formType);
+    const filledPdf = await fillPDFWithSchedule(pdfPath, toFillRows(formData), formType);
     const formLabel = formType.replace(/_/g, '.').toUpperCase();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="HearthAndPage-${formLabel}.pdf"`);
@@ -1203,7 +1300,7 @@ app.get('/api/download/:token', async (req, res) => {
     const pdfPath = path.join(__dirname, 'public', 'pdfs', `${formType}.pdf`);
     if (!fs.existsSync(pdfPath)) return res.status(404).send('PDF not found.');
     const formData = await dbAll('form_data', { case_id: `eq.${caseId}` });
-    const filledPdf = await fillPDF(pdfPath, toFillRows(formData), formType);
+    const filledPdf = await fillPDFWithSchedule(pdfPath, toFillRows(formData), formType);
     const formLabel = formType.replace(/_/g, '.').toUpperCase();
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="HearthAndPage-${formLabel}.pdf"`);
