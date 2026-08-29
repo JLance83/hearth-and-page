@@ -961,10 +961,36 @@ def fill_form8(input_path, output_path, form_data_list):
         checkboxes['a divorce'] = True
 
     # Order details / situation summary
-    details = d.get('situationSummary', d.get('claimOtherDetails', d.get('situation_summary', '')))
-    if details:
-        fields['Details of the order that you want the court to make'] = details
-    fields['Facts that form the legal basis for your other claim(s)'] = d.get('factsLegalBasis', '')
+    # Aug 29 2026 fix (BUG-F8-OFFICIAL-02, BUG-F8-OFFICIAL-03):
+    # The wizard's parenting plan step collects two narrative fields that
+    # map naturally to the two blank narrative sections on Form 8 page 5:
+    #   - otherParentTime           → what the applicant is asking the court
+    #                                 to order (the "details of the order").
+    #   - childcareArrangements     → the factual basis: current arrangement,
+    #                                 who does what, why the order is needed.
+    # Legacy keys (situationSummary / claimOtherDetails / factsLegalBasis)
+    # are still honoured for older cases that populated them directly.
+    order_details_parts = []
+    if d.get('otherParentTime'):
+        order_details_parts.append(str(d.get('otherParentTime')).strip())
+    # Legacy override / fall-back
+    legacy_details = d.get('situationSummary', d.get('claimOtherDetails', d.get('situation_summary', '')))
+    if legacy_details and not order_details_parts:
+        order_details_parts.append(str(legacy_details).strip())
+    order_details = '\n\n'.join(p for p in order_details_parts if p)
+    if order_details:
+        fields['Details of the order that you want the court to make'] = order_details
+
+    facts_parts = []
+    if d.get('childcareArrangements'):
+        facts_parts.append(str(d.get('childcareArrangements')).strip())
+    # Legacy override / fall-back
+    legacy_facts = d.get('factsLegalBasis', '')
+    if legacy_facts and not facts_parts:
+        facts_parts.append(str(legacy_facts).strip())
+    facts_text = '\n\n'.join(p for p in facts_parts if p)
+    if facts_text:
+        fields['Facts that form the legal basis for your other claim(s)'] = facts_text
 
     # ── Children ─────────────────────────────────────────────────────────
     child_count_raw = d.get('childrenCount', d.get('children_count', '0'))
