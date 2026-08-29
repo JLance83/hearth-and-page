@@ -850,6 +850,40 @@ def fill_form8(input_path, output_path, form_data_list):
                              'situationSeparationDate', 'situation_separation_date')
     rel_type      = _pick(d, 'relationshipType', 'relationship_type')
 
+    # Aug 29 2026 fix (BUG-F8-DIVORCE-SECTION-01):
+    # The "IMPORTANT FACTS SUPPORTING MY CLAIM FOR DIVORCE" section on page 5
+    # (marriage date, separation date, Separation / Adultery / Cruelty checkboxes,
+    # "have not lived together again" checkbox) is ONLY legally meaningful when
+    # the applicant is asking the court for a divorce. On parenting-only or
+    # support-only cases the whole section must remain blank.
+    #
+    # Previously this code:
+    #   1. Ticked "Married on" any time a marriage date existed.
+    #   2. Ticked "Separated on" any time a separation date existed — which
+    #      is filled for every case (the wizard collects it for cohab / support
+    #      calculations, not just divorce).
+    #   3. Defaulted `grounds` to 'separation' when unset, then unconditionally
+    #      ticked the "Separation" and "have not lived together again" boxes.
+    # The combined effect was a Form 8 that looked like it was claiming
+    # divorce on every filing, including pure custody / parenting cases.
+    #
+    # We now compute `is_divorce_case` up front and gate the entire block.
+    # is_divorce_case checks the three signals the wizard actually produces:
+    #   - claims CSV includes 'divorce'
+    #   - claimDivorce flag is yes
+    #   - askingDivorce flag is yes (wizard's explicit question)
+    # If askingDivorce is explicitly 'no' we treat that as a hard override.
+    claims_csv_early = str(d.get('claims', '') or '')
+    asking_divorce = str(_pick(d, 'askingDivorce', 'asking_divorce') or '').lower()
+    is_divorce_case = (
+        asking_divorce not in ('no', 'false', '0')
+        and (
+            'divorce' in [t.strip() for t in claims_csv_early.split(',') if t.strip()]
+            or _is_yes(d.get('claimDivorce', d.get('claim_divorce', '')))
+            or asking_divorce in ('yes', 'true', '1')
+        )
+    )
+
     if were_married:
         # D5: pre-marriage first/last names — accept an explicit override,
         # else split the full name using the surname-is-last-token rule
@@ -868,26 +902,36 @@ def fill_form8(input_path, output_path, form_data_list):
             d, 'applicantPreviousDivorce', 'applicant_previous_divorce')
         fields['Place and date of previous divorce - respondent'] = _pick(
             d, 'respondentPreviousDivorce', 'respondent_previous_divorce')
-        if marriage_date:
+        if marriage_date and is_divorce_case:
+            # Marriage date + "Married on" checkbox only appear when this
+            # is a divorce filing. On parenting-only cases the marriage
+            # date lives elsewhere (e.g. relationship history).
             fields['Date - Married on'] = marriage_date
             checkboxes['Married on'] = True
 
-    if sep_date:
+    if sep_date and is_divorce_case:
+        # Separation date + "Separated on" checkbox only appear when this
+        # is a divorce filing. Parenting-only cases collect a separation
+        # date for cohabitation history but must not populate the divorce
+        # section fields.
         fields['Date - Separated on'] = sep_date
         fields['Date - seperation'] = sep_date
         checkboxes['Separated on'] = True
 
-    # Default: separation is the grounds unless another is set
-    grounds = d.get('divorceGrounds', d.get('divorce_grounds', 'separation'))
-    if grounds == 'separation' or not grounds:
-        checkboxes['Separation'] = True
-        checkboxes['have not lived together again since that date in an unsuccessful attempt to reconcile'] = True
-    elif grounds == 'adultery':
-        checkboxes['Adultery'] = True
-        fields['Adultery - details'] = d.get('adulteryDetails', d.get('adultery_details', ''))
-    elif grounds == 'cruelty':
-        checkboxes['Cruelty'] = True
-        fields['Cruelty - details'] = d.get('crueltyDetails', d.get('cruelty_details', ''))
+    if is_divorce_case:
+        # Divorce grounds: default to 'separation' unless the wizard
+        # explicitly set another grounds. Ticks the corresponding checkboxes
+        # only inside a divorce claim.
+        grounds = d.get('divorceGrounds', d.get('divorce_grounds', 'separation'))
+        if grounds == 'separation' or not grounds:
+            checkboxes['Separation'] = True
+            checkboxes['have not lived together again since that date in an unsuccessful attempt to reconcile'] = True
+        elif grounds == 'adultery':
+            checkboxes['Adultery'] = True
+            fields['Adultery - details'] = d.get('adulteryDetails', d.get('adultery_details', ''))
+        elif grounds == 'cruelty':
+            checkboxes['Cruelty'] = True
+            fields['Cruelty - details'] = d.get('crueltyDetails', d.get('cruelty_details', ''))
 
     # ── Claims (checkboxes) ───────────────────────────────────────────────
     # Aug 28 2026 fix (BUG-F8-OFFICIAL-01, BUG-F8-CLAIMS-COLUMN-01):
@@ -904,12 +948,11 @@ def fill_form8(input_path, output_path, form_data_list):
     # We decide the child-claim column by checking if a divorce is being
     # requested. If yes, child claims travel with the divorce under the
     # Divorce Act (" 1" suffix). If no, they go under the FLA/CLRA (" 2").
+    # `is_divorce_case` was computed earlier (before the divorce-facts
+    # block) using the same three signals plus askingDivorce, so we
+    # reuse it here for column selection.
     claims_csv_raw = d.get('claims', '')
     claims_csv = str(claims_csv_raw) if isinstance(claims_csv_raw, str) else ''
-    is_divorce_case = (
-        'divorce' in [t.strip() for t in claims_csv.split(',') if t.strip()]
-        or _is_yes(d.get('claimDivorce', d.get('claim_divorce', '')))
-    )
     # Tokens with a suffixed field name: pick " 1" (Divorce Act) or " 2" (FLA/CLRA)
     suffix = '1' if is_divorce_case else '2'
     CLAIMS_CSV_MAP = {
