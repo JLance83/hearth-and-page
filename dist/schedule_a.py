@@ -272,12 +272,26 @@ def _compose_stream(flat):
     ]) or '(to be assigned)'
     today = datetime.now().strftime('%B %d, %Y')
 
-    for label, value in [
+    # Aug 29 2026: Include separation date in the Schedule A header when
+    # available. On non-divorce filings the separation date is suppressed
+    # from Form 8 page 5 (see fill_pdf.py BUG-F8-DIVORCE-SECTION-01), but
+    # it remains legally relevant context for the parenting plan, so we
+    # surface it here.
+    sep_date_val = _first(flat, [
+        'separation_date', 'separationDate',
+        'situation_separation_date', 'situationSeparationDate',
+    ])
+
+    header_rows = [
         ('Applicant:', applicant),
         ('Respondent:', respondent),
         ('Court file number:', case_file),
         ('Prepared:', today),
-    ]:
+    ]
+    if sep_date_val:
+        header_rows.insert(3, ('Separation date:', str(sep_date_val).strip()))
+
+    for label, value in header_rows:
         s.text(MARGIN_L, s.y, label, font=FONT_BOLD, size=SIZE_BODY)
         s.text(MARGIN_L + 130, s.y, value, font=FONT_BODY, size=SIZE_BODY)
         s.gap(LEADING_BODY)
