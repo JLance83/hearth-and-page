@@ -3,7 +3,9 @@
   "version": "3.7.0",
   "private": true,
   "scripts": {
-    "start": "NODE_ENV=production node dist/index.cjs"
+    "start": "NODE_ENV=production node dist/index.cjs",
+    "check-bundle": "node scripts/check-bundle-patches.mjs",
+    "postbuild": "node scripts/check-bundle-patches.mjs"
   },
   "engines": {
     "node": ">=18"
