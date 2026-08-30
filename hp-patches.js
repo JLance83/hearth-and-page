@@ -195,7 +195,7 @@ window.__emailPDF_real = async function(pdfBlob, filename, userEmail, formLabel)
     // Step 3: Send via Railway (no attachment — just a link)
     var r = await fetch(RAILWAY + '/api/send-email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify(payload)
     });
     return r.ok;
