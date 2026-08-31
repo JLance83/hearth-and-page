@@ -149,7 +149,7 @@ present, and the static `Dk` map remains a fallback for legacy code paths.
 
 ---
 
-### 8. `PENDING` — hide floating FABs on mobile (BUG-MOBILE-FAB-OVERLAP-01)
+### 8. `58ed91f` — hide floating FABs on mobile (BUG-MOBILE-FAB-OVERLAP-01)
 
 **Problem:** The "Am I Ready?" and "H&P Tools" floating buttons use
 `position: fixed; bottom: 140px/196px; right: 24px` so they stay glued to
@@ -169,6 +169,24 @@ their Mac and can test more thoroughly.
 
 **Sentinel (Ready FAB):** `@media (max-width:768px){#hp-ready-fab{display:none !important;}}`
 **Sentinel (Tools FAB):** `@media (max-width:768px){#hp-tools-fab{display:none !important;}}`
+
+---
+
+### 9. `PENDING` — hide Add / Remove Forms floating bar on mobile (BUG-MOBILE-FAB-OVERLAP-01 pt.2)
+
+**Problem:** After the ready-fab and tools-fab were hidden on mobile in
+commit `58ed91f`, a third floating element was found blocking wizard
+content on Step 2: `#hp-wiz-addforms-bar`, a full-width `position:fixed;
+bottom:0` bar containing the "+ Add / Remove Forms" button. The bar itself
+uses `pointer-events:none` so it doesn't block scrolling, but the button
+inside it (`pointer-events:all`) sits directly on top of the wizard's own
+answer buttons and content near the bottom of the viewport.
+
+**Fix:** Same `@media (max-width:768px){display:none !important;}` pattern
+applied to `#hp-wiz-addforms-bar`. Follow-up (Option C) will bring this
+back with `position:static` on mobile alongside the other two.
+
+**Sentinel:** `@media (max-width:768px){#hp-wiz-addforms-bar{display:none !important;}}`
 
 ---
 

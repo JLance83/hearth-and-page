@@ -106,16 +106,22 @@ const PATCHES = [
     sentinel: 'fe=Y.label||EO(Y.name)',
   },
   {
-    commit: 'PENDING',
+    commit: '58ed91f',
     name: 'hide #hp-ready-fab on mobile (BUG-MOBILE-FAB-OVERLAP-01)',
     file: 'hp-patches.js',
     sentinel: '@media (max-width:768px){#hp-ready-fab{display:none !important;}}',
   },
   {
-    commit: 'PENDING',
+    commit: '58ed91f',
     name: 'hide #hp-tools-fab on mobile (BUG-MOBILE-FAB-OVERLAP-01)',
     file: 'hp-patches.js',
     sentinel: '@media (max-width:768px){#hp-tools-fab{display:none !important;}}',
+  },
+  {
+    commit: 'PENDING',
+    name: 'hide #hp-wiz-addforms-bar on mobile (BUG-MOBILE-FAB-OVERLAP-01 pt.2)',
+    file: 'hp-patches.js',
+    sentinel: '@media (max-width:768px){#hp-wiz-addforms-bar{display:none !important;}}',
   },
 ];
 
