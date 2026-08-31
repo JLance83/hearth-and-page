@@ -262,6 +262,17 @@ function requirePaidExport(req, res, next) {
   return res.status(403).json({ message: 'PDF download requires a subscription', code: 'PDF_LOCKED', upgradeUrl: '/pricing' });
 }
 
+// requirePlus — gate for Plus-tier features (evidence upload/preview/edit,
+// AI-driven Extract). Standard users with pre-existing files still see the
+// file list (GET /documents), and any user can delete their own data
+// (DELETE /documents/:docId). Only Plus-tier active or past_due passes.
+function requirePlus(req, res, next) {
+  const status = req.user?.subscriptionStatus;
+  const plan   = req.user?.plan;
+  if ((status === 'active' || status === 'past_due') && plan === 'plus') return next();
+  return res.status(403).json({ message: 'This is a Plus feature', code: 'PLUS_REQUIRED', upgradeUrl: '/pricing' });
+}
+
 // ──────────────────────────────────────────────
 // Resend email helper
 // ──────────────────────────────────────────────
@@ -1875,7 +1886,7 @@ app.get('/api/cases/:caseId/documents', requireAuth, async (req, res) => {
 });
 
 // POST /api/cases/:caseId/documents
-app.post('/api/cases/:caseId/documents', requireAuth, upload.single('file'), async (req, res) => {
+app.post('/api/cases/:caseId/documents', requireAuth, requirePlus, upload.single('file'), async (req, res) => {
   try {
     const caseId = parseInt(req.params.caseId);
     const userId = req.user.id;
@@ -1907,7 +1918,7 @@ app.post('/api/cases/:caseId/documents', requireAuth, upload.single('file'), asy
 });
 
 // GET /api/cases/:caseId/documents/:docId  (with fileData for preview/download)
-app.get('/api/cases/:caseId/documents/:docId', requireAuth, async (req, res) => {
+app.get('/api/cases/:caseId/documents/:docId', requireAuth, requirePlus, async (req, res) => {
   try {
     const caseId = parseInt(req.params.caseId);
     const docId = parseInt(req.params.docId);
@@ -1939,7 +1950,7 @@ app.delete('/api/cases/:caseId/documents/:docId', requireAuth, async (req, res) 
 });
 
 // PATCH /api/cases/:caseId/documents/:docId  (update label)
-app.patch('/api/cases/:caseId/documents/:docId', requireAuth, async (req, res) => {
+app.patch('/api/cases/:caseId/documents/:docId', requireAuth, requirePlus, async (req, res) => {
   try {
     const caseId = parseInt(req.params.caseId);
     const docId = parseInt(req.params.docId);
@@ -2002,7 +2013,7 @@ app.post('/api/cases/:caseId/autofill', requireAuth, async (req, res) => {
 });
 
 // POST /api/cases/:caseId/documents/:docId/parse  — GPT-4o Vision Smart Auto-fill
-app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, async (req, res) => {
+app.post('/api/cases/:caseId/documents/:docId/parse', requireAuth, requirePlus, async (req, res) => {
   try {
     const caseId = parseInt(req.params.caseId);
     const docId  = parseInt(req.params.docId);

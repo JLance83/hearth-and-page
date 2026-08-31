@@ -117,6 +117,18 @@ const PATCHES = [
     file: 'hp-patches.js',
     sentinel: '@media (max-width:768px){#hp-tools-fab{display:none !important;}}',
   },
+  {
+    commit: 'PENDING',
+    name: 'PLUS_REQUIRED 403 interceptor (BUG-PLUS-GATE-LEAKY)',
+    file: 'hp-patches.js',
+    sentinel: "data.code === 'PLUS_REQUIRED'",
+  },
+  {
+    commit: 'PENDING',
+    name: 'Plus-only modal variant (BUG-PLUS-GATE-LEAKY)',
+    file: 'hp-patches.js',
+    sentinel: 'Document upload, preview, and Smart Auto-fill (Extract) are Plus features.',
+  },
 ];
 
 function resolveFile(prefixOrName) {

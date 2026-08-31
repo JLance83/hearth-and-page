@@ -1813,10 +1813,14 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     if (document.getElementById('hp-upgrade-modal')) return;
     var heading = reason === 'pdf'
       ? 'Subscribe to Download Your PDF'
-      : 'Subscribe to Access This Form';
+      : reason === 'plus'
+        ? 'Upgrade to Plus'
+        : 'Subscribe to Access This Form';
     var body = reason === 'pdf'
       ? 'You\u2019ve completed Form 8 \u2014 great work! Subscribe to download your court-ready PDF and unlock all 35 Ontario family court forms.'
-      : 'This form is available on Standard and Plus plans. Subscribe to access all 35 Ontario court forms and download court-ready PDFs.';
+      : reason === 'plus'
+        ? 'Document upload, preview, and Smart Auto-fill (Extract) are Plus features. Upgrade to Plus to attach paystubs, ID, and other supporting documents and have Hearth & Page auto-fill your forms.'
+        : 'This form is available on Standard and Plus plans. Subscribe to access all 35 Ontario court forms and download court-ready PDFs.';
 
     var overlay = document.createElement('div');
     overlay.id = 'hp-upgrade-modal';
@@ -1829,14 +1833,16 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
         '<h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:' + TEAL_D + ';">' + heading + '</h2>' +
         '<p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.5;">' + body + '</p>' +
         '<div style="display:flex;flex-direction:column;gap:10px;">' +
-          '<button id="hp-upgrade-std" style="background:' + TEAL_D + ';color:#fff;border:none;border-radius:10px;padding:14px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">Standard \u2014 $9.99/mo CAD</button>' +
+          (reason === 'plus' ? '' :
+            '<button id="hp-upgrade-std" style="background:' + TEAL_D + ';color:#fff;border:none;border-radius:10px;padding:14px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">Standard \u2014 $9.99/mo CAD</button>') +
           '<button id="hp-upgrade-plus" style="background:' + BURG + ';color:#fff;border:none;border-radius:10px;padding:14px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;">Plus \u2014 $19.99/mo CAD</button>' +
           '<button id="hp-upgrade-close" style="background:transparent;color:#888;border:1px solid #ddd;border-radius:10px;padding:11px 20px;font-size:14px;cursor:pointer;width:100%;">Not right now</button>' +
         '</div>' +
         '<p style="margin:16px 0 0;font-size:11px;color:#aaa;">Billed monthly. Cancel anytime from account settings.</p>' +
       '</div>';
     document.body.appendChild(overlay);
-    document.getElementById('hp-upgrade-std').addEventListener('click', function() { launchCheckout('standard'); });
+    var stdBtn = document.getElementById('hp-upgrade-std');
+    if (stdBtn) stdBtn.addEventListener('click', function() { launchCheckout('standard'); });
     document.getElementById('hp-upgrade-plus').addEventListener('click', function() { launchCheckout('plus'); });
     document.getElementById('hp-upgrade-close').addEventListener('click', function() { overlay.remove(); });
     overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
@@ -1982,6 +1988,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
           resp.clone().json().then(function(data) {
             if (data && data.code === 'PDF_LOCKED') showUpgradeModal('pdf');
             else if (data && data.code === 'SUBSCRIPTION_REQUIRED') showUpgradeModal('form');
+            else if (data && data.code === 'PLUS_REQUIRED') showUpgradeModal('plus');
           }).catch(function(){});
         }
         return resp;
