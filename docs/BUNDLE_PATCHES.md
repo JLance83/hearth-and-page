@@ -172,24 +172,6 @@ their Mac and can test more thoroughly.
 
 ---
 
-### 9. `PENDING` — hide Add / Remove Forms floating bar on mobile (BUG-MOBILE-FAB-OVERLAP-01 pt.2)
-
-**Problem:** After the ready-fab and tools-fab were hidden on mobile in
-commit `58ed91f`, a third floating element was found blocking wizard
-content on Step 2: `#hp-wiz-addforms-bar`, a full-width `position:fixed;
-bottom:0` bar containing the "+ Add / Remove Forms" button. The bar itself
-uses `pointer-events:none` so it doesn't block scrolling, but the button
-inside it (`pointer-events:all`) sits directly on top of the wizard's own
-answer buttons and content near the bottom of the viewport.
-
-**Fix:** Same `@media (max-width:768px){display:none !important;}` pattern
-applied to `#hp-wiz-addforms-bar`. Follow-up (Option C) will bring this
-back with `position:static` on mobile alongside the other two.
-
-**Sentinel:** `@media (max-width:768px){#hp-wiz-addforms-bar{display:none !important;}}`
-
----
-
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

@@ -1334,7 +1334,6 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       '.hp-wiz-addbtn{display:inline-flex;align-items:center;gap:0.35rem;padding:0.375rem 0.75rem;border-radius:8px;border:1px solid rgba(30,45,78,0.50);background:transparent;color:rgba(30,45,78,0.90);font-size:0.8rem;font-weight:500;cursor:pointer;font-family:DM Sans,system-ui,sans-serif;transition:background 0.12s,border-color 0.12s;white-space:nowrap;text-decoration:none;}',
       '.hp-wiz-addbtn:hover{background:rgba(30,45,78,0.25);border-color:rgba(30,45,78,0.80);}',
       '#hp-wiz-addforms-bar{position:fixed;bottom:0;left:0;right:0;z-index:9998;display:flex;justify-content:center;padding:0.625rem 1rem;pointer-events:none;}',
-      '@media (max-width:768px){#hp-wiz-addforms-bar{display:none !important;}}',
       '#hp-wiz-addforms-bar .hp-wiz-addbtn{pointer-events:all;box-shadow:0 2px 12px rgba(0,0,0,0.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);background:rgba(27,65,80,0.92);border-color:rgba(30,45,78,0.60);color:#ede8df;}',
       '#hp-wiz-addforms-bar .hp-wiz-addbtn:hover{background:rgba(30,45,78,0.95);}',
     ].join('\n');
