@@ -105,6 +105,18 @@ const PATCHES = [
     file: 'index-',
     sentinel: 'fe=Y.label||EO(Y.name)',
   },
+  {
+    commit: 'PENDING',
+    name: 'hide #hp-ready-fab on mobile (BUG-MOBILE-FAB-OVERLAP-01)',
+    file: 'hp-patches.js',
+    sentinel: '@media (max-width:768px){#hp-ready-fab{display:none !important;}}',
+  },
+  {
+    commit: 'PENDING',
+    name: 'hide #hp-tools-fab on mobile (BUG-MOBILE-FAB-OVERLAP-01)',
+    file: 'hp-patches.js',
+    sentinel: '@media (max-width:768px){#hp-tools-fab{display:none !important;}}',
+  },
 ];
 
 function resolveFile(prefixOrName) {

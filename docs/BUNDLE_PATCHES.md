@@ -149,6 +149,29 @@ present, and the static `Dk` map remains a fallback for legacy code paths.
 
 ---
 
+### 8. `PENDING` — hide floating FABs on mobile (BUG-MOBILE-FAB-OVERLAP-01)
+
+**Problem:** The "Am I Ready?" and "H&P Tools" floating buttons use
+`position: fixed; bottom: 140px/196px; right: 24px` so they stay glued to
+the viewport. On desktop the content is a centered column with side margin,
+so the FABs don't overlap. On mobile the content spans the full width, so
+the FABs sit permanently on top of answer buttons, links, info icons, and
+footer text on every wizard page.
+
+**Fix (Option A, mobile-hide):** Add a `@media (max-width:768px)` block
+for each FAB in `hp-patches.js` that sets `display:none !important`.
+Mobile users no longer see the FABs; desktop behavior is unchanged.
+
+**Follow-up planned (Option C):** Change `position:fixed` to `position:static`
+on mobile so the FABs scroll with content at the bottom of each page —
+preserves the features on phone. Deferred until the maintainer is back at
+their Mac and can test more thoroughly.
+
+**Sentinel (Ready FAB):** `@media (max-width:768px){#hp-ready-fab{display:none !important;}}`
+**Sentinel (Tools FAB):** `@media (max-width:768px){#hp-tools-fab{display:none !important;}}`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

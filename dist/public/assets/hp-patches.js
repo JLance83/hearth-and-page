@@ -9138,6 +9138,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     'border:1.5px solid rgba(168,180,208,0.35);border-radius:24px;',
     'font-size:12px;font-weight:700;letter-spacing:0.04em;cursor:pointer;',
     'box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:all 0.2s;white-space:nowrap;}',
+    '@media (max-width:768px){#hp-ready-fab{display:none !important;}}',
     '#hp-ready-fab:hover{background:linear-gradient(135deg,#2a3f6e,#1E2D4E);',
     'border-color:rgba(168,180,208,0.6);transform:translateY(-1px);}',
 
@@ -9398,6 +9399,7 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     'border:1.5px solid rgba(79,152,163,0.45);border-radius:24px;',
     'font-size:12px;font-weight:700;letter-spacing:0.04em;cursor:pointer;',
     'box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:all 0.2s;white-space:nowrap;}',
+    '@media (max-width:768px){#hp-tools-fab{display:none !important;}}',
     '#hp-tools-fab:hover{background:linear-gradient(135deg,#01696F,#0C4E54);',
     'border-color:rgba(79,152,163,0.7);transform:translateY(-1px);}',
   ].join('');
