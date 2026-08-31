@@ -118,13 +118,13 @@ const PATCHES = [
     sentinel: '@media (max-width:768px){#hp-tools-fab{display:none !important;}}',
   },
   {
-    commit: 'PENDING',
+    commit: '3956b7e',
     name: 'PLUS_REQUIRED 403 interceptor (BUG-PLUS-GATE-LEAKY)',
     file: 'hp-patches.js',
     sentinel: "data.code === 'PLUS_REQUIRED'",
   },
   {
-    commit: 'PENDING',
+    commit: '3956b7e',
     name: 'Plus-only modal variant (BUG-PLUS-GATE-LEAKY)',
     file: 'hp-patches.js',
     sentinel: 'Document upload, preview, and Smart Auto-fill (Extract) are Plus features.',
