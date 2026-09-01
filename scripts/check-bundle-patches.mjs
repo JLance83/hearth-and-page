@@ -160,7 +160,7 @@ const PATCHES = [
     sentinel: "var CARD_ID = 'hp-sensitive-heads-up';",
   },
   {
-    commit: 'PENDING',
+    commit: '837b85a',
     name: 'Wizard content padding below Add/Remove Forms FAB (BUG-FAB-OVERLAP)',
     file: 'hp-patches.js',
     sentinel: 'body:has(#hp-wiz-addforms-bar) main{padding-bottom:5rem;}',
