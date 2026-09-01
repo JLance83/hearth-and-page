@@ -165,6 +165,12 @@ const PATCHES = [
     file: 'hp-patches.js',
     sentinel: 'html:has(#hp-wiz-addforms-bar), body:has(#hp-wiz-addforms-bar){padding-bottom:5rem;}',
   },
+  {
+    commit: 'PENDING',
+    name: 'Wizard → Form 35.1 transition screen (FEAT-F351-HANDOFF)',
+    file: 'hp-patches.js',
+    sentinel: "var CARD_ID = 'hp-wiz-f351-handoff';",
+  },
 ];
 
 function resolveFile(prefixOrName) {

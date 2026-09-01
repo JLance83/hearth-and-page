@@ -9999,3 +9999,190 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     setTimeout(injectHeadsUp, 300);
   });
 })();
+
+// ─── Wizard → Form 35.1 transition screen (FEAT-F351-HANDOFF)
+// Explains to the user that Parts 1-2 of Form 35.1 were auto-filled from the
+// general wizard, so we're jumping straight to Part 3. Fixes the confusing UX
+// where Continue on Step 6 teleports the user to "Form 35.1 — Part 3 of 8"
+// with no explanation of what happened to Step 7 or Parts 1-2.
+// Session-dismissible (sessionStorage) - shows once per browser tab session.
+(function() {
+  var CARD_ID = 'hp-wiz-f351-handoff';
+  var STORAGE_KEY = 'hp_handoff_dismissed_f351';
+
+  function isWizardPage() {
+    var hash = window.location.hash || '';
+    return hash.includes('/wizard');
+  }
+
+  // Detect that we're on Form 35.1 Part 3 (first part visible to the user).
+  // The bundle sets subtitle to 'Form 35.1 — Part 3 of 8' via a runtime map.
+  function isFirstF351Part() {
+    if (!isWizardPage()) return false;
+    // Look for the subtitle indicator that reads 'Form 35.1' and 'Part 3 of 8'
+    var candidates = document.querySelectorAll('*');
+    for (var i = 0; i < candidates.length; i++) {
+      var text = (candidates[i].textContent || '').trim();
+      // The header 'FORM 35.1 — PART 3 OF 8' appears once at the top; skip long
+      // elements to keep this loop cheap.
+      if (text.length > 60) continue;
+      if (/FORM 35\.1\s*—\s*PART 3 OF 8/i.test(text)) return true;
+    }
+    return false;
+  }
+
+  function buildCard() {
+    var overlay = document.createElement('div');
+    overlay.id = CARD_ID;
+    overlay.style.cssText = [
+      'position:fixed',
+      'inset:0',
+      'z-index:10000',
+      'background:rgba(6,10,16,0.85)',
+      'backdrop-filter:blur(4px)',
+      '-webkit-backdrop-filter:blur(4px)',
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'padding:1.25rem',
+      'overflow-y:auto'
+    ].join(';');
+
+    var card = document.createElement('div');
+    card.style.cssText = [
+      'background:#0d1520',
+      'border:1px solid rgba(126,184,247,0.35)',
+      'border-radius:0.875rem',
+      'padding:1.5rem 1.375rem',
+      'max-width:32rem',
+      'width:100%',
+      'color:#ede8df',
+      'font-family:"DM Sans",system-ui,sans-serif',
+      'line-height:1.55',
+      'box-shadow:0 12px 48px rgba(0,0,0,0.5)'
+    ].join(';');
+
+    var eyebrow = document.createElement('p');
+    eyebrow.style.cssText = 'margin:0 0 0.5rem;font-size:0.75rem;letter-spacing:0.05em;text-transform:uppercase;color:#7EB8F7;font-weight:600;';
+    eyebrow.textContent = 'Nice work — general info done';
+    card.appendChild(eyebrow);
+
+    var h = document.createElement('h2');
+    h.style.cssText = 'margin:0 0 0.875rem;font-size:1.375rem;font-weight:600;color:#ede8df;font-family:"Cormorant Garamond",serif;letter-spacing:0.01em;';
+    h.textContent = 'Now let\'s finish Form 35.1';
+    card.appendChild(h);
+
+    var lead = document.createElement('p');
+    lead.style.cssText = 'margin:0 0 1rem;font-size:0.9375rem;color:#ede8df;';
+    lead.textContent = 'Form 35.1 is the affidavit that goes with your parenting application. It has 8 parts — but you don\'t need to fill them all again.';
+    card.appendChild(lead);
+
+    // Auto-fill callout
+    var callout = document.createElement('div');
+    callout.style.cssText = [
+      'background:rgba(126,184,247,0.08)',
+      'border:1px solid rgba(126,184,247,0.25)',
+      'border-radius:0.5rem',
+      'padding:0.875rem 1rem',
+      'margin:0 0 1rem'
+    ].join(';');
+    callout.innerHTML = ''
+      + '<p style="margin:0 0 0.5rem;font-weight:600;color:#7EB8F7;font-size:0.875rem;">'
+      + '✔ We\'ve already filled Parts 1 and 2 for you</p>'
+      + '<p style="margin:0;font-size:0.8125rem;color:rgba(237,232,223,0.85);">'
+      + '<strong style="color:#ede8df;">Part 1 (Your identity)</strong> and <strong style="color:#ede8df;">Part 2 (Children in this case)</strong> '
+      + 'were completed from what you entered earlier. That\'s a feature of Hearth &amp; Page — you never have to type the same information twice.</p>';
+    card.appendChild(callout);
+
+    // What's next list
+    var whatNextLabel = document.createElement('p');
+    whatNextLabel.style.cssText = 'margin:0 0 0.5rem;font-size:0.8125rem;color:rgba(237,232,223,0.65);font-weight:500;';
+    whatNextLabel.textContent = 'What\'s coming up:';
+    card.appendChild(whatNextLabel);
+
+    var list = document.createElement('ol');
+    list.style.cssText = 'margin:0 0 1.25rem;padding-left:1.25rem;font-size:0.875rem;color:rgba(237,232,223,0.85);';
+    var items = [
+      'Part 3 — Other children you\'ve parented',
+      'Part 4 — Legal history',
+      'Part 5 — Violence or abuse history',
+      'Part 6 — Where the children have lived',
+      'Part 7 — Your parenting plan',
+      'Part 8 — Non-parent information (if it applies)',
+      'Final review and confirm'
+    ];
+    items.forEach(function(t) {
+      var li = document.createElement('li');
+      li.style.cssText = 'margin:0 0 0.25rem;';
+      li.textContent = t;
+      list.appendChild(li);
+    });
+    card.appendChild(list);
+
+    // Note about save-and-continue
+    var save = document.createElement('p');
+    save.style.cssText = 'margin:0 0 1.25rem;font-size:0.8125rem;color:rgba(237,232,223,0.65);';
+    save.textContent = 'You can save and come back anytime. Each answer saves automatically as you type.';
+    card.appendChild(save);
+
+    // Continue button
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;justify-content:flex-end;';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Got it — continue →';
+    btn.style.cssText = [
+      'background:#7EB8F7',
+      'border:none',
+      'color:#0d1520',
+      'padding:0.625rem 1.125rem',
+      'border-radius:0.5rem',
+      'font-size:0.9375rem',
+      'font-weight:600',
+      'cursor:pointer',
+      'font-family:inherit'
+    ].join(';');
+    btn.addEventListener('click', function() {
+      try { sessionStorage.setItem(STORAGE_KEY, '1'); } catch(e) {}
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    });
+    actions.appendChild(btn);
+    card.appendChild(actions);
+
+    overlay.appendChild(card);
+    return overlay;
+  }
+
+  function injectHandoff() {
+    var existing = document.getElementById(CARD_ID);
+    if (existing) return; // already showing
+
+    if (!isFirstF351Part()) return;
+
+    var dismissed;
+    try { dismissed = sessionStorage.getItem(STORAGE_KEY); } catch(e) { dismissed = null; }
+    if (dismissed === '1') return;
+
+    var overlay = buildCard();
+    document.body.appendChild(overlay);
+  }
+
+  var _handoffObs = new MutationObserver(function() {
+    injectHandoff();
+  });
+
+  function initHandoff() {
+    _handoffObs.observe(document.body, { childList: true, subtree: true });
+    injectHandoff();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(initHandoff, 600); });
+  } else {
+    setTimeout(initHandoff, 600);
+  }
+
+  window.addEventListener('hashchange', function() {
+    setTimeout(injectHandoff, 300);
+  });
+})();
