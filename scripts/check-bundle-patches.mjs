@@ -135,6 +135,18 @@ const PATCHES = [
     file: 'index-',
     sentinel: 'href:"/#/subscription",className:"inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#A8B4D0] text-white text-sm font-medium hover:bg-[#1E2D4E] transition-colors",children:"Upgrade to Plus \u2192"',
   },
+  {
+    commit: 'PENDING',
+    name: 'Extract parse-sheet closes on 4xx (BUG-EXTRACT-STUCK-AFTER-403)',
+    file: 'hp-patches.js',
+    sentinel: 'if (!r.ok) { overlay.remove(); return; }',
+  },
+  {
+    commit: 'PENDING',
+    name: 'Evidence inline-panel banner position:static (BUG-EVIDENCE-BANNER-OVERLAP)',
+    file: 'hp-patches.js',
+    sentinel: '<div class="hp-ev-upload-bar" style="position:static;"><p style="color:#C9903A',
+  },
 ];
 
 function resolveFile(prefixOrName) {

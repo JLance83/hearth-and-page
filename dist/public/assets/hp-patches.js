@@ -6969,9 +6969,16 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
     var result;
     try {
       var r = await evFetch('/api/cases/' + evState.caseId + '/documents/' + docId + '/parse', { method: 'POST' });
+      // If the server rejects us (e.g. 403 PLUS_REQUIRED for a downgraded
+      // Plus user), close this parse sheet immediately so the fetch
+      // interceptor's upgrade modal is what the user sees — and so the
+      // next Extract tap isn't silently blocked by our own 'one at a time'
+      // guard (BUG-EXTRACT-STUCK-AFTER-403).
+      if (!r.ok) { overlay.remove(); return; }
       result = await r.json();
     } catch(e) {
-      result = { fields: [], docTypeLabel: docName };
+      overlay.remove();
+      return;
     }
 
     var fields     = (result && Array.isArray(result.fields)) ? result.fields : [];
@@ -7337,13 +7344,17 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       '<div class="hp-ev-cat-filter" style="padding:0 16px 8px;"></div>' +
       '<div class="hp-ev-count" style="padding:0 16px 4px;font-size:12px;color:#8892a0;"></div>' +
       '<div class="hp-ev-list" style="flex:1;overflow-y:auto;padding:0 16px 8px;"><div class="hp-ev-empty"><div class="icon">⏳</div><p>Loading\u2026</p></div></div>' +
+      // Inline-panel path uses position:static on the upload/paywall bar so it
+      // sits at the natural end of the panel content and never overlaps the
+      // page footer (BUG-EVIDENCE-BANNER-OVERLAP). The modal path keeps its
+      // default position:absolute so the bar stays pinned inside the sheet.
       (isPlus ?
-        '<div class="hp-ev-upload-bar">' +
+        '<div class="hp-ev-upload-bar" style="position:static;">' +
           '<div class="hp-ev-uploading"></div>' +
           '<button class="hp-ev-upload-btn" id="hp-ev-upload-btn">+ Upload Document or Photo</button>' +
           '<input type="file" id="hp-ev-file-input" style="display:none" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.pdf,.doc,.docx,.txt" />' +
         '</div>' :
-        '<div class="hp-ev-upload-bar"><p style="color:#C9903A;font-size:13px;text-align:center;margin:0;">Evidence storage is available on the <strong>Plus plan</strong> ($19.99/mo).</p></div>'
+        '<div class="hp-ev-upload-bar" style="position:static;"><p style="color:#C9903A;font-size:13px;text-align:center;margin:0;">Evidence storage is available on the <strong>Plus plan</strong> ($19.99/mo).</p></div>'
       );
     container.appendChild(inner);
 
