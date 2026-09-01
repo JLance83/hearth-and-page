@@ -154,7 +154,7 @@ const PATCHES = [
     sentinel: 'key:"criminalOtherInvolvement"',
   },
   {
-    commit: 'PENDING',
+    commit: '1777e5c',
     name: 'Sensitive-area heads-up card on F351 Legal + Violence (FEAT-F351-HEADSUP)',
     file: 'hp-patches.js',
     sentinel: "var CARD_ID = 'hp-sensitive-heads-up';",
