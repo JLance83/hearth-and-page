@@ -1336,6 +1336,11 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       '#hp-wiz-addforms-bar{position:fixed;bottom:0;left:0;right:0;z-index:9998;display:flex;justify-content:center;padding:0.625rem 1rem;pointer-events:none;}',
       '#hp-wiz-addforms-bar .hp-wiz-addbtn{pointer-events:all;box-shadow:0 2px 12px rgba(0,0,0,0.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);background:rgba(27,65,80,0.92);border-color:rgba(30,45,78,0.60);color:#ede8df;}',
       '#hp-wiz-addforms-bar .hp-wiz-addbtn:hover{background:rgba(30,45,78,0.95);}',
+      // BUG-FAB-OVERLAP (Sep 1 2026): reserve room below wizard content so the sticky
+      // "+ Add / Remove Forms" pill doesn't cover the last row of Yes/No buttons
+      // (observed on Form 35.1 Part 5 Q10 on mobile). Applies only while the FAB
+      // is actually mounted, on wizard hash routes only.
+      'body:has(#hp-wiz-addforms-bar) main{padding-bottom:5rem;}',
     ].join('\n');
     document.head.appendChild(s);
   }

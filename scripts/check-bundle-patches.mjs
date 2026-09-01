@@ -159,6 +159,12 @@ const PATCHES = [
     file: 'hp-patches.js',
     sentinel: "var CARD_ID = 'hp-sensitive-heads-up';",
   },
+  {
+    commit: 'PENDING',
+    name: 'Wizard content padding below Add/Remove Forms FAB (BUG-FAB-OVERLAP)',
+    file: 'hp-patches.js',
+    sentinel: 'body:has(#hp-wiz-addforms-bar) main{padding-bottom:5rem;}',
+  },
 ];
 
 function resolveFile(prefixOrName) {
