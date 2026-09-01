@@ -2994,6 +2994,14 @@ def fill_form25g(input_path, output_path, form_data_list):
 # Form 35.1 — Affidavit (Best Interests of Child)
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form35_1(input_path, output_path, form_data_list):
+    # TODO(post-launch): When Q4-Q7 text mapping is added to the 35.1 PDF
+    # template, append `criminalOtherInvolvement` (Q6.5) to Question 6's
+    # field with a newline separator, e.g.
+    #     '<Q6 text>\n\nOther prior involvement: <Q6.5 text>'
+    # Q6.5 was added to the wizard on 2026-09-01 as a free-text escape
+    # hatch for absolute/conditional discharges, withdrawn charges,
+    # acquittals, peace bonds, diversion programs, and YCJA records.
+    # See backlog: docs/BACKLOG.md - Form 35.1 criminal-history rebuild.
     d = _fe_flat(form_data_list)
     fields = _header(d, pages=5)
     fields['Full legal name'] = d.get('filer_full_name', d.get('applicant_full_name', ''))

@@ -147,6 +147,12 @@ const PATCHES = [
     file: 'hp-patches.js',
     sentinel: '<div class="hp-ev-upload-bar" style="position:static;"><p style="color:#C9903A',
   },
+  {
+    commit: 'PENDING',
+    name: 'Form 35.1 Q6.5 field for discharges and other prior involvement (FEAT-F351-Q65)',
+    file: 'index-',
+    sentinel: 'key:"criminalOtherInvolvement"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
