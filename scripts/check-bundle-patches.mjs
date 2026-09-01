@@ -172,7 +172,7 @@ const PATCHES = [
     sentinel: "var CARD_ID = 'hp-wiz-f351-handoff';",
   },
   {
-    commit: 'PENDING',
+    commit: '949ab75',
     name: 'Form 13 sums parse multi-line textareas with $/, symbols (FIX-F13-SUMS)',
     file: 'index-CNjoTsGP.js',
     sentinel: 'const cl=ln.replace(/[$,]/g,"").trim();const m=cl.match(/^-?\\d+(\\.\\d+)?/);',
