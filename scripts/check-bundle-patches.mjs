@@ -163,7 +163,7 @@ const PATCHES = [
     commit: '837b85a',
     name: 'Wizard content padding below Add/Remove Forms FAB (BUG-FAB-OVERLAP)',
     file: 'hp-patches.js',
-    sentinel: 'body:has(#hp-wiz-addforms-bar) main{padding-bottom:5rem;}',
+    sentinel: 'html:has(#hp-wiz-addforms-bar), body:has(#hp-wiz-addforms-bar){padding-bottom:5rem;}',
   },
 ];
 

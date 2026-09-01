@@ -1338,9 +1338,15 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       '#hp-wiz-addforms-bar .hp-wiz-addbtn:hover{background:rgba(30,45,78,0.95);}',
       // BUG-FAB-OVERLAP (Sep 1 2026): reserve room below wizard content so the sticky
       // "+ Add / Remove Forms" pill doesn't cover the last row of Yes/No buttons
-      // (observed on Form 35.1 Part 5 Q10 on mobile). Applies only while the FAB
-      // is actually mounted, on wizard hash routes only.
-      'body:has(#hp-wiz-addforms-bar) main{padding-bottom:5rem;}',
+      // and Continue/Back buttons on shorter viewports. Applied at the html/body
+      // level with an id-scoped selector so it only kicks in while the FAB is
+      // actually mounted (wizard hash routes). Uses html AND body to be robust
+      // across whichever element is the scroll container.
+      'html:has(#hp-wiz-addforms-bar), body:has(#hp-wiz-addforms-bar){padding-bottom:5rem;}',
+      // Fallback (older browsers without :has()): reserve space unconditionally when
+      // the FAB itself is present as a sibling in the DOM. Uses ~ general sibling
+      // combinator which is universally supported.
+      '#hp-wiz-addforms-bar ~ *:last-child{margin-bottom:5rem;}',
     ].join('\n');
     document.head.appendChild(s);
   }
