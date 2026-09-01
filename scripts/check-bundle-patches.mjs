@@ -130,7 +130,7 @@ const PATCHES = [
     sentinel: 'Document upload, preview, and Smart Auto-fill (Extract) are Plus features.',
   },
   {
-    commit: 'PENDING',
+    commit: 'b1c07c5',
     name: 'Documents-tab Upgrade to Plus href → /subscription (BUG-PAYWALL-404)',
     file: 'index-',
     sentinel: 'href:"/#/subscription",className:"inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#A8B4D0] text-white text-sm font-medium hover:bg-[#1E2D4E] transition-colors",children:"Upgrade to Plus \u2192"',
