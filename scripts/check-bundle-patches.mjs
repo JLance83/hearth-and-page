@@ -148,7 +148,7 @@ const PATCHES = [
     sentinel: '<div class="hp-ev-upload-bar" style="position:static;"><p style="color:#C9903A',
   },
   {
-    commit: 'PENDING',
+    commit: '0a91840',
     name: 'Form 35.1 Q6.5 field for discharges and other prior involvement (FEAT-F351-Q65)',
     file: 'index-',
     sentinel: 'key:"criminalOtherInvolvement"',
