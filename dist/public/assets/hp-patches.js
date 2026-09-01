@@ -9850,3 +9850,141 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
   }
   console.log('[HP] hp-patches.js ready');
 })();
+
+// ─── Sensitive-area heads-up card on Form 35.1 Parts 3 & 4 ('Legal history' + 'Violence or abuse history')
+// Session-dismissible (sessionStorage) — shows once per browser tab session.
+// Requested by user Sep 1 2026: warn users before they hit questions about
+// criminal history, protection orders, and violence/abuse.
+(function() {
+  var CARD_ID = 'hp-sensitive-heads-up';
+  var STORAGE_KEYS = {
+    'Legal history':          'hp_headsup_dismissed_legal',
+    'Violence or abuse history': 'hp_headsup_dismissed_violence'
+  };
+
+  function isWizardPage() {
+    var hash = window.location.hash || '';
+    return hash.includes('/wizard');
+  }
+
+  function findSensitiveHeader() {
+    if (!isWizardPage()) return null;
+    var headings = document.querySelectorAll('h1, h2');
+    for (var i = 0; i < headings.length; i++) {
+      var text = (headings[i].textContent || '').trim();
+      if (text === 'Legal history' || text === 'Violence or abuse history') {
+        return { el: headings[i], sectionName: text };
+      }
+    }
+    return null;
+  }
+
+  function buildCard(sectionName, storageKey) {
+    var card = document.createElement('div');
+    card.id = CARD_ID;
+    card.setAttribute('data-section', sectionName);
+    card.style.cssText = [
+      'background:#1a1410',
+      'border:1px solid rgba(201,144,58,0.35)',
+      'border-left:4px solid #C9903A',
+      'border-radius:0.625rem',
+      'padding:1rem 1.125rem',
+      'margin:1rem 0 1.5rem',
+      'color:#ede8df',
+      'font-size:0.9375rem',
+      'line-height:1.5'
+    ].join(';');
+
+    var title = document.createElement('p');
+    title.style.cssText = 'margin:0 0 0.5rem;font-weight:600;color:#C9903A;font-size:0.9375rem;';
+    title.textContent = 'Heads up — this section covers sensitive topics';
+    card.appendChild(title);
+
+    var body = document.createElement('p');
+    body.style.cssText = 'margin:0 0 0.75rem;color:#ede8df;';
+    body.textContent = 'The court needs honest answers about criminal history, protection orders, and any violence or abuse to make good decisions for children. Answer only what feels safe. You can save and come back anytime, or write N/A on any question you\'d rather discuss with a lawyer first.';
+    card.appendChild(body);
+
+    if (sectionName === 'Violence or abuse history') {
+      var help = document.createElement('p');
+      help.style.cssText = 'margin:0 0 0.75rem;color:rgba(237,232,223,0.75);font-size:0.8125rem;';
+      help.innerHTML = 'If you are in immediate danger: call <strong style="color:#ede8df;">911</strong>. '
+        + 'For non-emergency support: <strong style="color:#ede8df;">Assaulted Women\'s Helpline 1-866-863-0511</strong> (24/7, free, confidential).';
+      card.appendChild(help);
+    }
+
+    var dismissRow = document.createElement('div');
+    dismissRow.style.cssText = 'display:flex;justify-content:flex-end;';
+    var dismissBtn = document.createElement('button');
+    dismissBtn.type = 'button';
+    dismissBtn.textContent = 'Got it, hide this';
+    dismissBtn.style.cssText = [
+      'background:transparent',
+      'border:1px solid rgba(201,144,58,0.5)',
+      'color:#C9903A',
+      'padding:0.375rem 0.875rem',
+      'border-radius:0.375rem',
+      'font-size:0.8125rem',
+      'cursor:pointer'
+    ].join(';');
+    dismissBtn.addEventListener('click', function() {
+      try { sessionStorage.setItem(storageKey, '1'); } catch(e) {}
+      if (card.parentNode) card.parentNode.removeChild(card);
+    });
+    dismissRow.appendChild(dismissBtn);
+    card.appendChild(dismissRow);
+
+    return card;
+  }
+
+  function injectHeadsUp() {
+    var existing = document.getElementById(CARD_ID);
+    var found = findSensitiveHeader();
+
+    if (!found) {
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      return;
+    }
+
+    var storageKey = STORAGE_KEYS[found.sectionName];
+    if (!storageKey) return;
+
+    if (existing) {
+      if (existing.getAttribute('data-section') === found.sectionName) return;
+      if (existing.parentNode) existing.parentNode.removeChild(existing);
+    }
+
+    var dismissed;
+    try { dismissed = sessionStorage.getItem(storageKey); } catch(e) { dismissed = null; }
+    if (dismissed === '1') return;
+
+    var heading = found.el;
+    var insertAfter = heading;
+    var next = heading.nextElementSibling;
+    if (next && next.tagName === 'P') insertAfter = next;
+
+    var card = buildCard(found.sectionName, storageKey);
+    if (insertAfter.parentNode) {
+      insertAfter.parentNode.insertBefore(card, insertAfter.nextSibling);
+    }
+  }
+
+  var _headsUpObs = new MutationObserver(function() {
+    injectHeadsUp();
+  });
+
+  function initHeadsUp() {
+    _headsUpObs.observe(document.body, { childList: true, subtree: true });
+    injectHeadsUp();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(initHeadsUp, 600); });
+  } else {
+    setTimeout(initHeadsUp, 600);
+  }
+
+  window.addEventListener('hashchange', function() {
+    setTimeout(injectHeadsUp, 300);
+  });
+})();
