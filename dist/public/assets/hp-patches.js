@@ -1842,8 +1842,8 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       '</div>';
     document.body.appendChild(overlay);
     var stdBtn = document.getElementById('hp-upgrade-std');
-    if (stdBtn) stdBtn.addEventListener('click', function() { launchCheckout('standard'); });
-    document.getElementById('hp-upgrade-plus').addEventListener('click', function() { launchCheckout('plus'); });
+    if (stdBtn) stdBtn.addEventListener('click', function() { overlay.remove(); launchCheckout('standard'); });
+    document.getElementById('hp-upgrade-plus').addEventListener('click', function() { overlay.remove(); launchCheckout('plus'); });
     document.getElementById('hp-upgrade-close').addEventListener('click', function() { overlay.remove(); });
     overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
   }
