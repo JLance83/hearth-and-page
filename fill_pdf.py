@@ -2252,67 +2252,259 @@ def fill_form4(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 # Form 6B — Affidavit of Service
 # ─────────────────────────────────────────────────────────────────────────────
-def fill_form6b(input_path, output_path, form_data_list):
-    d = _fe_flat(form_data_list)
-    courthouse = d.get('courthouse', d.get('court_name', ''))
-    ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
-    fnum = d.get('court_file_number', d.get('fileNumber', ''))
-    ap   = d.get('applicant_full_name', d.get('applicantFullName', ''))
-    ap_a = d.get('applicant_address', '')
-    re_n = d.get('respondent_full_name', d.get('respondentFullName', ''))
-    re_a = d.get('respondent_address', '')
-    ap_law = d.get('applicant_lawyer_name', '')
-    ap_law_a = d.get('applicant_lawyer_address', '')
-    re_law = d.get('respondent_lawyer_name', '')
-    re_law_a = d.get('respondent_lawyer_address', '')
-    server = d.get('serverFullName', d.get('server_full_name', ''))
-    server_a = d.get('serverAddress', d.get('server_address', ''))
-    person_served = d.get('personServed', d.get('person_served', ''))
-    svc_date = d.get('serviceDate', d.get('service_date', ''))
-    svc_method = d.get('serviceMethod', d.get('service_method', ''))
-    docs = d.get('documentsList', d.get('documents_list', ''))
-    svc_addr = d.get('serviceAddress', d.get('service_address', ''))
-    email_served = d.get('emailAddress', d.get('email_address', ''))
-    comm_date = d.get('commissioningDate', d.get('commissioning_date', ''))
-    comm_muni = d.get('commissioningMunicipality', d.get('commissioning_municipality', ''))
-    fields = {
-        # Page 1 header
-        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': fnum,
-        'form1[0].page1[0].body[0].courtDetails[0].court[0].#subform[0].courtOfficeAddress[0]': ca,
-        'form1[0].page1[0].body[0].courtDetails[0].date[0]': svc_date,
-        # Applicant / Respondent party boxes
-        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[0]': ap,
-        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[1]': ap_a,
-        'form1[0].page1[0].body[0].applicants[0].applicantLawyer[0].textfield[0]': ap_law,
-        'form1[0].page1[0].body[0].applicants[0].applicantLawyer[0].textfield[1]': ap_law_a,
-        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[0]': re_n,
-        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[1]': re_a,
-        'form1[0].page1[0].body[0].respondents[0].respondantLawyer[0].textfield[0]': re_law,
-        'form1[0].page1[0].body[0].respondents[0].respondantLawyer[0].textfield[1]': re_law_a,
-        # Section 4 — person serving (deponent identity)
-        'form1[0].page1[0].body[0].four[0].liveIn[0]': server,
-        'form1[0].page1[0].body[0].four[0].liveIn[1]': server_a,
-        'form1[0].page1[0].body[0].four[0].liveIn[2]': person_served,
-        'form1[0].page1[0].body[0].four[0].liveIn[3]': svc_addr,
-        'form1[0].page1[0].body[0].four[0].liveIn[4]': docs,
-        # Service table rows (Row1[N]: date + method)
-        'form1[0].page1[0].body[0].#subform[4].Table1[0].Row1[0].Cell1[0]': svc_date,
-        'form1[0].page1[0].body[0].#subform[4].Table1[0].Row1[0].Cell2[0]': svc_method,
-        # Page 2 header repetitions
-        'form1[0].Master[0].Page2[0].#subform[0].courtFileNumber[0]': fnum,
-        'form1[0].Master[0].Page2[0].#subform[0].#subform[1].date[0]': svc_date,
-        'form1[0].Master[0].Page2[1].#subform[0].courtFileNumber[0]': fnum,
-        'form1[0].Master[0].Page2[1].#subform[0].#subform[1].date[0]': svc_date,
-        # Page 3 — server name + commissioner
-        'form1[0].page3[0].body[0].six[0].applicant[0].#subform[0].fullName[0]': server,
-        'form1[0].page3[0].body[0].six[0].#subform[3].liveIn[1]': comm_muni,
-        'form1[0].page3[0].body[0].six[0].applicant[0].#subform[1].commissioner[0]': comm_date,
-        # Email service
-        'form1[0].page2[0].body[0].liveIn[0]': email_served,
+# Service-method → checkbox widget coordinates on page 1, Section 2.
+# Verified against dist/public/pdfs/form6b.pdf using an annotation probe.
+FORM6B_METHOD_TO_WIDGET = {
+    'special':             (1, 83, 188),
+    'personal':            (1, 83, 188),  # personal service is special service
+    'mail':                (1, 83, 170),
+    'mailed':              (1, 83, 170),
+    'same day courier':    (1, 83, 152),
+    'next day courier':    (1, 83, 134),
+    'courier':             (1, 83, 152),  # default courier → same-day
+    'document exchange':   (1, 83, 116),
+    'electronic exchange': (1, 83, 98),
+    'e-exchange':          (1, 83, 98),
+    'fax':                 (1, 83, 80),
+    'email':               (1, 83, 62),
+    'substituted':         (1, 83, 44),
+    'advertisement':       (1, 83, 44),
+}
+
+
+def _form6b_pick_method_widget(method_str):
+    """Map a wizard service-method string to the checkbox widget to tick."""
+    if not method_str:
+        return None
+    m = method_str.strip().lower()
+    if m in FORM6B_METHOD_TO_WIDGET:
+        return FORM6B_METHOD_TO_WIDGET[m]
+    # Substring fallback (most specific first so 'same day courier' beats 'courier')
+    priority = [
+        'same day courier', 'next day courier',
+        'document exchange', 'electronic exchange', 'e-exchange',
+        'substituted', 'advertisement',
+        'personal', 'special', 'mail', 'courier', 'fax', 'email',
+    ]
+    for key in priority:
+        if key in m:
+            return FORM6B_METHOD_TO_WIDGET[key]
+    return None
+
+
+def _form6b_extract_muni_prov(full_address):
+    """Pull 'City, Province' out of a free-form address.
+
+    Handles all of these:
+      '500 Bay St, Suite 200, Sudbury ON P3A 1A1'   -> 'Sudbury, ON'
+      '3674 Mark St, Val Caron, ON P3N 1H5'         -> 'Val Caron, ON'
+      '155 Elm St, Sudbury, ON P3C 1T9'             -> 'Sudbury, ON'
+      'Unit 45, 634 Erb St W, Waterloo, Ontario'    -> 'Waterloo, ON'
+
+    Strategy: find the province token, then take the last comma-chunk
+    of text before it as the city.
+    """
+    if not full_address:
+        return ''
+    import re as _re
+    # 2-letter codes OR spelled-out province names
+    prov_map = {
+        'ontario': 'ON', 'quebec': 'QC', 'qu\u00e9bec': 'QC',
+        'british columbia': 'BC', 'alberta': 'AB', 'manitoba': 'MB',
+        'saskatchewan': 'SK', 'nova scotia': 'NS', 'new brunswick': 'NB',
+        'newfoundland': 'NL', 'newfoundland and labrador': 'NL',
+        'prince edward island': 'PE', 'yukon': 'YT',
+        'northwest territories': 'NT', 'nunavut': 'NU',
     }
-    n = _write_pdf_lc(input_path, output_path, fields)
-    sys.stderr.write(f'[fill_form6b] Filled {n} fields\n')
-    return n
+    prov_pat = _re.compile(
+        r'\b(ON|QC|BC|AB|MB|SK|NS|NB|NL|PE|YT|NT|NU|'
+        r'Ontario|Quebec|Qu\u00e9bec|British Columbia|Alberta|Manitoba|'
+        r'Saskatchewan|Nova Scotia|New Brunswick|Newfoundland(?: and Labrador)?|'
+        r'Prince Edward Island|Yukon|Northwest Territories|Nunavut)\b',
+        _re.IGNORECASE,
+    )
+    m = prov_pat.search(full_address)
+    if not m:
+        return full_address
+    raw = m.group(1)
+    prov = raw if len(raw) == 2 else prov_map.get(raw.lower(), raw)
+    before = full_address[:m.start()].rstrip(', ').strip()
+    chunks = [c.strip() for c in before.split(',') if c.strip()]
+    if not chunks:
+        return prov.upper()
+    return f'{chunks[-1]}, {prov.upper()}'
+
+
+def _form6b_split_documents(docs_str):
+    """Split a documents-list string on ';' or newlines; keep non-empty entries."""
+    if not docs_str:
+        return []
+    import re as _re
+    parts = _re.split(r'[;\n]', docs_str)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def fill_form6b(input_path, output_path, form_data_list):
+    """Fill Form 6B (Affidavit of Service) using widget-level targeting.
+
+    Why widget targeting: the Form 6B template reuses many field names
+    across multiple pages and rows. The old field-name approach wrote
+    the same value into every widget with a given name — e.g. the service
+    date leaked into the page-1/2/3 date[0] header fields that are meant
+    for court file issuance date. Widget targeting fills exactly the
+    widget we intend, identified by page + rect-center coordinates.
+
+    Deliberate under-fills (safer than wrong data in a sworn document):
+      - date[0] (3 header widgets)     — issuance date, wizard doesn't collect
+      - 'at (time)' (liveIn[3])         — wizard doesn't collect service time
+      - Commissioner section (page 3)   — filled in person at swearing
+      - Lawyer boxes                    — party is self-represented in this case
+      - nameOfCourt[0] dropdown         — choice field, user selects in reader
+    """
+    d = _fe_flat(form_data_list)
+
+    # === Read wizard data ===
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    court_addr = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
+    fnum = d.get('court_file_number', d.get('fileNumber', ''))
+
+    # Applicant (all component fields)
+    ap_name   = d.get('applicant_full_name', d.get('applicantFullName', ''))
+    ap_street = d.get('applicant_address', '')
+    ap_unit   = d.get('applicant_unit', '')
+    ap_city   = d.get('applicant_city', '')
+    ap_prov   = d.get('applicant_province', '')
+    ap_postal = d.get('applicant_postal_code', '')
+    ap_phone  = d.get('applicant_phone', '')
+    ap_email  = d.get('applicant_email', '')
+
+    # Respondent (all component fields)
+    re_name   = d.get('respondent_full_name', d.get('respondentFullName', ''))
+    re_street = d.get('respondent_address', '')
+    re_unit   = d.get('respondent_unit', '')
+    re_city   = d.get('respondent_city', '')
+    re_prov   = d.get('respondent_province', '')
+    re_postal = d.get('respondent_postal_code', '')
+    re_phone  = d.get('respondent_phone', '')
+    re_email  = d.get('respondent_email', '')
+
+    # Service details
+    server        = d.get('serverFullName', d.get('server_full_name', ''))
+    server_addr   = d.get('serverAddress', d.get('server_address', ''))
+    person_served = d.get('personServed', d.get('person_served', ''))
+    svc_date      = d.get('serviceDate', d.get('service_date', ''))
+    # svc_time intentionally NOT read — wizard doesn't collect it, leave blank
+    svc_method    = d.get('serviceMethod', d.get('service_method', ''))
+    docs          = d.get('documentsList', d.get('documents_list', ''))
+
+    # === Compose 2-line party address blocks ===
+    def _compose_street(street, unit):
+        if unit and street:
+            return f'Unit {unit}, {street}'
+        return street or ''
+
+    def _compose_city_line(city, prov, postal):
+        parts = []
+        if city:
+            parts.append(city)
+        pp = ' '.join(x for x in [prov, postal] if x)
+        if pp:
+            parts.append(pp)
+        return ', '.join(parts)
+
+    def _compose_party_block(street, unit, city, prov, postal, phone, email):
+        line1_parts = [
+            _compose_street(street, unit),
+            _compose_city_line(city, prov, postal),
+        ]
+        line1 = ', '.join(x for x in line1_parts if x)
+        line2 = ' \u2022 '.join(x for x in [phone, email] if x)
+        return '\n'.join(x for x in [line1, line2] if x)
+
+    ap_block = _compose_party_block(ap_street, ap_unit, ap_city, ap_prov,
+                                    ap_postal, ap_phone, ap_email)
+    re_block = _compose_party_block(re_street, re_unit, re_city, re_prov,
+                                    re_postal, re_phone, re_email)
+
+    # Server's 'I live in' — city + province code only, extracted from address
+    server_muni = _form6b_extract_muni_prov(server_addr)
+
+    # === Widget-level text values (page, rect-center-x, rect-center-y) ===
+    widget_values = {}
+
+    # Party boxes (page 1)
+    if ap_name:  widget_values[(1, 157, 628)] = ap_name
+    if ap_block: widget_values[(1, 157, 602)] = ap_block
+    if re_name:  widget_values[(1, 157, 532)] = re_name
+    if re_block: widget_values[(1, 157, 506)] = re_block
+    # Lawyer boxes at x=454 intentionally blank (party is self-represented)
+
+    # Server identity — page 1 widget only (do NOT touch page 2/3 duplicates)
+    if server:      widget_values[(1, 367, 484)] = server        # liveIn[0]
+    if server_muni: widget_values[(1, 374, 464)] = server_muni   # liveIn[1]
+
+    # Service date + person served (page 1 widgets of liveIn[2], liveIn[4])
+    if svc_date:      widget_values[(1, 156, 428)] = svc_date       # liveIn[2] 'On (date)'
+    # liveIn[3] at (342, 428) 'at (time)' — intentionally left blank
+    if person_served: widget_values[(1, 367, 404)] = person_served  # liveIn[4]
+
+    # Documents table — up to 7 rows on page 1
+    doc_list = _form6b_split_documents(docs)
+    row_y = [366, 347, 328, 310, 291, 272, 253]  # verified by probe
+    for i, doc in enumerate(doc_list[:7]):
+        widget_values[(1, 180, row_y[i])] = doc       # Cell1[0] 'Name of document'
+        # Cell2[0] 'Author' intentionally blank
+        widget_values[(1, 518, row_y[i])] = svc_date  # #field[2] 'Date signed'
+
+    # === Font-size overrides (tight boxes) ===
+    # These 4 fields have ~13.7pt-tall boxes but the template's default
+    # appearance requests 12pt Times. Override to 9pt so text fits.
+    widget_font_size = {
+        (1, 374, 464): 9,   # liveIn[1] 'I live in'
+        (1, 156, 428): 9,   # liveIn[2] 'On (date)'
+        (1, 342, 428): 9,   # liveIn[3] 'at (time)'  (blank anyway)
+        (1, 206, 410): 9,   # liveIn[4] 'I served (name)'
+    }
+
+    # === Rect-grow-top overrides (baseline fix, +3pt) ===
+    # Without this, the reader vertically-centers text within the widget
+    # rect, which puts the baseline right ON the visible underline — so
+    # descenders (g, p, y) and even the bottoms of S/O/N bleed below the
+    # printed line. Growing the rect upward by 3pt lifts the vertical
+    # center, moving text above the line with proper padding.
+    widget_rect_grow_top = {
+        (1, 374, 464): 3,
+        (1, 156, 428): 3,
+        (1, 342, 428): 3,
+        (1, 206, 410): 3,
+    }
+
+    # === Widget-level checkbox (service method) ===
+    widget_checkboxes = {}
+    method_widget = _form6b_pick_method_widget(svc_method)
+    if method_widget:
+        widget_checkboxes[method_widget] = True
+
+    # === Field-name values (safe: these names are unique in the template) ===
+    # We deliberately DO NOT include date[0] here — it has 3 widget instances
+    # (top header of each page) and it's the court-file issuance date, not
+    # the service date. Filling it with svc_date produces a legally-wrong
+    # document. The service date on page 1 is filled via widget targeting above.
+    field_values = {
+        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': fnum,
+        'form1[0].page1[0].body[0].courtDetails[0].court[0].#subform[0].courtOfficeAddress[0]': court_addr,
+    }
+
+    w, f = _write_pdf_by_widget(
+        input_path, output_path,
+        widget_values=widget_values,
+        widget_checkboxes=widget_checkboxes,
+        field_values=field_values,
+        widget_font_size=widget_font_size,
+        widget_rect_grow_top=widget_rect_grow_top,
+    )
+    sys.stderr.write(f'[fill_form6b] widget={w} field={f}\n')
+    return w + f
 
 
 # ─────────────────────────────────────────────────────────────────────────────
