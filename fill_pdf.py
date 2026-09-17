@@ -1990,6 +1990,195 @@ def _write_pdf_lc(input_path, output_path, fields):
     return filled
 
 
+def _write_pdf_by_widget(input_path, output_path, widget_values=None,
+                        widget_checkboxes=None, field_values=None,
+                        field_checkboxes=None, widget_font_size=None,
+                        widget_rect_grow_top=None):
+    """
+    Fill a PDF's AcroForm using widget-level targeting.
+
+    This solves a problem the field-name writers can't: some templates
+    reuse the same field name across many widgets (different pages,
+    different rows of a table, etc). Targeting by field name blasts the
+    same value into every one of them. Targeting by widget rect center
+    fills exactly the widget you mean.
+
+    Args:
+      widget_values         : {(page_num, cx, cy): "text value"}
+      widget_checkboxes     : {(page_num, cx, cy): True/False}
+      field_values          : {field_name: "text value"} — unique names only
+      field_checkboxes      : {field_name: True/False}   — unique names only
+      widget_font_size      : {(page_num, cx, cy): float} — override the
+                              default-appearance font size for that widget.
+                              Use for tight boxes where the template's
+                              default font is too large and text clips.
+      widget_rect_grow_top  : {(page_num, cx, cy): float} — grow the widget
+                              rectangle upward by this many points. Use
+                              this to fix baseline clipping in tight
+                              boxes: the visible underline on the page
+                              stays put, but the reader vertically-centers
+                              text within the (now taller) widget rect,
+                              lifting the baseline above the printed line
+                              so descenders (b, g, p, y) aren't clipped.
+
+    Widget targeting takes precedence over field-name targeting.
+    Coordinate tolerance is ±3 pt from the specified center.
+
+    Returns (widgets_filled, fields_filled).
+    """
+    import pypdf
+    from pypdf import generic as g
+    import re as _re
+
+    widget_values = widget_values or {}
+    widget_checkboxes = widget_checkboxes or {}
+    field_values = field_values or {}
+    field_checkboxes = field_checkboxes or {}
+    widget_font_size = widget_font_size or {}
+    widget_rect_grow_top = widget_rect_grow_top or {}
+
+    reader = pypdf.PdfReader(input_path)
+    if reader.is_encrypted:
+        reader.decrypt('')
+    writer = pypdf.PdfWriter()
+    writer.clone_document_from_reader(reader)
+
+    w_filled = 0
+    f_filled = 0
+
+    for page_idx, page in enumerate(writer.pages, 1):
+        if '/Annots' not in page:
+            continue
+        for annot_ref in page['/Annots']:
+            try:
+                annot = annot_ref.get_object()
+            except Exception:
+                continue
+            if annot.get('/Subtype') != '/Widget':
+                continue
+
+            # Resolve field name (walk parent chain for LiveCycle forms)
+            fname = annot.get('/T')
+            if not fname and '/Parent' in annot:
+                try:
+                    parent = annot['/Parent'].get_object()
+                    fname = parent.get('/T')
+                except Exception:
+                    pass
+            fname = str(fname) if fname else ''
+
+            # Widget rect → center coordinates
+            rect = annot.get('/Rect')
+            if rect:
+                r = [float(x) for x in rect]
+                cx = int((r[0] + r[2]) / 2)
+                cy = int((r[1] + r[3]) / 2)
+            else:
+                cx = cy = 0
+
+            # Try widget-level text match first
+            matched_val = None
+            for (pg, x, y), val in widget_values.items():
+                if pg == page_idx and abs(x - cx) <= 3 and abs(y - cy) <= 3:
+                    matched_val = val
+                    break
+            if matched_val is not None:
+                # Optional font-size override for this widget
+                new_font_size = None
+                for (pg, x, y), sz in widget_font_size.items():
+                    if pg == page_idx and abs(x - cx) <= 3 and abs(y - cy) <= 3:
+                        new_font_size = sz
+                        break
+                # Optional rect-grow-top override (baseline fix)
+                grow_top = 0
+                for (pg, x, y), gt in widget_rect_grow_top.items():
+                    if pg == page_idx and abs(x - cx) <= 3 and abs(y - cy) <= 3:
+                        grow_top = gt
+                        break
+                update = {
+                    g.NameObject('/V'): g.create_string_object(str(matched_val)),
+                    g.NameObject('/AP'): g.DictionaryObject(),
+                }
+                if grow_top and rect:
+                    r = [float(x) for x in rect]
+                    update[g.NameObject('/Rect')] = g.ArrayObject([
+                        g.FloatObject(r[0]),
+                        g.FloatObject(r[1]),
+                        g.FloatObject(r[2]),
+                        g.FloatObject(r[3] + grow_top),
+                    ])
+                if new_font_size is not None:
+                    # Rewrite the /DA string: '/Font <size> Tf <color> rg'
+                    # Match the number (last token before 'Tf') and replace
+                    # only it, preserving the font name.
+                    da = str(annot.get('/DA') or '/Helv 12 Tf 0 g')
+                    new_da = _re.sub(
+                        r'([\d.]+)\s+Tf',
+                        f'{new_font_size:g} Tf',
+                        da,
+                        count=1,
+                    )
+                    if 'Tf' not in new_da:
+                        new_da = f'/Helv {new_font_size:g} Tf 0 g'
+                    update[g.NameObject('/DA')] = g.create_string_object(new_da)
+                annot.update(update)
+                w_filled += 1
+                continue
+
+            # Try widget-level checkbox match
+            matched_cb = None
+            for (pg, x, y), val in widget_checkboxes.items():
+                if pg == page_idx and abs(x - cx) <= 3 and abs(y - cy) <= 3:
+                    matched_cb = val
+                    break
+            if matched_cb is not None:
+                v = '/Yes' if matched_cb else '/Off'
+                annot.update({
+                    g.NameObject('/V'): g.NameObject(v),
+                    g.NameObject('/AS'): g.NameObject(v),
+                })
+                w_filled += 1
+                continue
+
+            # Fall through to field-name text match
+            if not fname:
+                continue
+            short = fname.split('.')[-1]
+            hit = False
+            for target_name, val in field_values.items():
+                if fname == target_name or short == target_name.split('.')[-1]:
+                    annot.update({
+                        g.NameObject('/V'): g.create_string_object(str(val)),
+                        g.NameObject('/AP'): g.DictionaryObject(),
+                    })
+                    f_filled += 1
+                    hit = True
+                    break
+            if hit:
+                continue
+
+            # Fall through to field-name checkbox match
+            for cb_name, val in field_checkboxes.items():
+                if fname == cb_name or short == cb_name.split('.')[-1]:
+                    v = '/Yes' if val else '/Off'
+                    annot.update({
+                        g.NameObject('/V'): g.NameObject(v),
+                        g.NameObject('/AS'): g.NameObject(v),
+                    })
+                    f_filled += 1
+                    break
+
+    if '/AcroForm' in writer._root_object:
+        writer._root_object['/AcroForm'].update({
+            g.NameObject('/NeedAppearances'): g.BooleanObject(True)
+        })
+
+    with open(output_path, 'wb') as f:
+        writer.write(f)
+
+    return w_filled, f_filled
+
+
 def _header(d, pages=1):
     """Build standard court-header fields dict shared across most forms."""
     courthouse = d.get('courthouse', d.get('court_name', ''))
