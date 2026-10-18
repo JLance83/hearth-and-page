@@ -2366,10 +2366,15 @@ def fill_form6b(input_path, output_path, form_data_list):
     # === Read wizard data ===
     courthouse = d.get('courthouse', d.get('court_name', ''))
     court_addr = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
-    fnum = d.get('court_file_number', d.get('fileNumber', ''))
+    # The backend (toFillRows) renames wizard keys before they reach us:
+    # court/fileNumber -> 'file_number', serviceDetails/serviceDate ->
+    # 'serviceDetails_service_date', etc. Accept every spelling so the
+    # handler never silently misses an answer (FIX-F6B-KEYS).
+    fnum = _pick(d, 'court_file_number', 'file_number', 'fileNumber')
 
     # Applicant (all component fields)
-    ap_name   = d.get('applicant_full_name', d.get('applicantFullName', ''))
+    ap_name   = _pick(d, 'applicant_full_name', 'court_applicant_full_name',
+                      'applicantFullName')
     ap_street = d.get('applicant_address', '')
     ap_unit   = d.get('applicant_unit', '')
     ap_city   = d.get('applicant_city', '')
@@ -2379,7 +2384,8 @@ def fill_form6b(input_path, output_path, form_data_list):
     ap_email  = d.get('applicant_email', '')
 
     # Respondent (all component fields)
-    re_name   = d.get('respondent_full_name', d.get('respondentFullName', ''))
+    re_name   = _pick(d, 'respondent_full_name', 'court_respondent_full_name',
+                      'respondentFullName')
     re_street = d.get('respondent_address', '')
     re_unit   = d.get('respondent_unit', '')
     re_city   = d.get('respondent_city', '')
@@ -2389,13 +2395,16 @@ def fill_form6b(input_path, output_path, form_data_list):
     re_email  = d.get('respondent_email', '')
 
     # Service details
-    server        = d.get('serverFullName', d.get('server_full_name', ''))
-    server_addr   = d.get('serverAddress', d.get('server_address', ''))
-    person_served = d.get('personServed', d.get('person_served', ''))
-    svc_date      = d.get('serviceDate', d.get('service_date', ''))
-    # svc_time intentionally NOT read — wizard doesn't collect it, leave blank
-    svc_method    = d.get('serviceMethod', d.get('service_method', ''))
-    docs          = d.get('documentsList', d.get('documents_list', ''))
+    server        = _pick(d, 'server_full_name', 'serverFullName')
+    server_addr   = _pick(d, 'server_address', 'serverAddress')
+    person_served = _pick(d, 'serviceDetails_person_served', 'person_served',
+                          'personServed')
+    svc_date      = _pick(d, 'serviceDetails_service_date', 'service_date',
+                          'serviceDate')
+    # svc_time intentionally NOT read — left blank by design (Option A)
+    svc_method    = _pick(d, 'serviceDetails_service_method', 'service_method',
+                          'serviceMethod')
+    docs          = _pick(d, 'documents_list', 'documentsList')
 
     # === Compose 2-line party address blocks ===
     def _compose_street(street, unit):
@@ -2446,7 +2455,7 @@ def fill_form6b(input_path, output_path, form_data_list):
     # Service date + person served (page 1 widgets of liveIn[2], liveIn[4])
     if svc_date:      widget_values[(1, 156, 428)] = svc_date       # liveIn[2] 'On (date)'
     # liveIn[3] at (342, 428) 'at (time)' — intentionally left blank
-    if person_served: widget_values[(1, 367, 404)] = person_served  # liveIn[4]
+    if person_served: widget_values[(1, 206, 410)] = person_served  # liveIn[4] 'I served (name)'
 
     # Documents table — up to 7 rows on page 1
     doc_list = _form6b_split_documents(docs)
