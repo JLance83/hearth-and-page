@@ -2375,8 +2375,27 @@ def _header(d, pages=1):
         h[f'Court File Number - page {pg}'] = fnum
         h[f'Court File Number - Page {pg}'] = fnum
         h[f'Court File Number, page {pg}'] = fnum
-    ap_full = f'{ap}\n{ap_addr}\nTel: {ap_ph}\nEmail: {ap_em}' if ap_addr else ap
-    re_full = f'{re_name}\n{re_addr}\nTel: {re_ph}\nEmail: {re_em}' if re_addr else re_name
+    # FIX-HEADER-FULL-ADDRESS: the "address for service" block must include
+    # street & number, municipality, province and postal code (the form's own
+    # label says so). It used the street line only. Unit and "N/A" handling
+    # come from _real_unit(); empty Tel/Email lines are left out.
+    def _party_block(name, street, unit, city, prov, postal, phone, email):
+        street_line = _fmt_addr(street, unit, '', '', '')
+        place_line = ', '.join(x for x in [(city or '').strip(),
+                                           ' '.join(y for y in [(prov or '').strip(), (postal or '').strip()] if y)] if x)
+        lines = [name, street_line, place_line]
+        if phone: lines.append(f'Tel: {phone}')
+        if email: lines.append(f'Email: {email}')
+        has_addr = bool(street_line or place_line)
+        return '\n'.join(x for x in lines if x) if has_addr else name
+    ap_full = _party_block(ap, ap_addr,
+                           d.get('applicant_unit', ''), d.get('applicant_city', d.get('applicantCity', '')),
+                           d.get('applicant_province', d.get('applicantProvince', '')),
+                           d.get('applicant_postal_code', d.get('applicantPostalCode', '')), ap_ph, ap_em)
+    re_full = _party_block(re_name, re_addr,
+                           d.get('respondent_unit', ''), d.get('respondent_city', d.get('respondentCity', '')),
+                           d.get('respondent_province', d.get('respondentProvince', '')),
+                           d.get('respondent_postal_code', d.get('respondentPostalCode', '')), re_ph, re_em)
     h["Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = ap_full
     h["Applicant(s) - Full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = ap_full
     h["Full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = ap_full
