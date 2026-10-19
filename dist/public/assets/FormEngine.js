@@ -811,6 +811,83 @@
   }
 
   /* ─── Part renderer ───────────────────────────────────────── */
+
+  function listCaseChildren(caseData) {
+    var kids = [];
+    var data = caseData || {};
+    for (var i = 0; i < 8; i++) {
+      var name = data['child_' + i + '_fullName'] || data['child_' + i + '_full_name'] || data['child_' + i + '_name'] || '';
+      var dob = data['child_' + i + '_dob'] || '';
+      if (String(name).trim() || String(dob).trim()) {
+        kids.push({ index: i, name: String(name).trim() });
+      }
+    }
+    if (!kids.length) {
+      for (var j = 1; j <= 4; j++) {
+        var name1 = data['child_' + j + '_name'] || '';
+        var dob1 = data['child_' + j + '_dob'] || '';
+        if (String(name1).trim() || String(dob1).trim()) {
+          kids.push({ index: j - 1, name: String(name1).trim() });
+        }
+      }
+    }
+    if (!kids.length) {
+      var count = parseInt(data.children_count || data.count || '0', 10) || 0;
+      for (var c = 0; c < Math.min(count, 4); c++) kids.push({ index: c, name: '' });
+    }
+    return kids.slice(0, 4);
+  }
+
+  function renderPerChildYesNo(field, caseId, caseData, onUpdate) {
+    var wrap = document.createElement('div');
+    wrap.className = 'fe-field';
+    wrap.dataset.fieldId = field.fieldId || 'per_child_yesno';
+    var kids = listCaseChildren(caseData);
+    if (!kids.length) {
+      var note = document.createElement('p');
+      note.className = 'fe-help';
+      note.textContent = 'Add each child in the case first. This form asks, for each child, whether you want the court to change support for that child.';
+      wrap.appendChild(note);
+      return wrap;
+    }
+    var intro = document.createElement('p');
+    intro.className = 'fe-help';
+    intro.textContent = field.helpText || 'Answer Yes or No for each child. Leave a child unanswered if you are not sure. The form prints only the answer you choose.';
+    wrap.appendChild(intro);
+    kids.forEach(function(kid) {
+      var key = 'child_' + kid.index + '_supportChange';
+      var saved = _fieldValues[key];
+      if (saved === undefined || saved === null) saved = caseData[key] || '';
+      var block = document.createElement('div');
+      block.className = 'fe-field';
+      var lbl = document.createElement('label');
+      lbl.className = 'fe-label';
+      var who = kid.name || ('Child ' + (kid.index + 1));
+      lbl.textContent = 'Are you asking to change support for ' + who + '?';
+      block.appendChild(lbl);
+      var yesnoWrap = document.createElement('div');
+      yesnoWrap.className = 'fe-yesno';
+      ['Yes', 'No'].forEach(function(opt) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'fe-yesno-btn' + (String(saved).toLowerCase() === opt.toLowerCase() ? ' fe-yesno-active' : '');
+        btn.textContent = opt;
+        btn.addEventListener('click', function() {
+          yesnoWrap.querySelectorAll('.fe-yesno-btn').forEach(function(b) {
+            b.classList.remove('fe-yesno-active');
+          });
+          btn.classList.add('fe-yesno-active');
+          setFieldValue(key, opt.toLowerCase(), { partId: 'children' }, caseId);
+          if (onUpdate) onUpdate();
+        });
+        yesnoWrap.appendChild(btn);
+      });
+      block.appendChild(yesnoWrap);
+      wrap.appendChild(block);
+    });
+    return wrap;
+  }
+
   function renderPart(part, caseId, caseData, onUpdate, def) {
     var section = document.createElement('div');
     section.className = 'fe-part';
@@ -845,6 +922,15 @@
         groupEl.appendChild(groupTitle);
         (group.fields || []).forEach(function(field) {
           field.partId = part.partId;
+          if (field.type === 'per_child_yesno') {
+            var perEl = renderPerChildYesNo(field, caseId, caseData, function() {
+              recalculate({ parts: [part] });
+              updateCalcDisplays(section, { parts: [part] });
+              onUpdate && onUpdate();
+            });
+            if (perEl) groupEl.appendChild(perEl);
+            return;
+          }
           var el = renderField(field, caseId, caseData, function() {
             recalculate({ parts: [part] });
             updateCalcDisplays(section, { parts: [part] });
@@ -857,6 +943,15 @@
     } else {
       (part.fields || []).forEach(function(field) {
         field.partId = part.partId;
+        if (field.type === 'per_child_yesno') {
+          var perEl = renderPerChildYesNo(field, caseId, caseData, function() {
+            recalculate({ parts: [part] });
+            updateCalcDisplays(section, { parts: [part] });
+            onUpdate && onUpdate();
+          });
+          if (perEl) section.appendChild(perEl);
+          return;
+        }
         var el = renderField(field, caseId, caseData, function() {
           recalculate({ parts: [part] });
           updateCalcDisplays(section, { parts: [part] });

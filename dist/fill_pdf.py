@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.16'
+FILLER_VERSION = 'dist-2026-10-19.17'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3052,6 +3052,13 @@ def fill_form15(input_path, output_path, form_data_list):
         if _who:
             _key = f'Child {i} - Now living with (name of person and relationship to child)'
             fields[_key] = _who
+        # FIX-F15-SUPPORT-YN: print YES or NO only when this child has an answer.
+        # Do not guess from the case-level support question or from other claims.
+        _ans = str(d.get(f'child_{i}_support_change') or d.get(f'child_{i}_supportChange') or '').strip().lower()
+        if _ans in ('yes', 'true', '1'):
+            fields[f'Child {i} - Change of support being requested, yes or no'] = 'YES'
+        elif _ans in ('no', 'false', '0'):
+            fields[f'Child {i} - Change of support being requested, yes or no'] = 'NO'
             _size = (95.6 - 6.0) / (0.52 * max(len(_who), 1))
             _size = max(6.0, min(9.0, round(_size * 2) / 2))
             if _size < 9:
