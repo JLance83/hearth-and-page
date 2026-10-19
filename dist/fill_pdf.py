@@ -1405,7 +1405,10 @@ def fill_form13(input_path, output_path, form_data_list):
     if emp_type in ('employed', 'employee', 'employed full-time', 'employed part-time'):
         checkboxes['employed by'] = True
         fields['Name and address of employer'] = employer_full
-        fields['Place of work or business']    = employer_addr or employer_name
+        # FIX-F13-SPOUSE-WORKPLACE: 'Place of work or business' is Schedule B
+        # item 5 ("My spouse/partner works at"). The filer's own employer
+        # must never be written there - it is filled only from the Schedule B
+        # partner answer below.
     elif emp_type in ('self-employed', 'self_employed', 'selfemployed', 'selfEmployed'.lower()):
         checkboxes['self-employed'] = True
         fields['Name and address of business'] = business_name
