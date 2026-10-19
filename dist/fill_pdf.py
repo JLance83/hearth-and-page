@@ -1435,9 +1435,13 @@ def fill_form13(input_path, output_path, form_data_list):
             or 'notice of assessment' in proof):
         checkboxes['other (e.g. a letter from your employer confirming all income received to date this year)'] = True
 
-    fields['List doucments provided'] = val(
-        'f13_employment_proof_documents', 'proof_documents', 'proofDocuments',
-    )
+    # FIX-F13-INDIAN-ACT-LIST: 'List doucments provided' (sic, PDF name) is
+    # the document list for the Indian Act option in item 5 ("I am an Indian
+    # within the meaning of the Indian Act ... I am attaching the following
+    # proof"). The wizard's proof-of-income list belongs to item 3 (handled
+    # by the checkboxes above), so it is NOT written here - doing so put
+    # the user's list under a declaration they never made. The wizard has
+    # no Indian Act question, so this field and its box stay blank.
 
     # ── Part 1: Last-year gross (Q4) ─────────────────────────────────────
     # FIX-F13-LAST-YEAR: read the wizard's real key
