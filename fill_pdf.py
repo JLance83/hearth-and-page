@@ -449,7 +449,7 @@ _ON_COURTHOUSES = [
     ('peterborough',   'Peterborough',   '470 Water St, Peterborough, ON K9H 3M3',           '470 Water St, Peterborough, ON K9H 3M3'),
     ('scarborough',    'Scarborough',    '1911 Eglinton Ave E, Scarborough, ON M1L 4P4',     '1911 Eglinton Ave E, Scarborough, ON M1L 4P4'),
     ('st-catharines',  'St. Catharines', '59 Church St, St. Catharines, ON L2R 7N8',         '59 Church St, St. Catharines, ON L2R 7N8'),
-    ('sudbury',        'Sudbury',        '155 Elm St, Sudbury, ON P3C 1T9',                  '155 Elm St, Sudbury, ON P3C 1T9'),
+    ('sudbury',        'Sudbury',        '155 Elm St, Sudbury, ON P3C 1T9',                  '201-159 Cedar St, Sudbury, ON P3E 6A5'),
     ('thunder-bay',    'Thunder Bay',    '277 Camelot St, Thunder Bay, ON P7A 4B3',          '277 Camelot St, Thunder Bay, ON P7A 4B3'),
     ('toronto',        'Toronto',        '393 University Ave, Toronto, ON M5G 1E6',          '60 Queen St W, Toronto, ON M5H 2M3'),
     ('windsor',        'Windsor',        '245 Windsor Ave, Windsor, ON N9A 1J2',             '245 Windsor Ave, Windsor, ON N9A 1J2'),
