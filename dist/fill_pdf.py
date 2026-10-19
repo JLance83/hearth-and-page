@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.4'
+FILLER_VERSION = 'dist-2026-10-19.5'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2257,13 +2257,29 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None):
             obj = annot.get_object()
             if obj.get('/Subtype') != '/Widget':
                 continue
-            ft = obj.get('/FT')
-            t  = str(obj.get('/T', ''))
+            # FIX-WRITER-FULLNAME (Oct 19 2026, same two bugs fixed for Form 13):
+            # (a) some widgets keep /FT (and /T) on a parent field - inherit it;
+            # (b) a "." in a field name splits it into nested parts, so also
+            #     match on the fully-qualified name (all /T up the parent chain
+            #     joined with "."). The widget's own /T still matches, so every
+            #     existing mapping keeps working.
+            parent = None
+            if '/Parent' in obj:
+                try:
+                    parent = obj['/Parent'].get_object()
+                except Exception:
+                    parent = None
+            ft = obj.get('/FT') or (parent.get('/FT') if parent is not None else None)
+            own_t = obj.get('/T')
+            full_t = _get_field_full_path(obj)
+            t = str(own_t) if own_t is not None and str(own_t) in (fields if ft == '/Tx' else checkboxes) else full_t
             if ft == '/Tx' and t in fields:
                 obj.update({
                     pypdf.generic.NameObject('/V'):  pypdf.generic.create_string_object(str(fields[t])),
                     pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject(),
                 })
+                if own_t is None and parent is not None:
+                    parent.update({pypdf.generic.NameObject('/V'): pypdf.generic.create_string_object(str(fields[t]))})
                 filled += 1
             elif ft == '/Btn' and t in checkboxes:
                 v = _checkbox_on_state(obj) if checkboxes[t] else '/Off'
@@ -2271,6 +2287,8 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None):
                     pypdf.generic.NameObject('/V'):  pypdf.generic.NameObject(v),
                     pypdf.generic.NameObject('/AS'): pypdf.generic.NameObject(v),
                 })
+                if own_t is None and parent is not None:
+                    parent.update({pypdf.generic.NameObject('/V'): pypdf.generic.NameObject(v)})
                 filled += 1
     with open(output_path, 'wb') as f:
         writer.write(f)
