@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.7'
+FILLER_VERSION = 'dist-2026-10-19.8'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2095,14 +2095,19 @@ def fill_form13_1(input_path, output_path, form_data_list):
         checkboxes['unemployed since (date when last employed)'] = True
         fields['date when last employed'] = d.get('last_employed_date', '')
 
-    fields['gross income from all sources (0.00)'] = d.get('gross_income_last_year', '0.00')
+    # FIX-F131-NO-ZERO: a missing answer is blank, not 0.00. The writer can
+    # now reach these boxes, so the old default would print a zero the user
+    # never entered. A real 0 still prints.
+    _gross = d.get('gross_income_last_year', '')
+    if str(_gross).strip():
+        fields['gross income from all sources (0.00)'] = str(_gross)
 
     # ── Monthly Income ────────────────────────────────────────────────────
     def _money(key, *fallbacks):
         for k in (key,) + fallbacks:
             v = d.get(k, '')
-            if v: return str(v)
-        return '0.00'
+            if str(v).strip(): return str(v)
+        return ''
 
     fields['Employment income (before deductions) - Amount Received/Month (0.00)'] = _money('inc_employment')
     fields['Commissions, tips and bonuses - Amount Received/Month (0.00)']         = _money('inc_commissions')
@@ -2119,8 +2124,10 @@ def fill_form13_1(input_path, output_path, form_data_list):
     inc_keys = ['inc_employment','inc_commissions','inc_self_employment','inc_ei',
                 'inc_wsib','inc_social_assistance','inc_investment','inc_pension',
                 'inc_spousal_support','inc_ctb','inc_other']
-    inc_total = sum(float(d.get(k,'0') or '0') for k in inc_keys)
-    fields['Total monthly income from all sources (0.00)'] = f'{inc_total:.2f}'
+    _inc_entered = [d.get(k) for k in inc_keys if str(d.get(k, '')).strip()]
+    if _inc_entered:
+        inc_total = sum(float(v or 0) for v in _inc_entered)
+        fields['Total monthly income from all sources (0.00)'] = f'{inc_total:.2f}'
     fields['Monthly amount before expenses (0.00)']        = _money('inc_self_employment')
 
     # ── Deductions ────────────────────────────────────────────────────────
