@@ -1872,8 +1872,28 @@ def fill_form13(input_path, output_path, form_data_list):
     spouse_name    = val('f13_scheduleB_partner_name', 'sched_b_partner_name',
                          'schedule_b_partner_name')
     other_adults   = val('f13_scheduleB_other_adults', 'sched_b_other_adults')
-    children_count = val('f13_scheduleB_children_count', 'sched_b_children_count',
-                         'children_count')
+    # FIX-F13-CHILDREN-AT-HOME: Schedule B asks how many children live in
+    # YOUR home - not how many children you have. Use an explicit Schedule B
+    # answer if one exists; otherwise count only children whose "lives with"
+    # answer says they live with the filer (with me / shared / equal time).
+    # Children with the other parent, a grandparent, or unrecognised text are
+    # not counted (never guess on a sworn form).
+    children_count = val('f13_scheduleB_children_count', 'sched_b_children_count')
+    if not children_count:
+        try:
+            _n_kids = int(float(str(d.get('children_count', '0') or '0')))
+        except ValueError:
+            _n_kids = 0
+        _home = 0
+        for _i in range(1, min(_n_kids, 10) + 1):
+            _lw = str(d.get(f'child_{_i}_lives_with',
+                            d.get(f'child_{_i}_residence', '')) or '').strip().lower()
+            if not _lw or any(x in _lw for x in ('other parent', 'respondent', 'grandparent', 'father', 'mother')):
+                continue
+            if _lw in ('me', 'applicant', 'both', 'both_equal') or any(
+                    x in _lw for x in ('with me', 'shared', 'equal', '50/50', 'both parents', 'with the applicant')):
+                _home += 1
+        children_count = str(_home) if _home else ''
     spouse_workplace = val('f13_scheduleB_partner_workplace', 'sched_b_partner_workplace')
     spouse_earnings  = money('f13_scheduleB_partner_earnings', 'sched_b_partner_earnings')
     spouse_earn_period = val('f13_scheduleB_partner_earn_period', 'sched_b_partner_earn_period')
