@@ -177,6 +177,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: 'const cl=ln.replace(/[$,]/g,"").trim();const m=cl.match(/^-?\\d+(\\.\\d+)?/);',
   },
+  {
+    commit: 'Oct 19 2026 (see FIX-F131-VEHICLE-YEAR)',
+    name: 'Form 13.1 vehicles box: value first, so the total never counts the year (FIX-F131-VEHICLE-YEAR)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'label:"Vehicles (start with the value, then make, model, year)",placeholder:"e.g. 28000 — 2019 Chevrolet Silverado"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
