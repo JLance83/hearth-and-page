@@ -1456,13 +1456,16 @@ def fill_form13(input_path, output_path, form_data_list):
 
     # ── Part 2: Monthly expenses (page 3-4) ───────────────────────────────
     # AUTOMATIC DEDUCTIONS
-    cpp = money('f13_expenses_exp_auto_cpp',   'exp_auto_cpp',   'cpp_contributions') \
-          or money('f13_employment_cpp_deducted', 'cpp_deducted')
-    ei_prem = money('f13_expenses_exp_auto_ei', 'exp_auto_ei', 'ei_premiums') \
-              or money('f13_employment_ei_deducted', 'ei_deducted')
+    # FIX-F13-AUTO-DEDUCTIONS (option A, Oct 19 2026): the wizard asks for
+    # ONE monthly total (exp_auto_deductions). Per-line CPP/EI/tax are used
+    # only if the user gave them as monthly expense answers. We no longer
+    # copy the pay-stub amounts (f13_employment_*_deducted): those are
+    # PER PAY PERIOD, not monthly, so printing them here overstated the
+    # monthly lines and made the subtotals disagree with the total.
+    cpp = money('f13_expenses_exp_auto_cpp',   'exp_auto_cpp',   'cpp_contributions')
+    ei_prem = money('f13_expenses_exp_auto_ei', 'exp_auto_ei', 'ei_premiums')
     inc_tax = money('f13_expenses_exp_auto_incometax', 'exp_auto_incometax',
-                    'income_taxes') \
-              or money('f13_employment_income_tax_deducted', 'income_tax_deducted')
+                    'income_taxes')
     emp_pension = money('f13_expenses_exp_auto_pension', 'exp_auto_pension',
                          'employee_pension_contributions')
     union_dues = money('f13_expenses_exp_auto_uniondues', 'exp_auto_uniondues',
@@ -1476,6 +1479,9 @@ def fill_form13(input_path, output_path, form_data_list):
     # Automatic Deductions subtotal — Subtotal 1
     sub_auto = to_float(cpp) + to_float(ei_prem) + to_float(inc_tax) \
                + to_float(emp_pension) + to_float(union_dues)
+    if not sub_auto:
+        # Option A: no per-line answers -> the wizard's monthly total.
+        sub_auto = to_float(money('f13_expenses_exp_auto_deductions', 'exp_auto_deductions'))
     fields['Subtotal 1 [0.00]'] = f'{sub_auto:.2f}' if sub_auto else ''
 
     # HOUSING
