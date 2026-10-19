@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.2'
+FILLER_VERSION = 'dist-2026-10-19.3'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -125,10 +125,19 @@ def calc_age(dob_raw):
     except:
         return ''
 
+# FIX-UNIT-NA: the wizard's Unit box is often answered "N/A" / "none" by
+# people who have no unit. Treat those as blank so PDFs never print
+# "Unit N/A, 3674 Mark St".
+_NO_UNIT = {'n/a', 'na', 'n.a.', 'n.a', 'none', 'nil', 'null', 'no', '-', '\u2013', '\u2014', 'not applicable'}
+
+def _real_unit(unit):
+    u = str(unit or '').strip()
+    return '' if u.lower() in _NO_UNIT else u
+
 def build_address(section):
     parts = []
     if section.get('address'): parts.append(section['address'])
-    if section.get('unit'): parts.append(f"Unit {section['unit']}")
+    if _real_unit(section.get('unit')): parts.append(f"Unit {_real_unit(section.get('unit'))}")
     if section.get('city'): parts.append(section['city'])
     if section.get('province'): parts.append(section['province'])
     if section.get('postalCode'): parts.append(section['postalCode'])
@@ -710,7 +719,7 @@ def _fmt_addr(street, unit, city, province, postal):
     Unit is prefixed as 'Unit N, <street>' so it lands where humans expect it.
     """
     street = (street or '').strip()
-    unit   = (unit   or '').strip()
+    unit   = _real_unit(unit)
     city   = (city   or '').strip()
     province = (province or '').strip()
     postal = (postal or '').strip()
