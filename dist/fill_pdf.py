@@ -134,6 +134,59 @@ def _real_unit(unit):
     u = str(unit or '').strip()
     return '' if u.lower() in _NO_UNIT else u
 
+# FIX-F13-AMOUNT-SPLIT: Form 13 asset/debt wizard boxes ask for one item per
+# line, "start with the value" (e.g. "28000 — 2019 Ford F-150",
+# "5000 (2015 Infiniti Q50)", "$4,100.50 KOHO Line Of Credit").
+import re as _re_amt
+_AMT_LINE = _re_amt.compile(r'^\s*\$?\s*(-?\d[\d,]*(?:\.\d+)?)\s*\$?\s*(?:[-\u2013\u2014:,=]\s*)?(.*)$')
+_DOLLAR_ANY = _re_amt.compile(r'\$\s*(-?\d[\d,]*(?:\.\d+)?)')
+
+def _amount_lines(text):
+    """Split a multi-line "amount + description" answer into
+    [(amount '1234.00' or '', description), ...]. Blank and N/A lines are
+    skipped. A leading 4-digit year followed by words ("2015 Infiniti") is
+    NOT read as money unless no other amount exists AND it has a $ sign:
+    if the line has a $-amount elsewhere, that is used; otherwise the line
+    is kept as description with no amount (blank is safer than wrong)."""
+    out = []
+    for raw in str(text or '').split('\n'):
+        ln = raw.strip()
+        if not ln or ln.upper() in ('N/A', 'NA', 'NONE', '-'):
+            continue
+        amt, desc = '', ln
+        m = _AMT_LINE.match(ln)
+        if m:
+            num, rest = m.group(1), m.group(2).strip()
+            looks_year = (_re_amt.fullmatch(r'(19|20)\d\d', num) is not None
+                          and not ln.lstrip().startswith('$')
+                          and rest[:1].isalpha())
+            if looks_year:
+                d2 = _DOLLAR_ANY.search(ln)
+                if d2:
+                    amt = d2.group(1)
+                    desc = (ln[:d2.start()] + ln[d2.end():]).strip(' -\u2013\u2014:,')
+            else:
+                amt, desc = num, rest
+        if desc.startswith('(') and desc.endswith(')'):
+            desc = desc[1:-1].strip()
+        if amt:
+            try:
+                amt = f"{float(amt.replace(',', '')):.2f}"
+            except ValueError:
+                amt = ''
+        out.append((amt, desc))
+    return out
+
+
+def _rows3(entries):
+    """Fit entries into the PDF's 3 rows; extra lines are merged into row 3
+    (descriptions joined, amounts added) so nothing is silently dropped."""
+    if len(entries) <= 3:
+        return entries
+    extra = entries[2:]
+    tot = sum(float(a) for a, _ in extra if a)
+    return entries[:2] + [(f'{tot:.2f}' if tot else '', '; '.join(d for _, d in extra if d))]
+
 def build_address(section):
     parts = []
     if section.get('address'): parts.append(section['address'])
@@ -1671,99 +1724,33 @@ def fill_form13(input_path, output_path, form_data_list):
     # ordering of the AcroForm). We preserve that convention because it was
     # verified visually in the previous session.
     #
-    # ─── Real Estate slot 1 ───────────────────────────────────────────
-    re_val  = money('f13_assets_asset_realestate', 'asset_realestate')
-    re_desc = val('f13_assets_asset_realestate_desc', 'asset_realestate_desc')
-    fields['Address and Nature of Ownership 1'] = re_desc
-    fields['Value or Amount (0.00) 1']          = re_val
-
-    # ─── Vehicles slot 1 ──────────────────────────────────────────────
-    veh_val_raw = d.get('f13_assets_asset_vehicles', d.get('asset_vehicles', ''))
-    veh_val_str = str(veh_val_raw or '').strip()
-    # In case-17, this field contains "2015 Infiniti Q50\n\n\n" — a description
-    # rather than a currency. Try to parse a leading number; otherwise treat
-    # the whole thing as description and fall back to a separate desc key.
-    veh_val = ''
-    veh_desc = val('f13_assets_asset_vehicles_desc', 'asset_vehicles_desc')
-    try:
-        # Match a leading numeric prefix (with optional commas/decimals)
-        import re as _re
-        m = _re.match(r'^\s*\$?([\d,]+(?:\.\d+)?)\s*$', veh_val_str)
-        if m:
-            veh_val = m.group(1).replace(',', '')
-        elif veh_val_str and not veh_desc:
-            veh_desc = veh_val_str
-    except Exception:
-        pass
-    fields['Year and Make - Cars, Boats, Vehicles 1'] = veh_desc
-    fields['Value or Amount (0.00) 4']                = veh_val
-
-    # ─── "Other Possessions" (Address Where Located) slot 1 ───────────
-    fields['Address - Other Possessions 1'] = val(
-        'f13_assets_asset_possessions_desc', 'asset_possessions_desc',
-    )
-    fields['Value or Amount (0.00) 7'] = money(
-        'f13_assets_asset_possessions', 'asset_possessions',
-    )
-
-    # ─── Investments slot 1 ───────────────────────────────────────────
-    fields['Investments: Type \u2013 Issuer \u2013 Due Date \u2013 Number of Shares 1'] = val(
-        'f13_assets_asset_investments_desc', 'asset_investments_desc',
-    )
-    fields['Value or Amount (0.00) 10'] = money(
-        'f13_assets_asset_investments', 'asset_investments',
-    )
-
-    # ─── Bank Accounts slot 1 ─────────────────────────────────────────
-    fields['Name and Address of Institution - Bank Accounts 1'] = val(
-        'f13_assets_asset_bank_name', 'asset_bank_name',
-    )
-    fields['Account Number 1'] = val(
-        'f13_assets_asset_bank_account', 'asset_bank_account',
-    )
-    fields['Value or Amount (0.00) 13'] = money(
-        'f13_assets_asset_bank_accounts', 'asset_bank_accounts',
-    )
-
-    # ─── Savings Plans (RRSP/TFSA/Pension) slot 1 ─────────────────────
-    _rrsp_val = money('f13_assets_asset_rrsp_pension', 'asset_rrsp_pension')
-    if _rrsp_val:
-        fields['Type and Issuer - Savings Plans 1'] = val(
-            'f13_assets_asset_rrsp_desc', 'asset_rrsp_desc',
-        ) or 'RRSP / TFSA / Pension'
-        fields['Value or Amount (0.00) 16'] = _rrsp_val
-
-    # ─── Life Insurance slot 1 ────────────────────────────────────────
-    fields['Life Insurance: Type \u2013 Beneficiary \u2013 Face Amount 1'] = val(
-        'f13_assets_asset_life_insurance_desc', 'asset_life_insurance_desc',
-    )
-    fields['Cash Surrender Value (0.00) 1'] = money(
-        'f13_assets_asset_life_insurance', 'asset_life_insurance',
-    )
-
-    # ─── Business interests slot 1 ────────────────────────────────────
-    fields['Name and Address of Business 1'] = val(
-        'f13_assets_asset_business_desc', 'asset_business_desc',
-    )
-    fields['Cash Surrender Value (0.00) 4'] = money(
-        'f13_assets_asset_business', 'asset_business',
-    )
-
-    # ─── Money owed slot 1 ────────────────────────────────────────────
-    fields['Name and Address of Debtors 1'] = val(
-        'f13_assets_asset_money_owed_desc', 'asset_money_owed_desc',
-    )
-    fields['Cash Surrender Value (0.00) 7'] = money(
-        'f13_assets_asset_money_owed', 'asset_money_owed',
-    )
-
-    # ─── Other assets slot 1 ──────────────────────────────────────────
-    fields['Other Assets 1'] = val(
-        'f13_assets_asset_other_desc', 'asset_other_desc',
-    )
-    fields['Cash Surrender Value (0.00) 10'] = money(
-        'f13_assets_asset_other', 'asset_other',
-    )
+    # FIX-F13-AMOUNT-SPLIT: every asset section uses the same rule - one
+    # line per item, leading amount -> value box, rest -> description box,
+    # up to 3 rows (row map verified in FIX-F13-ASSET-ROWS above).
+    _ASSET_SECTIONS = [
+        # (wizard key, legacy desc key, description field fmt, value field fmt, value offset)
+        ('asset_realestate',     'asset_realestate_desc',     'Address and Nature of Ownership {i}', 'Value or Amount (0.00) {n}', 0),
+        ('asset_vehicles',       'asset_vehicles_desc',       'Year and Make - Cars, Boats, Vehicles {i}', 'Value or Amount (0.00) {n}', 3),
+        ('asset_possessions',    'asset_possessions_desc',    'Address - Other Possessions {i}', 'Value or Amount (0.00) {n}', 6),
+        ('asset_investments',    'asset_investments_desc',    'Investments: Type \u2013 Issuer \u2013 Due Date \u2013 Number of Shares {i}', 'Value or Amount (0.00) {n}', 9),
+        ('asset_bank_accounts',  'asset_bank_name',           'Name and Address of Institution - Bank Accounts {i}', 'Value or Amount (0.00) {n}', 12),
+        ('asset_rrsp_pension',   'asset_rrsp_desc',           'Type and Issuer - Savings Plans {i}', 'Value or Amount (0.00) {n}', 15),
+        ('asset_life_insurance', 'asset_life_insurance_desc', 'Life Insurance: Type \u2013 Beneficiary \u2013 Face Amount {i}', 'Cash Surrender Value (0.00) {n}', 0),
+        ('asset_business',       'asset_business_desc',       'Name and Address of Business {i}', 'Cash Surrender Value (0.00) {n}', 3),
+        ('asset_money_owed',     'asset_money_owed_desc',     'Name and Address of Debtors {i}', 'Cash Surrender Value (0.00) {n}', 6),
+        ('asset_other',          'asset_other_desc',          'Other Assets {i}', 'Cash Surrender Value (0.00) {n}', 9),
+    ]
+    asset_split_total = 0.0
+    for key, desc_key, dfmt, vfmt, off in _ASSET_SECTIONS:
+        rows = _rows3(_amount_lines(d.get(f'f13_assets_{key}', d.get(key, ''))))
+        legacy_desc = val(f'f13_assets_{desc_key}', desc_key)
+        for i, (amt, desc) in enumerate(rows, start=1):
+            if i == 1 and not desc and legacy_desc:
+                desc = legacy_desc
+            fields[dfmt.format(i=i)] = desc
+            fields[vfmt.format(n=off + i)] = amt
+            asset_split_total += to_float(amt)
+    fields['Account Number 1'] = val('f13_assets_asset_bank_account', 'asset_bank_account')
 
     # ─── Total assets ─────────────────────────────────────────────────
     asset_total_str = money('f13_assets_asset_total', 'asset_total')
