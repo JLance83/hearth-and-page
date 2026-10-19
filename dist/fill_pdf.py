@@ -24,6 +24,10 @@ from datetime import date
 # in both spots either way). See vendor/README.md for refresh instructions.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
+# FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
+# (and therefore by /api/pdf-runtime-check).
+FILLER_VERSION = 'dist-2026-10-19.1'
+
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
     # Python's dynamic-library loader has to open a real file on disk. Pure-
@@ -2891,8 +2895,17 @@ if __name__ == '__main__':
     # without needing an authenticated PDF request.
     if len(sys.argv) >= 2 and sys.argv[1] == '--self-check':
         try:
+            # FIX-FILLER-VERSION: prove which filler file production runs.
+            # fillerSha256 is computed from this file's own bytes, so it
+            # changes automatically on every edit and can be compared with
+            # `sha256sum dist/fill_pdf.py` in the repo.
+            import hashlib as _hl
+            with open(os.path.abspath(__file__), 'rb') as _fh:
+                _self_sha = _hl.sha256(_fh.read()).hexdigest()
             payload = {
                 'ok': True,
+                'fillerVersion': FILLER_VERSION,
+                'fillerSha256': _self_sha[:16],
                 'pypdfVersion': getattr(pypdf, '__version__', None),
                 'pypdfPath': pypdf.__file__,
                 'python': sys.version.split()[0],
