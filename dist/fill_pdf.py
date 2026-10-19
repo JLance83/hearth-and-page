@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.10'
+FILLER_VERSION = 'dist-2026-10-19.11'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1068,6 +1068,21 @@ def fill_form8(input_path, output_path, form_data_list):
         checkboxes['annulment of marriage'] = True
     if _is_yes(d.get('claimDivorce', d.get('claim_divorce', ''))):
         checkboxes['a divorce'] = True
+
+    # FIX-F8-NOTICE: page 2 tells the other party which financial form to
+    # file. The two boxes contradict each other, so at most one is ticked.
+    # Property or the home wins, even if support is also claimed. Support
+    # alone ticks the support note. Children-only claims tick neither.
+    # Josh confirmed this rule Oct 19 2026.
+    _tokens = {t.strip() for t in claims_csv.split(',') if t.strip()}
+    _support = _tokens & {'supportForMe', 'childSupportTable', 'childSupportOther', 'spousalSupportIndexing'}
+    _support = _support or _is_yes(d.get('claimChildSupport', d.get('claim_child_support', ''))) or _is_yes(d.get('claimSpousalSupport', d.get('claim_spousal_support', '')))
+    _property = _tokens & {'equalization', 'exclusivePossession', 'exclusiveContents', 'saleOfProperty'}
+    _property = _property or _is_yes(d.get('claimPropertyDivision', d.get('claim_property_division', '')))
+    if _property:
+        checkboxes['This case includes a claim for property or exclusive possession of the matrimonial home and its contents. You MUST fill out a Financial Statement (Form 13.1 – a blank copy attached), serve a copy on the applicant(s) and file a copy in the court office with an Affidavit of Service even if you do not answer this case'] = True
+    elif _support:
+        checkboxes['This case includes a claim for support. It does not include a claim for property or exclusive possession of the matrimonial home and its contents. You MUST fill out a Financial Statement (Form 13 – a blank copy attached), serve a copy on the applicant(s) and file a copy in the court office with an Affidavit of Service even if you do not answer this case'] = True
 
     # Order details / situation summary
     # Aug 29 2026 fix (BUG-F8-OFFICIAL-02, BUG-F8-OFFICIAL-03):
