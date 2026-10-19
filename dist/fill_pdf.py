@@ -1996,12 +1996,21 @@ def fill_form13(input_path, output_path, form_data_list):
             ft = obj.get('/FT') or (parent.get('/FT') if parent is not None else None)
             if ft != '/Btn':
                 continue
-            field_name = obj.get('/T')
-            if not field_name and parent is not None:
-                field_name = parent.get('/T')
-            if not field_name:
+            # FIX-F13-CHECKBOX-FULLNAME: a "." in a field name splits it into
+            # nested parts (e.g. "other (e" > "g" > " a letter from ..."), so
+            # match on the fully-qualified name built from every /T up the
+            # parent chain, joined with "." - the name viewers show.
+            parts, node, hops = [], obj, 0
+            while node is not None and hops < 10:
+                t_part = node.get('/T')
+                if t_part is not None:
+                    parts.append(str(t_part))
+                nxt = node.get('/Parent')
+                node = nxt.get_object() if nxt is not None else None
+                hops += 1
+            if not parts:
                 continue
-            fname = str(field_name)
+            fname = '.'.join(reversed(parts))
             if fname in checkboxes:
                 # FIX-F13-CHECKBOX-ON: use the widget's real on-state
                 # (Form 13 boxes are mostly /On, not /Yes).
