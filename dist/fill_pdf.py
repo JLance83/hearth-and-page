@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.14'
+FILLER_VERSION = 'dist-2026-10-19.15'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3023,6 +3023,14 @@ def fill_form15(input_path, output_path, form_data_list):
         place = ', '.join(x for x in (c_city, c_prov) if x)
         if place:
             fields[f'Child {i} - Municipality & province'] = place
+        # FIX-F15-CHILD-ID: name and birthdate on the same child row.
+        # Birthdate is day/month/year, the same format as Form 8.
+        _cname = (d.get(f'child_{i}_name') or d.get(f'child{i}Name') or '').strip()
+        _cdob = format_dob(d.get(f'child_{i}_dob') or d.get(f'child{i}Dob') or '')
+        if _cname:
+            fields[f'Child {i} - Full legal name'] = _cname
+        if _cdob:
+            fields[f'Child {i} - Birthdate (d, m, y)'] = _cdob
     fields['Date of issue by the clerk of the court'] = d.get('issue_date', '')
     fields['the agreement that you want to change You can only use this form to change support terms in an agreement that'] = d.get('order_or_agreement_desc', '')
     n = _write_pdf(input_path, output_path, fields)
