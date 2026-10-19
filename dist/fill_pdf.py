@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.12'
+FILLER_VERSION = 'dist-2026-10-19.13'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2974,7 +2974,17 @@ def fill_form15(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
     fields = _header(d, pages=6)
     fields['Name of requesting party'] = d.get('applicant_full_name', '')
-    fields['municipality'] = d.get('city', '')
+    # FIX-F15-CITY: wizard saves applicant_city / applicant_province, not city.
+    # This is the "Sworn/Affirmed before me at ___ in ___" line. ON is written
+    # out as Ontario. A blank city leaves the municipality box empty.
+    _city = (d.get('applicant_city') or d.get('applicantCity') or d.get('city') or '').strip()
+    _prov = (d.get('applicant_province') or d.get('applicantProvince') or d.get('province') or '').strip()
+    if _prov.upper() in ('ON', 'ONT', 'ONT.'):
+        _prov = 'Ontario'
+    if _city:
+        fields['municipality'] = _city
+    if _prov:
+        fields['province, state or country'] = _prov
     fields['Date of issue by the clerk of the court'] = d.get('issue_date', '')
     fields['the agreement that you want to change You can only use this form to change support terms in an agreement that'] = d.get('order_or_agreement_desc', '')
     n = _write_pdf(input_path, output_path, fields)
