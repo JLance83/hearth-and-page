@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.15'
+FILLER_VERSION = 'dist-2026-10-19.16'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2355,10 +2355,11 @@ def _set_need_appearances(writer):
         pass
 
 
-def _write_pdf(input_path, output_path, fields, checkboxes=None, short_line_pt=None):
+def _write_pdf(input_path, output_path, fields, checkboxes=None, short_line_pt=None, font_pt=None):
     """Generic PDF writer used by all fill functions below."""
     import pypdf
     checkboxes = checkboxes or {}
+    font_pt = font_pt or {}
     reader = pypdf.PdfReader(input_path)
     writer = pypdf.PdfWriter()
     writer.append(reader)
@@ -2392,6 +2393,8 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None, short_line_pt=N
                     pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject(),
                 })
                 _da = _fit_font_da(obj, parent, fields[t], short_line_pt=short_line_pt)
+                if t in font_pt:
+                    _da = f'/Helv {float(font_pt[t]):g} Tf 0 g'
                 if _da:
                     obj.update({pypdf.generic.NameObject('/DA'): pypdf.generic.create_string_object(_da)})
                 if own_t is None and parent is not None:
@@ -3004,6 +3007,7 @@ def fill_form15(input_path, output_path, form_data_list):
         _n_kids = int(str(d.get('children_count', d.get('childrenCount', '0')) or '0'))
     except Exception:
         _n_kids = 0
+    _live_fonts = {}
     for i in range(1, 5):
         has = any(str(d.get(k, '')).strip() for k in (
             f'child_{i}_name', f'child{i}Name', f'child_{i}_dob', f'child{i}Dob',
@@ -3031,9 +3035,30 @@ def fill_form15(input_path, output_path, form_data_list):
             fields[f'Child {i} - Full legal name'] = _cname
         if _cdob:
             fields[f'Child {i} - Birthdate (d, m, y)'] = _cdob
+        # FIX-F15-LIVES-WITH: same wording as Form 8. The box is only about
+        # 96pt wide, so a long "Name (other parent)" is sized down to fit.
+        _ap_name = (d.get('applicant_full_name') or d.get('applicant_name') or '').strip()
+        _re_name = (d.get('respondent_full_name') or d.get('respondent_name') or '').strip()
+        if cr in ('applicant', 'with me', 'with the applicant', 'me'):
+            _who = _ap_name or 'Applicant'
+        elif lives_with_other:
+            _who = f'{_re_name} (other parent)' if _re_name else 'Other parent'
+        elif cr == 'both':
+            _who = ' and '.join(x for x in (_ap_name or 'Applicant', _re_name or 'Respondent') if x)
+        elif cr in ('other', ''):
+            _who = ''
+        else:
+            _who = str(d.get(f'child_{i}_lives_with') or '').strip()
+        if _who:
+            _key = f'Child {i} - Now living with (name of person and relationship to child)'
+            fields[_key] = _who
+            _size = (95.6 - 6.0) / (0.52 * max(len(_who), 1))
+            _size = max(6.0, min(9.0, round(_size * 2) / 2))
+            if _size < 9:
+                _live_fonts[_key] = _size
     fields['Date of issue by the clerk of the court'] = d.get('issue_date', '')
     fields['the agreement that you want to change You can only use this form to change support terms in an agreement that'] = d.get('order_or_agreement_desc', '')
-    n = _write_pdf(input_path, output_path, fields)
+    n = _write_pdf(input_path, output_path, fields, font_pt=_live_fonts)
     sys.stderr.write(f'[fill_form15] Filled {n} fields\n')
     return n
 
