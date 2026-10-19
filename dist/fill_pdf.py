@@ -1384,11 +1384,14 @@ def fill_form13(input_path, output_path, form_data_list):
     )
 
     # ── Part 1: Last-year gross (Q4) ─────────────────────────────────────
-    # Prefer explicit "gross income last year"; fall back to YTD gross as an
-    # imperfect estimate when nothing else is available.
+    # FIX-F13-LAST-YEAR: read the wizard's real key
+    # (f13_employment.last_year_gross_income). No fallback to year-to-date
+    # gross: printing this year's partial income as "last year" would be a
+    # false statement on a sworn form. Blank is safer than wrong.
     last_year_gross = money(
+        'f13_employment_last_year_gross_income', 'last_year_gross_income',
         'gross_income_last_year', 'lastYearGross', 'f13_income_last_year_gross',
-    ) or money('f13_employment_ytd_gross', 'ytd_gross', 'ytdGross')
+    )
     fields['Last year my gross income (0.00)'] = last_year_gross
 
     # ── Part 1: Monthly income table (Q5-12) ─────────────────────────────
