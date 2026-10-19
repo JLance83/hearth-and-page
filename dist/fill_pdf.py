@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.8'
+FILLER_VERSION = 'dist-2026-10-19.9'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2655,8 +2655,12 @@ def fill_form10a(input_path, output_path, form_data_list):
         'Deponent Name': d.get('deponent_name', ap),
     }
     checkboxes = {}
+    # FIX-F10A-DISMISS: there is no box named 'Dismiss claim'. The real box
+    # is the dotted LiveCycle name under the sentence "I am asking that the
+    # respondent's claim ... be dismissed with costs." The shared writer
+    # matches that full name (FIX-WRITER-FULLNAME).
     if d.get('dismiss_request', '').lower() in ('yes', 'true', '1'):
-        checkboxes['Dismiss claim'] = True
+        checkboxes['form1[0].page1[0].body[0].instrunctionFinancial[0].applicant[0].q4[0].claim[0]'] = True
     n = _write_pdf(input_path, output_path, fields, checkboxes)
     sys.stderr.write(f'[fill_form10a] Filled {n} fields\n')
     return n
