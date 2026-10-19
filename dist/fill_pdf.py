@@ -1488,14 +1488,18 @@ def fill_form13(input_path, output_path, form_data_list):
         'f13_income_inc_other_benefits', 'inc_other_benefits', 'other_income_source',
     )
 
-    inc_keys_bare = ['inc_employment','inc_commissions','inc_selfemployment','inc_ei',
-                     'inc_wcb','inc_socialassistance','inc_investment','inc_pension',
-                     'inc_spousalsupport','inc_childtaxbenefit','inc_other']
-    inc_prefixed = [f'f13_income_{k}' for k in inc_keys_bare]
-    inc_total_calc = sum(max(to_float(d.get(k, '')), to_float(d.get(fk, '')))
-                         for k, fk in zip(inc_keys_bare, inc_prefixed))
-    inc_total = money('f13_income_inc_total_monthly', 'inc_total_monthly') \
-                or (f'{inc_total_calc:.2f}' if inc_total_calc else '')
+    # FIX-F13-TOTALS: = sum of the 11 income lines printed above (page 2,
+    # lines 5-15), not a saved total.
+    _INC_LINE_FIELDS = (
+        'Employment income [0.00]', 'Commissions, tips and bonuses [0.00]',
+        'Self-employment income [0.00]', 'Employment Insurance benefits [0.00]',
+        "Workers' compensation benefits [0.00]", 'Social assistance income [0.00]',
+        'Interest and investment income [0.00]', 'Pension income [0.00]',
+        'Spousal support received from a former spouse/partner [0.00]',
+        'Child Tax Benefits or Tax Rebates [0.00]', 'Other sources of income [0.00]',
+    )
+    _inc_printed = sum(to_float(fields.get(k, '')) for k in _INC_LINE_FIELDS)
+    inc_total = f'{_inc_printed:.2f}' if _inc_printed else ''
     fields['Total monthly income from all sources [0.00]'] = inc_total
     fields['Total annual income [0.00]'] = annualize(inc_total)
 
@@ -1689,8 +1693,10 @@ def fill_form13(input_path, output_path, form_data_list):
     total_monthly_exp = (sub_auto + sub_housing + sub_util + sub_household
                          + sub_childcare + sub_transport + sub_health
                          + sub_personal + sub_other)
-    total_month_str = money('f13_expenses_exp_total_monthly', 'exp_total_monthly') \
-                      or (f'{total_monthly_exp:.2f}' if total_monthly_exp else '')
+    # FIX-F13-TOTALS: printed totals always equal the sum of the printed
+    # lines/subtotals. Saved wizard totals are NOT used: they can drift from
+    # the individual answers, and a sworn form must add up.
+    total_month_str = f'{total_monthly_exp:.2f}' if total_monthly_exp else ''
     fields['Total Amount of Monthly Expenses [0.00]'] = total_month_str
     fields['Total Amount of Yearly Expenses [0.00]']  = annualize(total_month_str)
 
@@ -1753,21 +1759,8 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Account Number 1'] = val('f13_assets_asset_bank_account', 'asset_bank_account')
 
     # ─── Total assets ─────────────────────────────────────────────────
-    asset_total_str = money('f13_assets_asset_total', 'asset_total')
-    if not asset_total_str:
-        asset_total_calc = sum_money(
-            'f13_assets_asset_realestate', 'asset_realestate',
-            'f13_assets_asset_vehicles', 'asset_vehicles',
-            'f13_assets_asset_possessions', 'asset_possessions',
-            'f13_assets_asset_investments', 'asset_investments',
-            'f13_assets_asset_bank_accounts', 'asset_bank_accounts',
-            'f13_assets_asset_rrsp_pension', 'asset_rrsp_pension',
-            'f13_assets_asset_life_insurance', 'asset_life_insurance',
-            'f13_assets_asset_business', 'asset_business',
-            'f13_assets_asset_money_owed', 'asset_money_owed',
-            'f13_assets_asset_other', 'asset_other',
-        )
-        asset_total_str = f'{asset_total_calc:.2f}' if asset_total_calc else ''
+    # FIX-F13-TOTALS: = sum of the asset values printed above.
+    asset_total_str = f'{asset_split_total:.2f}' if asset_split_total else ''
     fields['Total Assets (0.00)']            = asset_total_str
     fields['Total Value of All Property (0.00)'] = asset_total_str
 
@@ -1804,25 +1797,16 @@ def fill_form13(input_path, output_path, form_data_list):
             debt_split_total += to_float(amt)
         fields[f'Monthly Payments (0.00) {off + 1}'] = money(f'f13_debts_{monthly_key}', monthly_key)
 
-    debt_total_str = money('f13_debts_debt_total', 'debt_total')
-    if not debt_total_str:
-        debt_total_calc = sum_money(
-            'f13_debts_debt_mortgage_loans', 'debt_mortgage_loans',
-            'f13_debts_debt_credit_cards', 'debt_credit_cards',
-            'f13_debts_debt_car_loans', 'debt_car_loans',
-            'f13_debts_debt_student_loans', 'debt_student_loans',
-            'f13_debts_debt_unpaid_support', 'debt_unpaid_support',
-            'f13_debts_debt_taxes_owing', 'debt_taxes_owing',
-            'f13_debts_debt_other', 'debt_other',
-        )
-        debt_total_str = f'{debt_total_calc:.2f}' if debt_total_calc else ''
+    # FIX-F13-TOTALS: = sum of the debt amounts printed above.
+    debt_total_str = f'{debt_split_total:.2f}' if debt_split_total else ''
 
     fields['Total Amount of Debts Outstanding (0.00)'] = debt_total_str
     fields['Subtract Total Debts (0.00)']              = debt_total_str
 
     # ── Part 5: Net worth ────────────────────────────────────────────────
-    net_worth_str = money('f13_schedules_net_worth', 'net_worth')
-    if not net_worth_str and asset_total_str:
+    # FIX-F13-TOTALS: net worth = printed total assets - printed total debts.
+    net_worth_str = ''
+    if asset_total_str or debt_total_str:
         nw_calc = to_float(asset_total_str) - to_float(debt_total_str)
         net_worth_str = f'{nw_calc:.2f}'
     fields['Net Worth (0.00)'] = net_worth_str
