@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.6'
+FILLER_VERSION = 'dist-2026-10-19.7'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2204,21 +2204,39 @@ def fill_form13_1(input_path, output_path, form_data_list):
             annot_obj = annot_ref.get_object() if hasattr(annot_ref, 'get_object') else annot_ref
             if not hasattr(annot_obj, 'get'):
                 continue
-            fname = annot_obj.get('/T', '')
-            if hasattr(fname, 'replace'):
-                fname = fname.replace('\x00', '')
-            if fname in fields and fields[fname] not in (None, ''):
+            # FIX-F131-WRITER (same two bugs fixed for Form 13 and the shared writer):
+            # a "." in a field name splits it, so the widget's own /T is only the
+            # tail ("00)") and the real name is the full parent chain. Some widgets
+            # also keep /T and /FT on the parent. Match the widget's own /T first,
+            # then the full dotted name. Set /V on the parent when the widget has no /T.
+            parent = None
+            if '/Parent' in annot_obj:
+                try:
+                    parent = annot_obj['/Parent'].get_object()
+                except Exception:
+                    parent = None
+            own_t = annot_obj.get('/T')
+            if hasattr(own_t, 'replace'):
+                own_t = own_t.replace('\x00', '')
+            full_t = _get_field_full_path(annot_obj)
+            ft = annot_obj.get('/FT') or (parent.get('/FT') if parent is not None else None)
+            fname = str(own_t) if own_t is not None and str(own_t) in (fields if ft == '/Tx' else checkboxes) else full_t
+            if ft == '/Tx' and fname in fields and fields[fname] not in (None, ''):
                 annot_obj.update({
                     g.NameObject('/V'): g.create_string_object(str(fields[fname])),
                     g.NameObject('/AP'): g.DictionaryObject(),
                 })
+                if own_t is None and parent is not None:
+                    parent.update({g.NameObject('/V'): g.create_string_object(str(fields[fname]))})
                 filled += 1
-            if fname in checkboxes:
+            elif ft == '/Btn' and fname in checkboxes:
                 val = _checkbox_on_state(annot_obj) if checkboxes[fname] else '/Off'
                 annot_obj.update({
                     g.NameObject('/V'):  g.NameObject(val),
                     g.NameObject('/AS'): g.NameObject(val),
                 })
+                if own_t is None and parent is not None:
+                    parent.update({g.NameObject('/V'): g.NameObject(val)})
                 filled += 1
 
     if '/AcroForm' in writer._root_object:
