@@ -2242,6 +2242,31 @@ def fill_form13_1(input_path, output_path, form_data_list):
 #                        13B, 23C, 25, 25A, 25F, 25G, 35_1, 36, 36B
 # =============================================================================
 
+def _fit_font_da(obj, parent, value):
+    """FIX-FIT-TEXT: for a multi-line value, return a /DA string with an
+    explicit font size so every line fits inside the box. With the
+    template's auto size (0), viewers disagree - some shrink to fit,
+    others keep ~12pt and clip lines (e.g. the phone/email lines of an
+    "address for service" block). Returns None for single-line values,
+    which keep the template's own setting."""
+    import re as _re_da
+    text = str(value or '')
+    if '\n' not in text:
+        return None
+    try:
+        r = [float(x) for x in obj.get('/Rect')]
+        h, w = abs(r[3] - r[1]), abs(r[2] - r[0])
+    except Exception:
+        return None
+    lines = text.split('\n')
+    longest = max(len(x) for x in lines) or 1
+    size = min(10.0, (h - 3.0) / (len(lines) * 1.17), (w - 6.0) / (0.52 * longest))
+    size = max(5.0, round(size * 2) / 2)   # half-point steps, never below 5pt
+    da = str(obj.get('/DA') or (parent.get('/DA') if parent is not None else '') or '/Helv 0 Tf 0 g')
+    if _re_da.search(r'[\d.]+\s+Tf', da):
+        return _re_da.sub(r'[\d.]+(\s+Tf)', f'{size:g}\\1', da, count=1)
+    return f'/Helv {size:g} Tf 0 g'
+
 def _set_need_appearances(writer):
     """FIX-NEED-APPEARANCES: the shared writers clear each filled field's
     stored appearance (/AP) so the new value can be drawn - but never told
@@ -2295,6 +2320,9 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None):
                     pypdf.generic.NameObject('/V'):  pypdf.generic.create_string_object(str(fields[t])),
                     pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject(),
                 })
+                _da = _fit_font_da(obj, parent, fields[t])
+                if _da:
+                    obj.update({pypdf.generic.NameObject('/DA'): pypdf.generic.create_string_object(_da)})
                 if own_t is None and parent is not None:
                     parent.update({pypdf.generic.NameObject('/V'): pypdf.generic.create_string_object(str(fields[t]))})
                 filled += 1
