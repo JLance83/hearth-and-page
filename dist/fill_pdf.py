@@ -2003,7 +2003,9 @@ def fill_form13(input_path, output_path, form_data_list):
                 continue
             fname = str(field_name)
             if fname in checkboxes:
-                v = '/Yes' if checkboxes[fname] else '/Off'
+                # FIX-F13-CHECKBOX-ON: use the widget's real on-state
+                # (Form 13 boxes are mostly /On, not /Yes).
+                v = _checkbox_on_state(obj) if checkboxes[fname] else '/Off'
                 obj.update({
                     g.NameObject('/V'):  g.NameObject(v),
                     g.NameObject('/AS'): g.NameObject(v),
