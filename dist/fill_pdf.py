@@ -1539,6 +1539,10 @@ def fill_form13(input_path, output_path, form_data_list):
     if not sub_auto:
         # Option A: no per-line answers -> the wizard's monthly total.
         sub_auto = to_float(money('f13_expenses_exp_auto_deductions', 'exp_auto_deductions'))
+    # FIX-F13-SUBTOTAL-BOXES: the PDF's subtotal numbering does not follow
+    # the printed order. Verified by position (box vs group heading):
+    #   Subtotal 1 Automatic deductions  2 Housing   3 Transportation
+    #   4 Health   5 Utilities   6 Household   7 Childcare   8 Personal   9 Other
     fields['Subtotal 1 [0.00]'] = f'{sub_auto:.2f}' if sub_auto else ''
 
     # HOUSING
@@ -1574,7 +1578,7 @@ def fill_form13(input_path, output_path, form_data_list):
     # FIX-F13-COMBINED: the wizard asks one combined Utilities answer;
     # it belongs to the group subtotal, not to any single line.
     sub_util += to_float(money('f13_expenses_exp_utilities', 'exp_utilities'))
-    fields['Subtotal 3 [0.00]'] = f'{sub_util:.2f}' if sub_util else ''
+    fields['Subtotal 5 [0.00]'] = f'{sub_util:.2f}' if sub_util else ''      # Utilities box
 
     # HOUSEHOLD
     groceries  = money('f13_expenses_exp_groceries', 'exp_groceries')
@@ -1588,7 +1592,7 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Pet care [0.00]']          = pet_care
     fields['Laundry and Dry Cleaning'] = laundry  # note: PDF has no [0.00] suffix on this one
     sub_household = sum(to_float(x) for x in (groceries, hh_supplies, meals_out, pet_care, laundry))
-    fields['Subtotal 4 [0.00]'] = f'{sub_household:.2f}' if sub_household else ''
+    fields['Subtotal 6 [0.00]'] = f'{sub_household:.2f}' if sub_household else ''  # Household box
 
     # CHILDCARE
     daycare    = money('f13_expenses_exp_childcare', 'exp_childcare', 'daycare_expense')
@@ -1596,7 +1600,7 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Daycare expense [0.00]']   = daycare
     fields['Babysitting costs [0.00]'] = babysit
     sub_childcare = to_float(daycare) + to_float(babysit)
-    fields['Subtotal 5 [0.00]'] = f'{sub_childcare:.2f}' if sub_childcare else ''
+    fields['Subtotal 7 [0.00]'] = f'{sub_childcare:.2f}' if sub_childcare else ''  # Childcare box
 
     # TRANSPORTATION
     # FIX-F13-COMBINED: wizard exp_transit is "Transportation (transit, gas,
@@ -1620,7 +1624,7 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Car Loan or Lease Payments [0.00]'] = car_loan
     sub_transport = sum(to_float(x) for x in (transit, gas_oil, car_ins, car_rep, parking, car_loan))
     sub_transport += to_float(money('f13_expenses_exp_transit', 'exp_transit'))
-    fields['Subtotal 6 [0.00]'] = f'{sub_transport:.2f}' if sub_transport else ''
+    fields['Subtotal 3 [0.00]'] = f'{sub_transport:.2f}' if sub_transport else ''  # Transportation box
 
     # HEALTH
     health_ins = money('f13_expenses_exp_health_insurance', 'exp_health_insurance',
@@ -1635,7 +1639,7 @@ def fill_form13(input_path, output_path, form_data_list):
     sub_health = sum(to_float(x) for x in (health_ins, dental, meds, eye_care))
     # FIX-F13-COMBINED: wizard exp_health is a combined Health answer.
     sub_health += to_float(money('f13_expenses_exp_health', 'exp_health'))
-    fields['Subtotal 7 [0.00]'] = f'{sub_health:.2f}' if sub_health else ''
+    fields['Subtotal 4 [0.00]'] = f'{sub_health:.2f}' if sub_health else ''      # Health box
 
     # PERSONAL
     clothing   = money('f13_expenses_exp_clothing', 'exp_clothing')
