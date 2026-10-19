@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.13'
+FILLER_VERSION = 'dist-2026-10-19.14'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2985,6 +2985,44 @@ def fill_form15(input_path, output_path, form_data_list):
         fields['municipality'] = _city
     if _prov:
         fields['province, state or country'] = _prov
+    # FIX-F15-LIVES-IN: page 2 "where you live" boxes were never filled.
+    # Party boxes ask for the municipality only. The child column asks for
+    # municipality and province. A child living with the other parent uses
+    # that parent's city, same rule as Form 8. ON is written out as Ontario.
+    def _prov_name(v):
+        v = (v or '').strip()
+        return 'Ontario' if v.upper() in ('ON', 'ONT', 'ONT.') else v
+    ap_city = (d.get('applicant_city') or d.get('applicantCity') or d.get('city') or '').strip()
+    re_city = (d.get('respondent_city') or d.get('respondentCity') or '').strip()
+    ap_prov = _prov_name(d.get('applicant_province') or d.get('applicantProvince') or d.get('province') or '')
+    re_prov = _prov_name(d.get('respondent_province') or d.get('respondentProvince') or '')
+    if ap_city:
+        fields['Municipality requesting party lives in'] = ap_city
+    if re_city:
+        fields['Municipality responding party lives in'] = re_city
+    try:
+        _n_kids = int(str(d.get('children_count', d.get('childrenCount', '0')) or '0'))
+    except Exception:
+        _n_kids = 0
+    for i in range(1, 5):
+        has = any(str(d.get(k, '')).strip() for k in (
+            f'child_{i}_name', f'child{i}Name', f'child_{i}_dob', f'child{i}Dob',
+            f'child_{i}_lives_with'))
+        if not has and i > _n_kids:
+            continue
+        cr = str(d.get(f'child_{i}_lives_with', d.get(f'child_{i}_residence', d.get(f'child{i}Residence', ''))) or '').strip().lower()
+        lives_with_other = cr in ('respondent', 'with other parent', 'with the other parent', 'with the respondent')
+        explicit_city = (d.get(f'child_{i}_city') or d.get(f'child{i}City') or '').strip()
+        explicit_prov = _prov_name(d.get(f'child_{i}_province') or d.get(f'child{i}Province') or '')
+        if explicit_city or explicit_prov:
+            c_city, c_prov = explicit_city, explicit_prov
+        elif lives_with_other:
+            c_city, c_prov = re_city, re_prov
+        else:
+            c_city, c_prov = ap_city, ap_prov
+        place = ', '.join(x for x in (c_city, c_prov) if x)
+        if place:
+            fields[f'Child {i} - Municipality & province'] = place
     fields['Date of issue by the clerk of the court'] = d.get('issue_date', '')
     fields['the agreement that you want to change You can only use this form to change support terms in an agreement that'] = d.get('order_or_agreement_desc', '')
     n = _write_pdf(input_path, output_path, fields)
