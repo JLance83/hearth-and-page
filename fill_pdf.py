@@ -163,7 +163,7 @@ COURTHOUSE_ADDRESSES = {
     'oshawa':             '150 Bond St E, Oshawa, ON L1G 0A2',
     'brampton':           '7755 Hurontario St, Brampton, ON L6W 4T6',
     'newmarket':          '50 Eagle St W, Newmarket, ON L3Y 6B1',
-    'kingston':           '5 Court St, Kingston, ON K7L 2N4',
+    'kingston':           '469 Montreal St, Kingston, ON K7K 3H9',
     'thunder-bay':        '277 Camelot St, Thunder Bay, ON P7A 4B3',
     'sudbury':            '155 Elm St, Sudbury, ON P3C 1T9',
 }
@@ -438,7 +438,7 @@ _ON_COURTHOUSES = [
     ('cornwall',       'Cornwall',       '29 Second St W, Cornwall, ON K6J 1G6',             '29 Second St W, Cornwall, ON K6J 1G6'),
     ('etobicoke',      'Etobicoke',      '2201 Finch Ave W, Etobicoke, ON M9M 2Y9',          '2201 Finch Ave W, Etobicoke, ON M9M 2Y9'),
     ('hamilton',       'Hamilton',       '55 Main St W, Hamilton, ON L8P 1H4',               '55 Main St W, Hamilton, ON L8P 1H4'),
-    ('kingston',       'Kingston',       '5 Court St, Kingston, ON K7L 2N4',                 '5 Court St, Kingston, ON K7L 2N4'),
+    ('kingston',       'Kingston',       '469 Montreal St, Kingston, ON K7K 3H9',            '469 Montreal St, Kingston, ON K7K 3H9'),
     ('kitchener',      'Kitchener',      '85 Frederick St, Kitchener, ON N2H 0A7',           '85 Frederick St, Kitchener, ON N2H 0A7'),
     ('london',         'London',         '80 Dundas St, London, ON N6A 6A3',                 '80 Dundas St, London, ON N6A 6A3'),
     ('milton',         'Milton',         '491 Steeles Ave E, Milton, ON L9T 1Y7',            '491 Steeles Ave E, Milton, ON L9T 1Y7'),
