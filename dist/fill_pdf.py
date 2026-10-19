@@ -2242,6 +2242,23 @@ def fill_form13_1(input_path, output_path, form_data_list):
 #                        13B, 23C, 25, 25A, 25F, 25G, 35_1, 36, 36B
 # =============================================================================
 
+def _set_need_appearances(writer):
+    """FIX-NEED-APPEARANCES: the shared writers clear each filled field's
+    stored appearance (/AP) so the new value can be drawn - but never told
+    viewers to redraw. Strict viewers (Poppler, often Adobe Acrobat) then
+    show the field EMPTY even though the value is in the file. Set the
+    AcroForm /NeedAppearances flag, exactly as the Form 8 / Form 13 /
+    Form 13.1 / generic writers already do."""
+    import pypdf
+    try:
+        root = writer._root_object
+        if '/AcroForm' in root:
+            root['/AcroForm'].get_object().update({
+                pypdf.generic.NameObject('/NeedAppearances'): pypdf.generic.BooleanObject(True)})
+    except Exception:
+        pass
+
+
 def _write_pdf(input_path, output_path, fields, checkboxes=None):
     """Generic PDF writer used by all fill functions below."""
     import pypdf
@@ -2290,6 +2307,7 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None):
                 if own_t is None and parent is not None:
                     parent.update({pypdf.generic.NameObject('/V'): pypdf.generic.NameObject(v)})
                 filled += 1
+    _set_need_appearances(writer)
     with open(output_path, 'wb') as f:
         writer.write(f)
     return filled
@@ -2343,6 +2361,7 @@ def _write_pdf_lc(input_path, output_path, fields):
                     pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject(),
                 })
                 filled += 1
+    _set_need_appearances(writer)
     with open(output_path, 'wb') as f:
         writer.write(f)
     return filled
