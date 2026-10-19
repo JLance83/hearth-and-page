@@ -414,23 +414,6 @@ app.get('/api/pdf-runtime-check', async (req, res) => {
     return res.status(500).json({ ok: false, error: String(e && e.message || e) });
   }
 });
-app.post('/api/auth/login-debug', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await dbGet('users', { email: `eq.${email.toLowerCase()}` });
-    if (!user) return res.json({ step: 'user_lookup', result: 'NOT_FOUND' });
-    const bcrypt2 = require('bcryptjs');
-    const ok = await bcrypt2.compare(password, user.passwordHash);
-    if (!ok) return res.json({ step: 'password_check', result: 'MISMATCH', hashStart: (user.passwordHash||'').substring(0,15) });
-    try {
-      const tok = require('crypto').randomBytes(32).toString('hex');
-      const exp = Date.now() + 86400000;
-      const sess = await dbInsert('sessions', { userId: user.id, token: tok, expiresAt: exp, createdAt: Date.now() });
-      await dbDelete('sessions', { token: `eq.${tok}` });
-      return res.json({ step: 'all_ok', userId: user.id, plan: user.plan });
-    } catch(e2) { return res.json({ step: 'session_insert', error: e2.message }); }
-  } catch(e) { return res.json({ step: 'exception', error: e.message }); }
-});
 app.get('/api/status', (req, res) => res.json({ ok: true, version: BOOT_INFO.version, db: 'supabase', openaiConfigured: !!(process.env.CUSTOM_CRED_API_OPENAI_COM_TOKEN || process.env.OPENAI_API_KEY) }));
 app.get('/api/', (req, res) => res.json({ name: 'Hearth & Page API', version: BOOT_INFO.version, db: 'supabase' }));
 
