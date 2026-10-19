@@ -2966,6 +2966,8 @@ def fill_form15c(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form17(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
+    # FIX-F17-F25-FULL-ADDRESS: same full address-for-service block as _header()
+    _hb = _header(d)
     courthouse = d.get('courthouse', '')
     cn = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
     ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
@@ -2985,9 +2987,9 @@ def fill_form17(input_path, output_path, form_data_list):
         'location of video terminal or telephone': d.get('video_location', ''),
         'name of person': d.get('contact_person', ''),
         'other; specify': d.get('other_instructions', ''),
-        "Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": f'{ap}\n{ap_addr}',
+        "Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": _hb["Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"],
         "Applicant lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('applicant_lawyer', ''),
-        'Respondent full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)': f'{re_name}\n{re_addr}',
+        'Respondent full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)': _hb['Respondent full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)'],
         "Respondent lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('respondent_lawyer', ''),
         "Name & address of Children's Lawyer's agent (street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)) and name of person represented": d.get('childrens_lawyer', ''),
     }
@@ -3228,6 +3230,8 @@ def fill_form23c(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form25(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
+    # FIX-F17-F25-FULL-ADDRESS: same full address-for-service block as _header()
+    _hb = _header(d)
     courthouse = d.get('courthouse', '')
     cn = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
     ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
@@ -3248,8 +3252,8 @@ def fill_form25(input_path, output_path, form_data_list):
         "Pursuant to the Children's Law Reform Act, this court orders that": d.get('clra_terms', ''),
         'Pursuant to the Family Law Act, this court orders that': d.get('fla_terms', ''),
         'Date of signature': d.get('date_signed', ''),
-        "Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": f'{ap}\n{ap_addr}',
-        "Respondent's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": f'{re_name}\n{re_addr}',
+        "Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": _hb["Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"],
+        "Respondent's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": _hb["Respondent's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"],
         "Applicant lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('applicant_lawyer', ''),
         "Respondent lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)": d.get('respondent_lawyer', ''),
     }
