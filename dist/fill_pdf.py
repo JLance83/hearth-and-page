@@ -2242,17 +2242,36 @@ def fill_form13_1(input_path, output_path, form_data_list):
 #                        13B, 23C, 25, 25A, 25F, 25G, 35_1, 36, 36B
 # =============================================================================
 
-def _fit_font_da(obj, parent, value):
+def _fit_font_da(obj, parent, value, short_line_pt=None):
     """FIX-FIT-TEXT: for a multi-line value, return a /DA string with an
     explicit font size so every line fits inside the box. With the
     template's auto size (0), viewers disagree - some shrink to fit,
     others keep ~12pt and clip lines (e.g. the phone/email lines of an
-    "address for service" block). Returns None for single-line values,
-    which keep the template's own setting."""
+    "address for service" block).
+
+    short_line_pt (FIX-F36-FIT-LINE): a caller can ask for the same
+    treatment on a short single-line box. iPhone and other strict
+    viewers draw a 12pt (or auto-as-12pt) value in a 16pt box and clip
+    it against the underline. Only forms that pass short_line_pt are
+    affected; every other form keeps the template size."""
     import re as _re_da
     text = str(value or '')
     if '\n' not in text:
-        return None
+        if not short_line_pt:
+            return None
+        try:
+            r = [float(x) for x in obj.get('/Rect')]
+            h = abs(r[3] - r[1])
+        except Exception:
+            return None
+        if h >= 17:
+            return None
+        size = min(float(short_line_pt), max(7.0, round((h - 7.0) * 2) / 2))
+        da = str(obj.get('/DA') or (parent.get('/DA') if parent is not None else '') or '/Helv 0 Tf 0 g')
+        if _re_da.search(r'[\d.]+\s+Tf', da):
+            return _re_da.sub(r'[\d.]+(\s+Tf)', f'{size:g}\\1', da, count=1)
+        return f'/Helv {size:g} Tf 0 g'
+
     try:
         r = [float(x) for x in obj.get('/Rect')]
         h, w = abs(r[3] - r[1]), abs(r[2] - r[0])
@@ -2284,7 +2303,7 @@ def _set_need_appearances(writer):
         pass
 
 
-def _write_pdf(input_path, output_path, fields, checkboxes=None):
+def _write_pdf(input_path, output_path, fields, checkboxes=None, short_line_pt=None):
     """Generic PDF writer used by all fill functions below."""
     import pypdf
     checkboxes = checkboxes or {}
@@ -2320,7 +2339,7 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None):
                     pypdf.generic.NameObject('/V'):  pypdf.generic.create_string_object(str(fields[t])),
                     pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject(),
                 })
-                _da = _fit_font_da(obj, parent, fields[t])
+                _da = _fit_font_da(obj, parent, fields[t], short_line_pt=short_line_pt)
                 if _da:
                     obj.update({pypdf.generic.NameObject('/DA'): pypdf.generic.create_string_object(_da)})
                 if own_t is None and parent is not None:
@@ -3484,7 +3503,10 @@ def fill_form36(input_path, output_path, form_data_list):
         'has been filed with the application': d.get('cert_filed_with_app', '') in ('yes','true','1'),
         'is attached to this affidavit': d.get('cert_attached', '') in ('yes','true','1'),
     }
-    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    # FIX-F36-FIT-LINE: these underline boxes are 16pt tall. A 12pt value
+    # (the name box's own setting, and what a phone viewer uses for auto
+    # size) is clipped against the line. 9pt fits inside the box.
+    n = _write_pdf(input_path, output_path, fields, checkboxes, short_line_pt=9)
     sys.stderr.write(f'[fill_form36] Filled {n} fields\n')
     return n
 
