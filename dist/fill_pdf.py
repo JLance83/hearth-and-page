@@ -1642,6 +1642,15 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Total Amount of Yearly Expenses [0.00]']  = annualize(total_month_str)
 
     # ── Part 3: Assets ───────────────────────────────────────────────────
+    # FIX-F13-ASSET-ROWS (Oct 19 2026): value boxes verified by pairing each
+    # box with the description box on the same row of the official PDF:
+    #   Real estate 1-3 -> Value 1-3      Vehicles 1-3   -> Value 4-6
+    #   Other possessions -> Value 7-9    Investments    -> Value 10-12
+    #   Bank accounts -> Value 13-15      Savings plans  -> Value 16-18
+    #   Life insurance -> Cash Surrender 1-3   Business -> Cash Surrender 4-6
+    #   Money owed -> Cash Surrender 7-9       Other    -> Cash Surrender 10-12
+    # ("Yearly Market Value" is the page-3 non-cash benefits table, not assets.)
+    # The older slot notes below are superseded by this table.
     # PDF slot numbering (Value or Amount (0.00) N):
     #   1-3  = Real Estate           (Address and Nature of Ownership 1-3)
     #   4-6  = Cars, Boats, Vehicles (Year and Make - Cars, Boats, Vehicles 1-3)
@@ -1687,13 +1696,13 @@ def fill_form13(input_path, output_path, form_data_list):
     except Exception:
         pass
     fields['Year and Make - Cars, Boats, Vehicles 1'] = veh_desc
-    fields['Value or Amount (0.00) 2']                = veh_val
+    fields['Value or Amount (0.00) 4']                = veh_val
 
     # ─── "Other Possessions" (Address Where Located) slot 1 ───────────
     fields['Address - Other Possessions 1'] = val(
         'f13_assets_asset_possessions_desc', 'asset_possessions_desc',
     )
-    fields['Yearly Market Value 1 [0.00]'] = money(
+    fields['Value or Amount (0.00) 7'] = money(
         'f13_assets_asset_possessions', 'asset_possessions',
     )
 
@@ -1701,7 +1710,7 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Investments: Type \u2013 Issuer \u2013 Due Date \u2013 Number of Shares 1'] = val(
         'f13_assets_asset_investments_desc', 'asset_investments_desc',
     )
-    fields['Value or Amount (0.00) 9'] = money(
+    fields['Value or Amount (0.00) 10'] = money(
         'f13_assets_asset_investments', 'asset_investments',
     )
 
@@ -1712,7 +1721,7 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Account Number 1'] = val(
         'f13_assets_asset_bank_account', 'asset_bank_account',
     )
-    fields['Value or Amount (0.00) 5'] = money(
+    fields['Value or Amount (0.00) 13'] = money(
         'f13_assets_asset_bank_accounts', 'asset_bank_accounts',
     )
 
@@ -1722,7 +1731,7 @@ def fill_form13(input_path, output_path, form_data_list):
         fields['Type and Issuer - Savings Plans 1'] = val(
             'f13_assets_asset_rrsp_desc', 'asset_rrsp_desc',
         ) or 'RRSP / TFSA / Pension'
-        fields['Value or Amount (0.00) 8'] = _rrsp_val
+        fields['Value or Amount (0.00) 16'] = _rrsp_val
 
     # ─── Life Insurance slot 1 ────────────────────────────────────────
     fields['Life Insurance: Type \u2013 Beneficiary \u2013 Face Amount 1'] = val(
@@ -1736,7 +1745,7 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Name and Address of Business 1'] = val(
         'f13_assets_asset_business_desc', 'asset_business_desc',
     )
-    fields['Value or Amount (0.00) 13'] = money(
+    fields['Cash Surrender Value (0.00) 4'] = money(
         'f13_assets_asset_business', 'asset_business',
     )
 
@@ -1744,7 +1753,7 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Name and Address of Debtors 1'] = val(
         'f13_assets_asset_money_owed_desc', 'asset_money_owed_desc',
     )
-    fields['Value or Amount (0.00) 14'] = money(
+    fields['Cash Surrender Value (0.00) 7'] = money(
         'f13_assets_asset_money_owed', 'asset_money_owed',
     )
 
@@ -1752,7 +1761,7 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Other Assets 1'] = val(
         'f13_assets_asset_other_desc', 'asset_other_desc',
     )
-    fields['Value or Amount (0.00) 15'] = money(
+    fields['Cash Surrender Value (0.00) 10'] = money(
         'f13_assets_asset_other', 'asset_other',
     )
 
