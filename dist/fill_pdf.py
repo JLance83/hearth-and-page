@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.9'
+FILLER_VERSION = 'dist-2026-10-19.10'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1209,15 +1209,21 @@ def fill_form8(input_path, output_path, form_data_list):
             if annot_obj.get('/Subtype') != '/Widget':
                 continue
 
-            field_name = annot_obj.get('/T')
-            if not field_name and '/Parent' in annot_obj:
+            # FIX-F8-WRITER-FULLNAME: a "." in a field name splits it, so the
+            # widget's own /T is only the tail ("m" for a.m., or the end of the
+            # page-2 notice). Match the widget's own /T first, so every existing
+            # mapping keeps working, then the full dotted name.
+            own_t = annot_obj.get('/T')
+            if not own_t and '/Parent' in annot_obj:
                 try:
-                    field_name = annot_obj['/Parent'].get_object().get('/T')
-                except:
+                    own_t = annot_obj['/Parent'].get_object().get('/T')
+                except Exception:
                     pass
-            if not field_name:
+            full_t = _get_field_full_path(annot_obj)
+            own_s = str(own_t) if own_t else ''
+            fname = own_s if own_s and (own_s in fields or own_s in checkboxes) else full_t
+            if not fname:
                 continue
-            fname = str(field_name)
 
             if fname in fields:
                 val = str(fields[fname])
