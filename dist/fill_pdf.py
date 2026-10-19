@@ -1772,70 +1772,37 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Total Value of All Property (0.00)'] = asset_total_str
 
     # ── Part 4: Debts ────────────────────────────────────────────────────
-    # 12 slots in this table. Groups: Mortgages 1-3, CreditCards 4-6,
-    # UnpaidSupport 7-9, OtherDebts 10-12. Fill row 1 of each group.
-    #
-    # Mortgages/Loans (slot 1)
-    fields['Creditor (name and address) - Mortgages, Lines of Credits, Loans 1'] = val(
-        'f13_debts_debt_mortgage_desc', 'debt_mortgage_desc',
-    )
-    fields['Full amount now owing (0.00) 1'] = money(
-        'f13_debts_debt_mortgage_loans', 'debt_mortgage_loans',
-    )
-    fields['Monthly Payments (0.00) 1'] = money(
-        'f13_debts_debt_mortgage_monthly', 'debt_mortgage_monthly',
-    )
-    # Credit cards (slot 4)
-    fields['Creditor (name and address) - Outstanding Credit Card Balances 1'] = val(
-        'f13_debts_debt_cc_desc', 'debt_cc_desc',
-    )
-    fields['Full amount now owing (0.00) 4'] = money(
-        'f13_debts_debt_credit_cards', 'debt_credit_cards',
-    )
-    fields['Monthly Payments (0.00) 4'] = money(
-        'f13_debts_debt_cc_monthly', 'debt_cc_monthly',
-    )
-    # Car loans reuse the "Monthly Payments (0.00) 7" slot per the legacy code
-    fields['Full amount now owing (0.00) 7'] = money(
-        'f13_debts_debt_car_loans', 'debt_car_loans',
-    )
-    fields['Monthly Payments (0.00) 7'] = money(
-        'f13_debts_debt_car_monthly', 'debt_car_monthly',
-    )
-    # Student loans → slot 9
-    fields['Full amount now owing (0.00) 9'] = money(
-        'f13_debts_debt_student_loans', 'debt_student_loans',
-    )
-    fields['Monthly Payments (0.00) 9'] = money(
-        'f13_debts_debt_student_monthly', 'debt_student_monthly',
-    )
-    # Unpaid support (slot 10 for creditor name, but Monthly Payments 10 is unpaid support)
-    fields['Creditor (name and address) - Unpaid Support Amounts 1'] = val(
-        'f13_debts_debt_unpaid_support_desc', 'debt_unpaid_support_desc',
-    )
-    fields['Full amount now owing (0.00) 10'] = money(
-        'f13_debts_debt_unpaid_support', 'debt_unpaid_support',
-    )
-    fields['Monthly Payments (0.00) 10'] = money(
-        'f13_debts_debt_unpaid_support_monthly', 'debt_unpaid_support_monthly',
-    )
-    # Taxes owing → slot 11
-    fields['Full amount now owing (0.00) 11'] = money(
-        'f13_debts_debt_taxes_owing', 'debt_taxes_owing',
-    )
-    fields['Monthly Payments (0.00) 11'] = money(
-        'f13_debts_debt_taxes_monthly', 'debt_taxes_monthly',
-    )
-    # Other debts → slot 12
-    fields['Creditor (name and address) - Other Debts 1'] = val(
-        'f13_debts_debt_other_desc', 'debt_other_desc',
-    )
-    fields['Full amount now owing (0.00) 12'] = money(
-        'f13_debts_debt_other', 'debt_other',
-    )
-    fields['Monthly Payments (0.00) 12'] = money(
-        'f13_debts_debt_other_monthly', 'debt_other_monthly',
-    )
+    # FIX-F13-DEBTS (Oct 19 2026): rows verified against the official PDF
+    # (each "Full amount now owing" box paired with the creditor box on its
+    # row): Mortgages/lines of credit/loans 1-3, Credit cards 4-6,
+    # Unpaid support 7-9, Other debts 10-12. Wizard answers are one debt per
+    # line, amount first ("4100.50 KOHO Line Of Credit") -> amount + creditor.
+    # Legacy keys without a wizard question are folded into the right group
+    # (car/student loans -> loans; taxes owing -> other debts).
+    _DEBT_GROUPS = [
+        (['debt_mortgage_loans', 'debt_car_loans', 'debt_student_loans'], 'debt_mortgage_desc', 'debt_mortgage_monthly',
+         'Creditor (name and address) - Mortgages, Lines of Credits, Loans {i}', 0),
+        (['debt_credit_cards'], 'debt_cc_desc', 'debt_cc_monthly',
+         'Creditor (name and address) - Outstanding Credit Card Balances {i}', 3),
+        (['debt_unpaid_support'], 'debt_unpaid_support_desc', 'debt_unpaid_support_monthly',
+         'Creditor (name and address) - Unpaid Support Amounts {i}', 6),
+        (['debt_other', 'debt_taxes_owing'], 'debt_other_desc', 'debt_other_monthly',
+         'Creditor (name and address) - Other Debts {i}', 9),
+    ]
+    debt_split_total = 0.0
+    for keys, desc_key, monthly_key, cfmt, off in _DEBT_GROUPS:
+        entries = []
+        for k in keys:
+            entries += _amount_lines(d.get(f'f13_debts_{k}', d.get(k, '')))
+        rows = _rows3(entries)
+        legacy_desc = val(f'f13_debts_{desc_key}', desc_key)
+        for i, (amt, desc) in enumerate(rows, start=1):
+            if i == 1 and not desc and legacy_desc:
+                desc = legacy_desc
+            fields[cfmt.format(i=i)] = desc
+            fields[f'Full amount now owing (0.00) {off + i}'] = amt
+            debt_split_total += to_float(amt)
+        fields[f'Monthly Payments (0.00) {off + 1}'] = money(f'f13_debts_{monthly_key}', monthly_key)
 
     debt_total_str = money('f13_debts_debt_total', 'debt_total')
     if not debt_total_str:
