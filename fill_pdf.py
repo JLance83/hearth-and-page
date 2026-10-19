@@ -164,7 +164,7 @@ COURTHOUSE_ADDRESSES = {
     'brampton':           '7755 Hurontario St, Brampton, ON L6W 4T6',
     'newmarket':          '50 Eagle St W, Newmarket, ON L3Y 6B1',
     'kingston':           '469 Montreal St, Kingston, ON K7K 3H9',
-    'thunder-bay':        '277 Camelot St, Thunder Bay, ON P7A 4B3',
+    'thunder-bay':        '125 Brodie St N, Thunder Bay, ON P7C 0A3',
     'sudbury':            '155 Elm St, Sudbury, ON P3C 1T9',
 }
 
@@ -450,7 +450,7 @@ _ON_COURTHOUSES = [
     ('scarborough',    'Scarborough',    '1911 Eglinton Ave E, Scarborough, ON M1L 4P4',     '1911 Eglinton Ave E, Scarborough, ON M1L 4P4'),
     ('st-catharines',  'St. Catharines', '59 Church St, St. Catharines, ON L2R 7N8',         '59 Church St, St. Catharines, ON L2R 7N8'),
     ('sudbury',        'Sudbury',        '155 Elm St, Sudbury, ON P3C 1T9',                  '201-159 Cedar St, Sudbury, ON P3E 6A5'),
-    ('thunder-bay',    'Thunder Bay',    '277 Camelot St, Thunder Bay, ON P7A 4B3',          '277 Camelot St, Thunder Bay, ON P7A 4B3'),
+    ('thunder-bay',    'Thunder Bay',    '125 Brodie St N, Thunder Bay, ON P7C 0A3',         '125 Brodie St N, Thunder Bay, ON P7C 0A3'),
     ('toronto',        'Toronto',        '393 University Ave, Toronto, ON M5G 1E6',          '60 Queen St W, Toronto, ON M5H 2M3'),
     ('windsor',        'Windsor',        '245 Windsor Ave, Windsor, ON N9A 1J2',             '245 Windsor Ave, Windsor, ON N9A 1J2'),
 ]
