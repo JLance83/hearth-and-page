@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.11'
+FILLER_VERSION = 'dist-2026-10-19.12'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2095,11 +2095,17 @@ def fill_form13_1(input_path, output_path, form_data_list):
 
     # ── Deponent ──────────────────────────────────────────────────────────
     filer_name = d.get('filer_full_name', d.get('applicant_full_name', d.get('applicantFullName', '')))
-    city       = d.get('city', d.get('applicantCity', ''))
-    province   = d.get('province', 'Ontario')
+    # FIX-F131-LIVE-IN: wizard saves applicant_city / applicant_province, not
+    # city / province, so "I live in" printed "Ontario" and dropped the city.
+    # ON is written out as Ontario. A blank city does not leave a leading comma.
+    city = (d.get('applicant_city') or d.get('applicantCity') or d.get('city') or '').strip()
+    province = (d.get('applicant_province') or d.get('applicantProvince') or d.get('province') or 'Ontario').strip()
+    if province.upper() in ('ON', 'ONT', 'ONT.'):
+        province = 'Ontario'
+    live_in = ', '.join(x for x in (city, province) if x)
 
     fields['full legal name']        = filer_name
-    fields['municipality & province']= f'{city}, {province}' if city else province
+    fields['municipality & province']= live_in
     fields['municipality']           = city
     fields['date sworn/affirmed']    = d.get('date_sworn', '')
     fields['date']                   = d.get('date_sworn', '')
