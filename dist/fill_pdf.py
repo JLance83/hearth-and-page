@@ -1975,14 +1975,22 @@ def fill_form13(input_path, output_path, form_data_list):
                 continue
             if obj.get('/Subtype') != '/Widget':
                 continue
-            if obj.get('/FT') != '/Btn':
+            # FIX-F13-CHECKBOX-PARENT: 34 Form 13 boxes (all of Schedule B,
+            # the page-6 debt Yes/No boxes, "I earn") keep /FT and /T on a
+            # parent field, not on the widget. Read both from the parent
+            # when missing, and set /V on the parent too.
+            parent = None
+            if '/Parent' in obj:
+                try:
+                    parent = obj['/Parent'].get_object()
+                except Exception:
+                    parent = None
+            ft = obj.get('/FT') or (parent.get('/FT') if parent is not None else None)
+            if ft != '/Btn':
                 continue
             field_name = obj.get('/T')
-            if not field_name and '/Parent' in obj:
-                try:
-                    field_name = obj['/Parent'].get_object().get('/T')
-                except Exception:
-                    pass
+            if not field_name and parent is not None:
+                field_name = parent.get('/T')
             if not field_name:
                 continue
             fname = str(field_name)
@@ -1994,6 +2002,8 @@ def fill_form13(input_path, output_path, form_data_list):
                     g.NameObject('/V'):  g.NameObject(v),
                     g.NameObject('/AS'): g.NameObject(v),
                 })
+                if parent is not None and '/T' not in obj:
+                    parent.update({g.NameObject('/V'): g.NameObject(v)})
                 filled_checkboxes += 1
 
     # Force viewers to regenerate appearance streams so filled values show up
