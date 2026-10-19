@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.5'
+FILLER_VERSION = 'dist-2026-10-19.6'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3460,7 +3460,14 @@ def fill_form36(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
     fields = _header(d, pages=4)
     fields['Full legal name'] = d.get('applicant_full_name', '')
-    fields['Municipality & Province'] = f"{d.get('city','')}, {d.get('province','Ontario')}"
+    # FIX-F36-LIVE-IN: wizard saves applicant_city / applicant_province, not
+    # city / province, so this line printed ", Ontario". ON is written out as
+    # Ontario (the line asks for the province). No leading comma if city is blank.
+    _city = (d.get('applicant_city') or d.get('applicantCity') or d.get('city') or '').strip()
+    _prov = (d.get('applicant_province') or d.get('applicantProvince') or d.get('province') or 'Ontario').strip()
+    if _prov.upper() in ('ON', 'ONT', 'ONT.'):
+        _prov = 'Ontario'
+    fields['Municipality & Province'] = ', '.join(x for x in (_city, _prov) if x)
     fields['Title of certificate'] = d.get('marriage_cert_title', 'Certificate of Marriage')
     fields['Place of issue'] = d.get('marriage_cert_place', '')
     fields['Date of issue'] = d.get('marriage_cert_date', '')
