@@ -1368,7 +1368,12 @@ def fill_form13(input_path, output_path, form_data_list):
     filer_name = val('filer_full_name') or ap_name
     city       = val('applicant_city', 'city', 'applicantCity')
     province   = val('applicant_province', 'province', 'applicantProvince') or 'Ontario'
-    fields['Applicant']                    = filer_name
+    # FIX-F13-FILED-BY: "This form is filed by: [ ] applicant [ ] respondent".
+    # In this PDF the applicant box is a tiny TEXT field named 'Applicant'
+    # (the respondent box is a real checkbox), so writing the filer's full
+    # name there showed nothing. Mark it with "X". The app's filer is the
+    # applicant on every form (Form 8 etc.), matching the deponent rule below.
+    fields['Applicant']                    = 'X' if filer_name else ''
     fields['Full legal name']              = filer_name
     fields['Municipality & province']      = _fmt_muni(city, province)
     fields['Municipality']                 = city
