@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.1'
+FILLER_VERSION = 'dist-2026-10-19.2'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -514,12 +514,12 @@ COURTHOUSE_NAMES_FE.update({
     'durham-oshawa': 'Family Court Branch – 150 Bond Street East',
     'lindsay': 'Family Court Branch – 440 Kent Street West',
     'newmarket': 'Family Court Branch – 50 Eagle Street West',
-    'peterborough': 'Family Court Branch – 70 Simcoe Street',
+    'peterborough': 'Family Court Branch – 470 Water Street',
     'markham': 'Ontario Court of Justice – 8500 Leslie Street',
     'richmond-hill': 'Superior Court of Justice – 855 Major Mackenzie Drive E',
     'brantford': 'Superior Court of Justice – 44 Queen Street',
     'cayuga': 'Family Court Branch – 55 Munsee Street N',
-    'hamilton': 'Family Court Branch – 45 Main Street E',
+    'hamilton': 'Family Court Branch – 55 Main Street W',
     'kitchener': 'Family Court Branch – 85 Frederick Street',
     'simcoe': 'Family Court Branch – 50 Frederick Hobson VC Drive',
     'st-catharines': 'Family Court Branch – 59 Church Street',
@@ -535,7 +535,7 @@ COURTHOUSE_NAMES_FE.update({
     'belleville': 'Family Court Branch – 15 Bridge Street West',
     'brockville': 'Family Court Branch – 41 Court House Square',
     'cornwall': 'Family Court Branch – 29 Second Street W',
-    'kingston': 'Family Court Branch – 5 Court Street',
+    'kingston': 'Family Court Branch – 469 Montreal Street',
     'lorignal': 'Family Court Branch – 59 Court Street',
     'napanee': 'Family Court Branch – 41 Dundas Street W',
     'ottawa': 'Family Court Branch – 161 Elgin Street',
@@ -546,7 +546,7 @@ COURTHOUSE_NAMES_FE.update({
     'parry-sound': 'Superior Court of Justice – 89 James Street',
     'sault-ste-marie': 'Superior Court of Justice – 426 Queen Street E',
     'sudbury': 'Superior Court of Justice – 155 Elm Street',
-    'sudbury-ocj': 'Ontario Court of Justice – 201 Larch Street',
+    'sudbury-ocj': 'Ontario Court of Justice – 159 Cedar Street',
     'timmins': 'Superior Court of Justice – 38 Pine Street N',
     'gore-bay': 'Superior Court of Justice – 27 Phipps Street',
     'haileybury': 'Superior Court of Justice – 393 Main Street',
@@ -580,12 +580,12 @@ COURTHOUSE_ADDRESSES_FE.update({
     'durham-oshawa': '150 Bond Street East, Oshawa, Ontario, L1G 0A2',
     'lindsay': '440 Kent Street West, Lindsay, Ontario, K9V 3Z5',
     'newmarket': '50 Eagle Street West, Newmarket, Ontario, L3Y 6B1',
-    'peterborough': '70 Simcoe Street, Peterborough, Ontario, K9H 2H6',
+    'peterborough': '470 Water Street, Peterborough, Ontario, K9H 3M3',
     'markham': '8500 Leslie Street, Suite 395, Markham, Ontario, L3T 7M8',
     'richmond-hill': '855 Major Mackenzie Drive East, Richmond Hill, Ontario, L4C 4V6',
     'brantford': '44 Queen Street, Brantford, Ontario, N3T 3B6',
     'cayuga': '55 Munsee Street North, Cayuga, Ontario, N0A 1E0',
-    'hamilton': '45 Main Street East, Hamilton, Ontario, L8N 2B7',
+    'hamilton': '55 Main Street West, Hamilton, Ontario, L8P 1H4',
     'kitchener': '85 Frederick Street, Kitchener, Ontario, N2H 0A7',
     'simcoe': 'Suite 301, 50 Frederick Hobson VC Drive, Simcoe, Ontario, N3Y 0B8',
     'st-catharines': '59 Church Street, St. Catharines, Ontario, L2R 3C4',
@@ -601,7 +601,7 @@ COURTHOUSE_ADDRESSES_FE.update({
     'belleville': '15 Bridge Street West, Belleville, Ontario, K8P 5J9',
     'brockville': '41 Court House Square, Brockville, Ontario, K6V 7A8',
     'cornwall': '29 Second Street West, Cornwall, Ontario, K6J 1G3',
-    'kingston': '5 Court Street, Kingston, Ontario, K7L 2N4',
+    'kingston': '469 Montreal Street, Kingston, Ontario, K7K 3H9',
     'lorignal': "59 Court Street, 2nd Floor, L'Orignal, Ontario, K0B 1K0",
     'napanee': '41 Dundas Street West, Napanee, Ontario, K7R 1Z5',
     'ottawa': '161 Elgin Street, 2nd Floor, Ottawa, Ontario, K2P 2K1',
