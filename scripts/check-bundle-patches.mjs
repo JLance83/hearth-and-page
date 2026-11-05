@@ -182,6 +182,11 @@ const PATCHES = [
     name: 'Form 13.1 vehicles box: value first, so the total never counts the year (FIX-F131-VEHICLE-YEAR)',
     file: 'index-CNjoTsGP.js',
     sentinel: 'label:"Vehicles (start with the value, then make, model, year)",placeholder:"e.g. 28000 — 2019 Chevrolet Silverado"',
+  },  {
+    commit: 'Nov 5 2026 (see FIX-CASE-ALL-FORMS)',
+    name: 'Case wizard shows every form on the case, not just a fixed pair (FIX-CASE-ALL-FORMS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-CASE-ALL-FORMS*/{const __hpK=',
   },
 ];
 

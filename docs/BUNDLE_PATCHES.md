@@ -172,6 +172,27 @@ their Mac and can test more thoroughly.
 
 ---
 
+### FIX-CASE-ALL-FORMS — Case wizard shows every form on the case (Nov 5 2026)
+
+**Problem:** `c1(caseType)` built the question screens from a short list of
+fixed form combinations and returned early. A case with any other mix lost
+forms from its screens. Example: a case with Forms 8, 35.1, 13, 6B, 14A, 36,
+14C and 15 showed only Form 15 and Form 35.1, so the user could not see or
+edit their Form 8, 13 or 36 answers. Saved answers were never lost.
+
+**Fix:** Inside `c1`, after the one-form returns, if the case has 2+ forms and
+is not exactly one of the combinations that already worked, build the list by
+stacking every form's screens in a fixed order (8, 8A, 10, 10A, 35.1, 13,
+13.1, 13B, 15, 15B-D, 14, 14A-C, 36, 36A, 6B, 6, 6C, then the rest). Shared
+screens appear once, each form's empty review screen is dropped, and one
+"Review and confirm" screen ends the list. Form 35.1 identity/children screens
+are skipped when another form already asks those questions (same as the
+existing combinations). Cases that already worked are unchanged.
+
+**Sentinel:** `/*FIX-CASE-ALL-FORMS*/{const __hpK=`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
