@@ -198,6 +198,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: 'function c1(t){/*FIX-FIELD-ID-KEY*/c1.__hpN||',
   },
+  {
+    commit: 'Nov 6 2026 (see FIX-F15-CASE-ROLE)',
+    name: 'Form 15 asks your role in the original case, saved case-wide (FIX-F15-CASE-ROLE)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'const Nh=[{id:"case_role",title:"Your role in the case"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

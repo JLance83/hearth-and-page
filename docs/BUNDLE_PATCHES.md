@@ -230,6 +230,25 @@ forms have no PDF template in the app. Tracked separately.
 
 ---
 
+### FIX-F15-CASE-ROLE — Form 15 asks your role in the original case (Nov 6 2026)
+
+**Problem:** On a motion to change, page 1 of Form 15 keeps the Applicant
+and Respondent from the original case, whoever asks for the change (Family
+Law Rules, O. Reg. 114/99). The app never saved which one the user was, so
+the page 1 party boxes could not be filled correctly.
+
+**Fix:** A new first screen in the Form 15 step list (`Nh`), id `case_role`,
+with one required question `caseRole`: `applicant`, `respondent`, or
+`agreement` (filed agreement, no court case: the person asking is the
+Applicant). It saves as section `case_role`, key `caseRole`; the PDF rows
+see it as `case_role`. The step id is not Form 15 specific, so later forms
+can reuse the same screen and the stacking in `c1` shows it once. Nothing
+prints from it yet (that is the next filler change).
+
+**Sentinel:** `const Nh=[{id:"case_role",title:"Your role in the case"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
