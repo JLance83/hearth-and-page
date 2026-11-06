@@ -204,6 +204,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: 'const Nh=[{id:"case_role",title:"Your role in the case"',
   },
+  {
+    commit: 'Nov 6 2026 (see FIX-F15-AGREEMENT-WARN)',
+    name: 'Form 15 warns when an agreement change includes non-support terms (FIX-F15-AGREEMENT-WARN)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F15-AGREEMENT-WARN*/u.f15_existing_order?.existingDocType==="agreement"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

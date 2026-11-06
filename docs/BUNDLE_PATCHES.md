@@ -249,6 +249,27 @@ prints from it yet (that is the next filler change).
 
 ---
 
+### FIX-F15-AGREEMENT-WARN — Form 15 warns about non-support changes to an agreement (Nov 6 2026)
+
+**Problem:** Form 15 says "You can only use this form to change support
+terms in an agreement that has been filed" with the court. The app let a
+user pick "A support agreement" and then ask to change decision-making,
+parenting time or contact with no warning. Ontario guides say other terms
+in an agreement are changed by starting a family law case (Application,
+Form 8): https://stepstojustice.ca/family-flowcharts/applicant/change-your-order-or-separation-agreement/
+
+**Fix:** One more entry in the wizard's existing amber notice list (the same
+list as "Form 35.1 is required for parenting claims"). It shows on Form 15
+screens 3 and 4 (`f15_existing_order`, `f15_changes_requested`) when
+`existingDocType` is `agreement` and `changeTypes` includes
+`decision_making`, `parenting_time` or `contact`, naming the ones picked.
+"Other" does not trigger it (it may be a support change). It is advice
+only: it does not block Continue or change any answer.
+
+**Sentinel:** `/*FIX-F15-AGREEMENT-WARN*/u.f15_existing_order?.existingDocType==="agreement"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
