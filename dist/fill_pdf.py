@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.18'
+FILLER_VERSION = 'dist-2026-10-19.19'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2976,7 +2976,59 @@ def fill_form14c(input_path, output_path, form_data_list):
 def fill_form15(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
     fields = _header(d, pages=6)
-    fields['Name of requesting party'] = d.get('applicant_full_name', '')
+    # FIX-F15-PAGE1-PARTIES: page 1 party boxes. On a motion to change the
+    # Applicant and Respondent stay as in the original case, whoever asks
+    # for the change (Family Law Rules). case_role (Form 15's first screen)
+    # says which one the user was: 'applicant' or 'agreement' (filed
+    # agreement, no court case: the person asking is the Applicant) puts the
+    # user in the Applicant boxes; 'respondent' puts the user in the
+    # Respondent boxes. No answer: the party boxes stay blank (no guessing).
+    # Each piece is Form 15's own answer first, else the main answer. The
+    # unit goes with the street it came from. Lawyer boxes only when that
+    # party's Form 15 "has a lawyer" answer is yes.
+    def _g(*keys):
+        for k in keys:
+            v = str(d.get(k, '') or '').strip()
+            if v:
+                return v
+        return ''
+    def _party(f15, main):
+        own_street = _g(f'{f15}_address')
+        street = own_street or _g(f'{main}_address')
+        unit = '' if own_street else _g(f'{main}_unit')
+        prov = _g(f'{f15}_province', f'{main}_province')
+        if prov.upper() in ('ON', 'ONT', 'ONT.'):
+            prov = 'Ontario'
+        addr = _fmt_addr(street, unit, _g(f'{f15}_city', f'{main}_city'), prov,
+                         _g(f'{f15}_postal_code', f'{main}_postal_code'))
+        has_law = _g(f'{f15}_has_lawyer').lower() in ('yes', 'true', '1')
+        return {
+            'name': _g(f'{f15}_full_name', f'{main}_full_name'),
+            'address': addr,
+            'phone': format_phone(_g(f'{f15}_phone', f'{main}_phone')),
+            'email': _g(f'{f15}_email', f'{main}_email'),
+            'law_name': _g(f'{f15}_lawyer_name') if has_law else '',
+            'law_address': _g(f'{f15}_lawyer_address') if has_law else '',
+            'law_phone': format_phone(_g(f'{f15}_lawyer_phone')) if has_law else '',
+            'law_email': _g(f'{f15}_lawyer_email') if has_law else '',
+        }
+    _me = _party('f15_requesting_party', 'applicant')
+    _them = _party('f15_responding_party', 'respondent')
+    fields['Name of requesting party'] = _me['name']
+    fields['Name(s) of responding party(ies)'] = _them['name']
+    _role = _g('case_role').lower()
+    if _role in ('applicant', 'agreement', 'respondent'):
+        _ap, _re = (_them, _me) if _role == 'respondent' else (_me, _them)
+        for _who, _box, _law in ((_ap, 'Applicant(s)', 'Applicant(s) Lawyer'),
+                                 (_re, 'Respondent(s)', 'Responndent(s) Lawyer')):
+            fields[f'{_box} - full legal name'] = _who['name']
+            fields[f'{_box} - address'] = _who['address']
+            fields[f'{_box} - phone & fax'] = _who['phone']
+            fields[f'{_box} - email'] = _who['email']
+            fields[f'{_law} - name'] = _who['law_name']
+            fields[f'{_law} - address'] = _who['law_address']
+            fields[f'{_law} - phone & fax'] = _who['law_phone']
+            fields[f'{_law} - email'] = _who['law_email']
     # FIX-F15-CITY: wizard saves applicant_city / applicant_province, not city.
     # This is the "Sworn/Affirmed before me at ___ in ___" line. ON is written
     # out as Ontario. A blank city leaves the municipality box empty.
