@@ -187,6 +187,11 @@ const PATCHES = [
     name: 'Case wizard shows every form on the case, not just a fixed pair (FIX-CASE-ALL-FORMS)',
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-CASE-ALL-FORMS*/{const __hpK=',
+  },  {
+    commit: 'Nov 5 2026 (see FIX-COMPLETE-EDIT-BTN)',
+    name: 'Finished case cards show an "Edit answers" button next to Download PDF (FIX-COMPLETE-EDIT-BTN)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '"data-hp-fix":"FIX-COMPLETE-EDIT-BTN"',
   },
 ];
 

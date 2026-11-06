@@ -193,6 +193,22 @@ existing combinations). Cases that already worked are unchanged.
 
 ---
 
+### FIX-COMPLETE-EDIT-BTN — "Edit answers" on finished case cards (Nov 5 2026)
+
+**Problem:** A finished case's dashboard card showed only "Download PDF".
+To change an answer (for example, when a court or lawyer sends a form back),
+the user had to open the download page and find "Back to questions".
+
+**Fix:** The finished-case branch of the card now shows two stacked,
+equal-width buttons: "Edit answers" (opens `/case/:id/wizard`) and
+"Download PDF" (unchanged). In-progress cards are unchanged ("Continue").
+Uses only classes already in the prebuilt CSS (flex-col, items-stretch,
+w-full).
+
+**Sentinel:** `"data-hp-fix":"FIX-COMPLETE-EDIT-BTN"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
