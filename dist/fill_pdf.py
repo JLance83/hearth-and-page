@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.19'
+FILLER_VERSION = 'dist-2026-10-19.20'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3118,7 +3118,25 @@ def fill_form15(input_path, output_path, form_data_list):
             fields[f'Child {i} - Change of support being requested, yes or no'] = 'NO'
     fields['Date of issue by the clerk of the court'] = d.get('issue_date', '')
     fields['the agreement that you want to change You can only use this form to change support terms in an agreement that'] = d.get('order_or_agreement_desc', '')
-    n = _write_pdf(input_path, output_path, fields, font_pt=_live_fonts)
+    # FIX-F15-ORDER-TYPE: page 1 "has brought a motion to change" ticks the
+    # one box the user picked on "The order or agreement you want to change"
+    # (existingDocType) and prints that choice's details if answered. The
+    # recalculation date has no question in the app, so it stays blank.
+    _doc = str(d.get('f15_existing_order_existing_doc_type', '') or '').strip().lower()
+    _cbs = {
+        'the final order': _doc == 'final_order',
+        'the agreement': _doc == 'agreement',
+        'the orderagreement recalculated by the online Child Support Service': _doc == 'recalculated',
+    }
+    if _doc == 'final_order':
+        # The form already prints "the final order of Justice", and the
+        # screen's example is "Justice A. Brown"; drop a leading "Justice".
+        fields['Name of Justice'] = _re_amt.sub(r'^\s*justice\.?\s+', '', _g('f15_existing_order_justice_name'), flags=_re_amt.I)
+        fields['Date of final order'] = format_dob(_g('f15_existing_order_order_date'))
+    elif _doc == 'agreement':
+        fields['Name of agreement'] = _g('f15_existing_order_agreement_name')
+        fields['Date of agreement'] = format_dob(_g('f15_existing_order_agreement_date'))
+    n = _write_pdf(input_path, output_path, fields, _cbs, font_pt=_live_fonts)
     sys.stderr.write(f'[fill_form15] Filled {n} fields\n')
     return n
 
