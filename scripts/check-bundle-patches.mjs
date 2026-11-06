@@ -192,6 +192,11 @@ const PATCHES = [
     name: 'Finished case cards show an "Edit answers" button next to Download PDF (FIX-COMPLETE-EDIT-BTN)',
     file: 'index-CNjoTsGP.js',
     sentinel: '"data-hp-fix":"FIX-COMPLETE-EDIT-BTN"',
+  },  {
+    commit: 'Nov 5 2026 (see FIX-FIELD-ID-KEY)',
+    name: '24 forms: questions defined with id get a key so answers save (FIX-FIELD-ID-KEY)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'function c1(t){/*FIX-FIELD-ID-KEY*/c1.__hpN||',
   },
 ];
 

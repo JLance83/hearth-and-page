@@ -209,6 +209,27 @@ w-full).
 
 ---
 
+### FIX-FIELD-ID-KEY — 24 forms could not save answers (Nov 5 2026)
+
+**Problem:** 357 questions on 24 forms (20.2, 22, 22A, 25F, 25G, 25H, 26,
+26A, 26C, 27, 27A, 27B, 27C, 29, 29A-F, 30, 30A, 36A, 39) name themselves
+with `id` instead of `key`. The question screens read `key`, so every box on
+a screen shared one blank name: typing in one box filled them all, and the
+save request had no fieldKey, which the server rejects (400). No real case
+used these forms at the time (DB check), so no answers were lost.
+
+**Fix:** The first time `c1` runs, it copies `id` to `key` on any question in
+those 24 step lists that has no `key`. Nothing else changes. Checked: no
+duplicates, no nested fields, no conditions on these questions.
+
+**Not fixed here:** the PDFs for 25F, 25G, 30A and 36A read different names
+than these questions use (about 1 of 12-17 answers print), and the other 20
+forms have no PDF template in the app. Tracked separately.
+
+**Sentinel:** `function c1(t){/*FIX-FIELD-ID-KEY*/c1.__hpN||`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
