@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.22'
+FILLER_VERSION = 'dist-2026-10-19.23'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3169,6 +3169,31 @@ def fill_form15(input_path, output_path, form_data_list):
     elif _doc == 'agreement':
         fields['Name of agreement'] = _g('f15_existing_order_agreement_name')
         fields['Date of agreement'] = format_dob(_g('f15_existing_order_agreement_date'))
+    # FIX-F15-CHANGE-TYPES: page 2 item 10 "I want to change the following"
+    # ticks one box per choice on "What do you want the court to change?"
+    # (saved as a comma list, e.g. "parenting_time,decision_making"; a JSON
+    # list is also accepted). Expense types print only when the special
+    # expenses box is ticked; other details only when "other" is ticked.
+    _ct_raw = _g('f15_changes_requested_change_types')
+    try:
+        _ct = json.loads(_ct_raw) if _ct_raw.startswith('[') else _ct_raw.split(',')
+    except Exception:
+        _ct = _ct_raw.split(',')
+    _ct = {str(x).strip().lower() for x in _ct if str(x).strip()}
+    for _box, _val in (
+        ('decision-making responsibility', 'decision_making'),
+        ('child support - table amount', 'child_support_table'),
+        ('child support - special or extraordinary expenses', 'child_support_special'),
+        ('parenting time', 'parenting_time'),
+        ('spousal support', 'spousal_support'),
+        ('contact', 'contact'),
+        ('other', 'other'),
+    ):
+        _cbs[_box] = _val in _ct
+    if 'child_support_special' in _ct and _g('f15_changes_requested_special_expenses_types'):
+        fields['List types of expenses'] = _g('f15_changes_requested_special_expenses_types')
+    if 'other' in _ct and _g('f15_changes_requested_other_change_details'):
+        fields['Details of other change'] = _g('f15_changes_requested_other_change_details')
     n = _write_pdf(input_path, output_path, fields, _cbs, font_pt=_live_fonts)
     sys.stderr.write(f'[fill_form15] Filled {n} fields\n')
     return n
