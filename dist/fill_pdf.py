@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.20'
+FILLER_VERSION = 'dist-2026-10-19.21'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3051,10 +3051,18 @@ def fill_form15(input_path, output_path, form_data_list):
     re_city = (d.get('respondent_city') or d.get('respondentCity') or '').strip()
     ap_prov = _prov_name(d.get('applicant_province') or d.get('applicantProvince') or d.get('province') or '')
     re_prov = _prov_name(d.get('respondent_province') or d.get('respondentProvince') or '')
-    if ap_city:
-        fields['Municipality requesting party lives in'] = ap_city
-    if re_city:
-        fields['Municipality responding party lives in'] = re_city
+    # FIX-F15-MUNICIPALITY: the Form 15 screen asks "Municipality where you
+    # currently live" / "...where the other party currently lives". Those
+    # answers win (Form 15 answer first). Then the Form 15 address city
+    # (requesting party only - the responding screen has no city), then the
+    # main address city. Printed as typed. Child rows below are unchanged.
+    _me_muni = (_g('f15_existing_order_requesting_party_municipality')
+                or _g('f15_requesting_party_city') or ap_city)
+    _them_muni = _g('f15_existing_order_responding_party_municipality') or re_city
+    if _me_muni:
+        fields['Municipality requesting party lives in'] = _me_muni
+    if _them_muni:
+        fields['Municipality responding party lives in'] = _them_muni
     try:
         _n_kids = int(str(d.get('children_count', d.get('childrenCount', '0')) or '0'))
     except Exception:
