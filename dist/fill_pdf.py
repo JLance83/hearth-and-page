@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.21'
+FILLER_VERSION = 'dist-2026-10-19.22'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3063,6 +3063,31 @@ def fill_form15(input_path, output_path, form_data_list):
         fields['Municipality requesting party lives in'] = _me_muni
     if _them_muni:
         fields['Municipality responding party lives in'] = _them_muni
+    # FIX-F15-P2-DATES: page 2 items 1-5 (living together, married,
+    # separated, both birth dates) were never filled. Form 15 answer first,
+    # then the matching main answer, printed d/m/y. The form says to write
+    # "N/A" if not applicable: that is printed only when the user's own
+    # answer says so (typed "N/A", or "Were the two of you married?" = no).
+    # No answer at all stays blank. No question asks "never lived
+    # together", so item 1 is never N/A unless typed.
+    def _p2_date(*keys):
+        v = _g(*keys)
+        if v.lower() in ('n/a', 'na', 'n.a.', 'not applicable'):
+            return 'N/A'
+        return format_dob(v)
+    _married = _g('situation_were_married').lower()
+    _p2 = {
+        'Date parties started living together': _p2_date('f15_existing_order_cohabitation_start_date'),
+        'Date parties married': _p2_date('f15_existing_order_marriage_date')
+            or (_p2_date('situation_marriage_date') if _married in ('yes', 'true', '1') else '')
+            or ('N/A' if _married in ('no', 'false', '0') else ''),
+        'Date parties separated': _p2_date('f15_existing_order_separation_date', 'situation_separation_date'),
+        'Requesting party’s birth date': _p2_date('f15_requesting_party_dob', 'applicant_dob'),
+        'Responding party’s birth date': _p2_date('f15_responding_party_dob', 'respondent_dob'),
+    }
+    for _k, _v in _p2.items():
+        if _v:
+            fields[_k] = _v
     try:
         _n_kids = int(str(d.get('children_count', d.get('childrenCount', '0')) or '0'))
     except Exception:
