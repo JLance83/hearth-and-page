@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.25'
+FILLER_VERSION = 'dist-2026-10-19.26'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3296,6 +3296,59 @@ def fill_form15(input_path, output_path, form_data_list):
     if _g('f15_circumstances_change_in_circumstances'):
         fields['Facts that show why the court should change the order/agreement'] = \
             _g('f15_circumstances_change_in_circumstances')
+    # FIX-F15-SUPPORT-PART: pages 6-7 (items 14-17) were never filled. The
+    # form says this part is completed only if asking to change child or
+    # spousal support, so nothing prints unless item 10 has a support box
+    # ticked (Josh, plan D1), even if the questions were answered.
+    # - 14 support owed Yes/No; 15 the four amounts only when owed = yes,
+    #   printed as 1,234.56 when the answer is a number (else as typed).
+    # - 16 Today / Before today; exact date only for Before today.
+    # - 17 a-d (17d is on page 7) say "if you are asking to change support
+    #   starting on a date before today", so they print only for Before today.
+    def _f15_money(v):
+        s = str(v or '').strip()
+        n = s.replace('$', '').replace(',', '').strip()
+        if _re_amt.fullmatch(r'\d+(\.\d+)?', n):
+            return f'{float(n):,.2f}'
+        return s
+    if _ct & {'child_support_table', 'child_support_special', 'spousal_support'}:
+        _owed = _g('f15_circumstances_support_owed_today').lower()
+        if _owed in ('yes', 'true', '1'):
+            _cbs['Yes 2'], _cbs['No 2'] = True, False
+            for _box, _key in (
+                ('Child support owed to recipient (0.00)', 'f15_circumstances_child_support_owed_recipient'),
+                ('Child support owed to any assignee(s) (0.00)', 'f15_circumstances_child_support_owed_assignee'),
+                ('Spousal support owed to recipient (0.00)', 'f15_circumstances_spousal_support_owed_recipient'),
+                ('Spousal support owed to any assignee(s) (0.00)', 'f15_circumstances_spousal_support_owed_assignee'),
+            ):
+                if _g(_key):
+                    fields[_box] = _f15_money(_g(_key))
+        elif _owed in ('no', 'false', '0'):
+            _cbs['Yes 2'], _cbs['No 2'] = False, True
+        _when = _g('f15_circumstances_change_start_when').lower()
+        if _when == 'today':
+            _cbs['Today'], _cbs['Before today'] = True, False
+        elif _when == 'before_today':
+            _cbs['Today'], _cbs['Before today'] = False, True
+            if _g('f15_circumstances_change_start_date'):
+                fields['Give exact date (d, m, y)'] = format_dob(_g('f15_circumstances_change_start_date'))
+            if _g('f15_circumstances_date_asked_other_party'):
+                fields['Date you first asked the responding party for updated income information or to change support'] = \
+                    format_dob(_g('f15_circumstances_date_asked_other_party'))
+            _hard = _g('f15_circumstances_other_party_made_it_difficult').lower()
+            if _hard in ('yes', 'true', '1'):
+                _cbs['Yes 3'], _cbs['No 3'] = True, False
+                if _g('f15_circumstances_other_party_difficult_details'):
+                    fields['Details - Did the responding party do anything to make it difficult for you to know if support should change'] = \
+                        _g('f15_circumstances_other_party_difficult_details')
+            elif _hard in ('no', 'false', '0'):
+                _cbs['Yes 3'], _cbs['No 3'] = False, True
+            if _g('f15_circumstances_why_not_sooner_details'):
+                fields['Details - Why didn’t you ask the court to change support sooner'] = \
+                    _g('f15_circumstances_why_not_sooner_details')
+            if _g('f15_circumstances_your_circumstances_child_support'):
+                fields['Your circumstances and the childs circumstances that support this request'] = \
+                    _g('f15_circumstances_your_circumstances_child_support')
     # FIX-WRAP-FIT: every filled big written-answer box gets a size that
     # fits its wrapped text (10pt down to 7pt). Too long even at 7pt: logged
     # here; the on-screen warning is a later step.
