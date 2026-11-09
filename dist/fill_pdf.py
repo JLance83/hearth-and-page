@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.24'
+FILLER_VERSION = 'dist-2026-10-19.25'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3277,6 +3277,25 @@ def fill_form15(input_path, output_path, form_data_list):
         fields['List types of expenses'] = _g('f15_changes_requested_special_expenses_types')
     if 'other' in _ct and _g('f15_changes_requested_other_change_details'):
         fields['Details of other change'] = _g('f15_changes_requested_other_change_details')
+    # FIX-F15-PAGE5: page 5 item 12 "Are you and the responding party
+    # following the current order/agreement?" and item 13 facts were never
+    # filled. On the official PDF the Yes/No marks are tiny 8pt text boxes
+    # (not checkboxes), so an "X" is printed at 7pt in the one that matches
+    # the answer. Item 12 details print only when the answer is No. Item 13
+    # prints the "significant change in circumstances" answer.
+    _follow = _g('f15_circumstances_following_current_order').lower()
+    if _follow in ('yes', 'true', '1'):
+        fields['Yes 1'] = 'X'
+        _live_fonts['Yes 1'] = 7
+    elif _follow in ('no', 'false', '0'):
+        fields['No 1'] = 'X'
+        _live_fonts['No 1'] = 7
+        if _g('f15_circumstances_not_following_details'):
+            fields['Details - Are you and the responding party following the current order/agreement'] = \
+                _g('f15_circumstances_not_following_details')
+    if _g('f15_circumstances_change_in_circumstances'):
+        fields['Facts that show why the court should change the order/agreement'] = \
+            _g('f15_circumstances_change_in_circumstances')
     # FIX-WRAP-FIT: every filled big written-answer box gets a size that
     # fits its wrapped text (10pt down to 7pt). Too long even at 7pt: logged
     # here; the on-screen warning is a later step.
