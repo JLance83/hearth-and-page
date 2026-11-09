@@ -219,13 +219,14 @@ const PATCHES = [
     commit: 'Nov 9 2026 (see FIX-SHOWIF-CHECKBOXES)',
     name: 'Follow-up questions show when their box is one of several ticked (FIX-SHOWIF-CHECKBOXES)',
     file: 'index-CNjoTsGP.js',
-    sentinel: '/*FIX-SHOWIF-CHECKBOXES*/if(!_||!S.some(x=>x===_||String(_).split(",").includes(x)))return null}',
+    // Moved into the shared __hpShowOk helper by FIX-SHOWIF-NESTED (Nov 9 2026).
+    sentinel: 'if(!v||!q.some(x=>x===v||String(v).split(",").includes(x)))return!1;',
   },
   {
     commit: 'Nov 9 2026 (see FIX-SHOWIF-CHECKBOXES)',
-    name: 'Required-answer check uses the same checkbox-list rule (FIX-SHOWIF-CHECKBOXES)',
+    name: 'Required-answer check uses the same checkbox-list rule (FIX-SHOWIF-CHECKBOXES, now via FIX-SHOWIF-NESTED)',
     file: 'index-CNjoTsGP.js',
-    sentinel: 'if(!Ge||!gt.some(x=>x===Ge||String(Ge).split(",").includes(x)))return!1}',
+    sentinel: 'if(Re.showIf){/*FIX-SHOWIF-NESTED*/if(!__hpShowOk(Re,Pe.fields,Fe))return!1}',
   },  {
     commit: 'Nov 9 2026 (see FIX-F15-INCOME-TABLE)',
     name: 'Form 15 asks the item 9 income table (3 years, both parties) when a support change is ticked (FIX-F15-INCOME-TABLE)',
@@ -236,6 +237,12 @@ const PATCHES = [
     name: 'Form 15 item 17d question shows when the support change starts before today (FIX-F15-17D-SHOWIF)',
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F15-17D-SHOWIF*/{key:"yourCircumstancesChildSupport",type:"textarea",label:"Your circumstances and the children\'s circumstances that support a change to child support",showIf:{key:"changeStartWhen",equals:"before_today"}',
+  },
+  {
+    commit: 'Nov 9 2026 (see FIX-SHOWIF-NESTED)',
+    name: 'A follow-up question hides when the question it depends on is hidden (FIX-SHOWIF-NESTED)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'if(g.showIf){/*FIX-SHOWIF-NESTED*/if(!__hpShowOk(g,e,r))return null}',
   },
 ];
 

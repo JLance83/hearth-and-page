@@ -357,6 +357,35 @@ Saved answers keep the same key.
 
 ---
 
+### FIX-SHOWIF-NESTED — follow-ups of hidden questions hide too (Nov 9 2026)
+
+**Problem:** a follow-up question only checked the one answer it depends
+on. If that question was itself a follow-up and got hidden, its saved
+answer stayed, so the next follow-up kept showing on its own. Example
+(Form 15C): tick child support, choose "Less than the table amount",
+then untick child support. "The agreed child support amount is" hides,
+but "Reasons why the amount is below the guideline table amount" stayed
+on screen. Same on Form 6C ("Describe the other special service
+method"). Found while adding FIX-F15-CHILD-SUPPORT-YN, which has the
+same shape.
+
+**Fix:** one shared helper `__hpShowOk(field, screenFields, answers)`,
+added near the top of the bundle (after the comment header). It does the
+FIX-SHOWIF-CHECKBOXES match (exact answer, or one item of a comma list),
+then, if the question it depends on is on the same screen and has its
+own `showIf`, checks that question too (up to 5 levels). Answers from
+another screen keep the old one-level check. Both places that decide
+visibility use it: the screen render (`e.map(g=>...)`) and the
+required-answers check (`Pe.fields.filter(...)`). The FIX-SHOWIF-CHECKBOXES
+guard entries now point at the helper and the required-check call.
+
+Hidden answers are not deleted, so ticking the box again brings the
+answer back. The PDF filler gates these answers on its own.
+
+**Sentinel:** `if(g.showIf){/*FIX-SHOWIF-NESTED*/if(!__hpShowOk(g,e,r))return null}`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
