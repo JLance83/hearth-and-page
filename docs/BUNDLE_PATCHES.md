@@ -335,6 +335,28 @@ line 15000 - of the tax return). PDF rows see them as
 
 ---
 
+### FIX-F15-17D-SHOWIF — Form 15 item 17d question now shows (Nov 9 2026)
+
+**Problem:** Form 15 item 17d ("your circumstances and the child's
+circumstances that support this request") belongs to item 17, which
+applies only when the support change should start before today. The
+question `yourCircumstancesChildSupport` on screen `f15_circumstances`
+had `showIf: {key: "changeTypes", ...}`, but `changeTypes` is on a
+different screen (`f15_changes_requested`). The screen only looks up
+answers on itself, so the question never showed for anyone and 17d was
+always blank.
+
+**Fix:** `showIf` is now `{key: "changeStartWhen", equals:
+"before_today"}` (same screen, same rule the PDF filler already uses for
+items 17a-d). The question also moved to the end of the screen, after
+"Why didn't you ask the court to change support sooner?", so it appears
+below the answer that reveals it and in the form's order (17c then 17d).
+Saved answers keep the same key.
+
+**Sentinel:** `/*FIX-F15-17D-SHOWIF*/{key:"yourCircumstancesChildSupport",...showIf:{key:"changeStartWhen",equals:"before_today"}`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

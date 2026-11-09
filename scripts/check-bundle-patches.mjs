@@ -231,6 +231,11 @@ const PATCHES = [
     name: 'Form 15 asks the item 9 income table (3 years, both parties) when a support change is ticked (FIX-F15-INCOME-TABLE)',
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F15-INCOME-TABLE*/{key:"incomeYear1",type:"text"',
+  },  {
+    commit: 'Nov 9 2026 (see FIX-F15-17D-SHOWIF)',
+    name: 'Form 15 item 17d question shows when the support change starts before today (FIX-F15-17D-SHOWIF)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F15-17D-SHOWIF*/{key:"yourCircumstancesChildSupport",type:"textarea",label:"Your circumstances and the children\'s circumstances that support a change to child support",showIf:{key:"changeStartWhen",equals:"before_today"}',
   },
 ];
 
