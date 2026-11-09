@@ -270,6 +270,25 @@ only: it does not block Continue or change any answer.
 
 ---
 
+### FIX-F15-RECALC-DATE — Form 15 asks the recalculation date (Nov 9 2026)
+
+**Problem:** Form 15 page 1 says "the order/agreement recalculated by the
+online Child Support Service on ___". The app let a user pick "An amount
+recalculated by the online Child Support Service" but never asked for the
+date, so that line was always blank.
+
+**Fix:** One new date question on the Form 15 screen `f15_existing_order`,
+right after "Date of the agreement": `recalculationDate`, "Date of the
+recalculation", shown only when `existingDocType` is `recalculated`. Not
+required (blank stays blank). It saves as section `f15_existing_order`,
+key `recalculationDate`; the PDF rows see it as
+`f15_existing_order_recalculation_date`. The filler prints it on page 1 in
+"Date of order/agreement" only when the recalculated box is ticked.
+
+**Sentinel:** `/*FIX-F15-RECALC-DATE*/{key:"recalculationDate",type:"date",label:"Date of the recalculation"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

@@ -210,6 +210,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F15-AGREEMENT-WARN*/u.f15_existing_order?.existingDocType==="agreement"',
   },
+  {
+    commit: 'Nov 9 2026 (see FIX-F15-RECALC-DATE)',
+    name: 'Form 15 asks the recalculation date when a recalculated amount is being changed (FIX-F15-RECALC-DATE)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F15-RECALC-DATE*/{key:"recalculationDate",type:"date",label:"Date of the recalculation"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
