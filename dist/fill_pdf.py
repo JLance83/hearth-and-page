@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.30'
+FILLER_VERSION = 'dist-2026-10-19.31'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3295,6 +3295,40 @@ def fill_form15(input_path, output_path, form_data_list):
         fields['List types of expenses'] = _g('f15_changes_requested_special_expenses_types')
     if 'other' in _ct and _g('f15_changes_requested_other_change_details'):
         fields['Details of other change'] = _g('f15_changes_requested_other_change_details')
+    # FIX-F15-CHILD-SUPPORT-YN: page 2 child rows, last column "Change of
+    # support being requested, yes or no". Only when a child support box is
+    # ticked on item 10, and only from the user's own answer:
+    #   "Is the child support change for every child listed?" Yes -> YES on
+    #   every child row. No -> the user lists the children (one full name per
+    #   line). Rows whose name matches exactly (ignoring capitals and extra
+    #   spaces) get YES, the other rows NO. If any listed name matches no
+    #   child, or matches two, nothing is printed (never guess) and it is
+    #   logged. A per-child answer from FIX-F15-SUPPORT-YN wins if present.
+    if _ct & {'child_support_table', 'child_support_special'}:
+        _yn_key = 'Child {} - Change of support being requested, yes or no'
+        _norm = lambda x: ' '.join(str(x or '').split()).casefold()
+        _rows = [i for i in range(1, 5)
+                 if any(k.startswith(f'Child {i} - ') for k in fields)
+                 and _yn_key.format(i) not in fields]
+        _all = _g('f15_changes_requested_support_all_children').lower()
+        _marks = {}
+        if _all in ('yes', 'true', '1'):
+            _marks = {i: 'YES' for i in _rows}
+        elif _all in ('no', 'false', '0'):
+            _want = [_norm(x) for x in _g('f15_changes_requested_support_children_names').splitlines() if _norm(x)]
+            _names = {}
+            for i in range(1, max(_n_kids, 4) + 1):
+                _nm = _norm(d.get(f'child_{i}_name') or d.get(f'child{i}Name') or '')
+                if _nm:
+                    _names.setdefault(_nm, []).append(i)
+            _bad = [w for w in _want if len(_names.get(w, [])) != 1]
+            if _want and not _bad:
+                _hit = {_names[w][0] for w in _want}
+                _marks = {i: ('YES' if i in _hit else 'NO') for i in _rows}
+            elif _want:
+                print(f'[fill_form15] child support names not matched exactly, column left blank: {_bad}', file=sys.stderr)
+        for i, _v in _marks.items():
+            fields[_yn_key.format(i)] = _v
     # FIX-F15-PAGE5: page 5 item 12 "Are you and the responding party
     # following the current order/agreement?" and item 13 facts were never
     # filled. On the official PDF the Yes/No marks are tiny 8pt text boxes
