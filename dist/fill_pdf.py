@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.31'
+FILLER_VERSION = 'dist-2026-10-19.32'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3246,7 +3246,10 @@ def fill_form15(input_path, output_path, form_data_list):
         elif _ans in ('no', 'false', '0'):
             fields[f'Child {i} - Change of support being requested, yes or no'] = 'NO'
     fields['Date of issue by the clerk of the court'] = d.get('issue_date', '')
-    fields['the agreement that you want to change You can only use this form to change support terms in an agreement that'] = d.get('order_or_agreement_desc', '')
+    # FIX-F15-PAGE8-CLEANUP: page 8 "YOU MUST attach" is the filer's own
+    # checklist, so its boxes stay blank (plan decision D4). A leftover line
+    # here wrote 'order_or_agreement_desc' into one page 8 box; no screen
+    # saves that answer, so it always wrote nothing. Removed.
     # FIX-F15-ORDER-TYPE: page 1 "has brought a motion to change" ticks the
     # one box the user picked on "The order or agreement you want to change"
     # (existingDocType) and prints that choice's details if answered
