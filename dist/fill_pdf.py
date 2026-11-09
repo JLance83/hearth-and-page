@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.27'
+FILLER_VERSION = 'dist-2026-10-19.28'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3099,6 +3099,13 @@ def fill_form15(input_path, output_path, form_data_list):
     _them = _party('f15_responding_party', 'respondent')
     fields['Name of requesting party'] = _me['name']
     fields['Name(s) of responding party(ies)'] = _them['name']
+    # FIX-F15-LAWYER-CERT: page 4 "Lawyer's Certificate - My name is ___".
+    # The requesting party is always the user filing Form 15, so this is the
+    # user's own lawyer: printed only when "Do you have a lawyer?" = yes and
+    # a name was given (same rule as page 1). The lawyer signs and dates it
+    # by hand, so those boxes stay blank.
+    if _me['law_name']:
+        fields['Name of requesting party\u2019s lawyer'] = _me['law_name']
     _role = _g('case_role').lower()
     if _role in ('applicant', 'agreement', 'respondent'):
         _ap, _re = (_them, _me) if _role == 'respondent' else (_me, _them)
