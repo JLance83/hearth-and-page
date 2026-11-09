@@ -226,6 +226,11 @@ const PATCHES = [
     name: 'Required-answer check uses the same checkbox-list rule (FIX-SHOWIF-CHECKBOXES)',
     file: 'index-CNjoTsGP.js',
     sentinel: 'if(!Ge||!gt.some(x=>x===Ge||String(Ge).split(",").includes(x)))return!1}',
+  },  {
+    commit: 'Nov 9 2026 (see FIX-F15-INCOME-TABLE)',
+    name: 'Form 15 asks the item 9 income table (3 years, both parties) when a support change is ticked (FIX-F15-INCOME-TABLE)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F15-INCOME-TABLE*/{key:"incomeYear1",type:"text"',
   },
 ];
 

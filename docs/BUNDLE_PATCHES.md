@@ -314,6 +314,27 @@ and `if(!Ge||!gt.some(x=>x===Ge||String(Ge).split(",").includes(x)))return!1}`
 
 ---
 
+### FIX-F15-INCOME-TABLE — Form 15 asks the item 9 income table (Nov 9 2026)
+
+**Problem:** Form 15 page 2 item 9 asks, if you are changing support, for
+your income and the other party's income (if known) for the past 3 years,
+with sources. The app never asked, so the table was always blank.
+
+**Fix:** 15 optional questions at the end of the Form 15 screen
+`f15_changes_requested`, after "Types of special / extraordinary
+expenses". For each year 1-3: `incomeYear{n}`, `myIncome{n}`,
+`myIncomeSources{n}`, `otherIncome{n}`, `otherIncomeSources{n}`. Each has
+`showIf: {key: "changeTypes", equals: ["child_support_table",
+"child_support_special", "spousal_support"]}` so they show only when a
+support change is ticked (needs FIX-SHOWIF-CHECKBOXES for combinations).
+Year 1's tip quotes the form's instruction (total income, line 150 - now
+line 15000 - of the tax return). PDF rows see them as
+`f15_changes_requested_income_year1`, `..._my_income1`, etc.
+
+**Sentinel:** `/*FIX-F15-INCOME-TABLE*/{key:"incomeYear1",type:"text"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
