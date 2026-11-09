@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.29'
+FILLER_VERSION = 'dist-2026-10-19.30'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2413,6 +2413,12 @@ def _box_sizes(input_path, names):
             for annot in page.get('/Annots') or []:
                 obj = annot.get_object()
                 t = obj.get('/T')
+                if (t is None or str(t) not in names) and '/Parent' in obj:
+                    # Some boxes keep all or part of their name on parent
+                    # objects; a "." in a name splits it into levels, e.g.
+                    # Form 15 page 2 "income (0.00) 1". Also try the full
+                    # joined name, the same match _write_pdf uses.
+                    t = _get_field_full_path(obj)
                 if t is not None and str(t) in names and '/Rect' in obj:
                     r = [float(x) for x in obj['/Rect']]
                     out[str(t)] = (abs(r[2] - r[0]), abs(r[3] - r[1]))
@@ -3359,6 +3365,39 @@ def fill_form15(input_path, output_path, form_data_list):
         if _re_amt.fullmatch(r'\d+(\.\d+)?', n):
             return f'{float(n):,.2f}'
         return s
+    # FIX-F15-INCOME-TABLE: page 2 item 9 income table (3 rows: year, the
+    # requesting party's income and sources, the responding party's income
+    # and sources). The form says "If you are asking to change support", so
+    # it prints only when item 10 has a support box ticked (same rule as
+    # D1). The requesting party is always the user. Amounts print as
+    # 1,234.56 when the answer is a number (else as typed); years and
+    # sources print as typed. Each box shrinks 10pt -> 7pt to fit its line.
+    if _ct & {'child_support_table', 'child_support_special', 'spousal_support'}:
+        _inc = {}
+        for _i in (1, 2, 3):
+            for _box, _key, _money in (
+                (f'Year {_i}', f'income_year{_i}', False),
+                (f'Requesting party\u2019s income (0.00) {_i}', f'my_income{_i}', True),
+                (f'Requesting party\u2019s income source {_i}', f'my_income_sources{_i}', False),
+                (f'Responding party\u2019s income (0.00) {_i}', f'other_income{_i}', True),
+                (f'Responding party\u2019s income source {_i}', f'other_income_sources{_i}', False),
+            ):
+                _v = _g(f'f15_changes_requested_{_key}')
+                if _v:
+                    _inc[_box] = _f15_money(_v) if _money else _v
+        if _inc:
+            _isz = _box_sizes(input_path, set(_inc))
+            for _k, _v in _inc.items():
+                fields[_k] = _v
+                if _k not in _isz:
+                    continue
+                _usable = (_isz[_k][0] - 6.0) * 0.95
+                _pt = 10.0
+                while _pt > 7.0 and _helv_width(_v, _pt) > _usable:
+                    _pt -= 0.5
+                _live_fonts[_k] = _pt
+                if _helv_width(_v, _pt) > _usable:
+                    sys.stderr.write(f'[fill_form15] too long to fit at {_pt:g}pt: {_k}\n')
     if _ct & {'child_support_table', 'child_support_special', 'spousal_support'}:
         _owed = _g('f15_circumstances_support_owed_today').lower()
         if _owed in ('yes', 'true', '1'):
