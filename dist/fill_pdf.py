@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.23'
+FILLER_VERSION = 'dist-2026-10-19.24'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2338,6 +2338,89 @@ def _fit_font_da(obj, parent, value, short_line_pt=None):
         return _re_da.sub(r'[\d.]+(\s+Tf)', f'{size:g}\\1', da, count=1)
     return f'/Helv {size:g} Tf 0 g'
 
+# FIX-WRAP-FIT: wrap-aware text size for big multi-line boxes.
+# _fit_font_da (above) only sizes answers that contain line breaks and
+# treats each line as one unwrapped line, so a normal paragraph answer
+# keeps the template's auto size. iPhone and other strict viewers then
+# draw it at about 12pt and cut off the bottom. This measures the text
+# with the real Helvetica letter widths, wraps it word by word the way a
+# viewer does, and picks the largest size (max_pt down to min_pt, half
+# points) whose wrapped lines fit the box. Callers opt in per box (only
+# Form 15 for now), so no other form changes.
+_HELV_W = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278,
+           556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556,
+           1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778,
+           667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556,
+           333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556,
+           556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584]
+
+
+def _helv_width(s, pt):
+    """Width of s in points, Helvetica at pt (unknown letters count as 556)."""
+    return sum(_HELV_W[ord(c) - 32] if 32 <= ord(c) < 127 else 556 for c in s) * pt / 1000.0
+
+
+def _wrapped_line_count(text, width, pt):
+    """Lines needed to show text in a box `width` points wide at pt."""
+    lines = 0
+    for para in str(text).replace('\r\n', '\n').replace('\r', '\n').split('\n'):
+        words = para.split(' ')
+        cur = ''
+        n = 1
+        for word in words:
+            trial = word if not cur else cur + ' ' + word
+            if _helv_width(trial, pt) <= width:
+                cur = trial
+                continue
+            # A word longer than the whole line is broken letter by letter.
+            if _helv_width(word, pt) > width:
+                piece = cur + (' ' if cur else '')
+                for ch in word:
+                    if _helv_width(piece + ch, pt) > width and piece.strip():
+                        n += 1
+                        piece = ch
+                    else:
+                        piece += ch
+                cur = piece
+            else:
+                n += 1
+                cur = word
+        lines += n
+    return lines
+
+
+def _wrap_fit_pt(text, box_w, box_h, max_pt=10.0, min_pt=7.0):
+    """Largest size (half points) at which text, wrapped, fits the box.
+    Returns (size, fits). If it can't fit even at min_pt, returns
+    (min_pt, False) - the caller decides what to do (log it; a screen
+    warning is a separate step)."""
+    usable_w = (box_w - 6.0) * 0.95   # 2pt padding each side + 1pt border, 5% safety
+    usable_h = box_h - 4.0
+    pt = float(max_pt)
+    while pt >= min_pt:
+        if _wrapped_line_count(text, usable_w, pt) * pt * 1.2 <= usable_h:
+            return pt, True
+        pt -= 0.5
+    return float(min_pt), False
+
+
+def _box_sizes(input_path, names):
+    """{field name: (width, height)} for the named text boxes in a template."""
+    import pypdf
+    out = {}
+    try:
+        for page in pypdf.PdfReader(input_path).pages:
+            for annot in page.get('/Annots') or []:
+                obj = annot.get_object()
+                t = obj.get('/T')
+                if t is not None and str(t) in names and '/Rect' in obj:
+                    r = [float(x) for x in obj['/Rect']]
+                    out[str(t)] = (abs(r[2] - r[0]), abs(r[3] - r[1]))
+    except Exception:
+        pass
+    return out
+
+
 def _set_need_appearances(writer):
     """FIX-NEED-APPEARANCES: the shared writers clear each filled field's
     stored appearance (/AP) so the new value can be drawn - but never told
@@ -3194,6 +3277,28 @@ def fill_form15(input_path, output_path, form_data_list):
         fields['List types of expenses'] = _g('f15_changes_requested_special_expenses_types')
     if 'other' in _ct and _g('f15_changes_requested_other_change_details'):
         fields['Details of other change'] = _g('f15_changes_requested_other_change_details')
+    # FIX-WRAP-FIT: every filled big written-answer box gets a size that
+    # fits its wrapped text (10pt down to 7pt). Too long even at 7pt: logged
+    # here; the on-screen warning is a later step.
+    _big = (
+        'List types of expenses',
+        'Details of other change',
+        'Details - Are you and the responding party following the current order/agreement',
+        'Facts that show why the court should change the order/agreement',
+        'Details - Did the responding party do anything to make it difficult for you to know if support should change',
+        'Details - Why didn’t you ask the court to change support sooner',
+        'Your circumstances and the childs circumstances that support this request',
+    )
+    _filled_big = [k for k in _big if str(fields.get(k, '') or '').strip()]
+    if _filled_big:
+        _sizes = _box_sizes(input_path, set(_filled_big))
+        for _k in _filled_big:
+            if _k not in _sizes:
+                continue
+            _pt, _ok = _wrap_fit_pt(fields[_k], *_sizes[_k])
+            _live_fonts[_k] = _pt
+            if not _ok:
+                sys.stderr.write(f'[fill_form15] too long to fit at {_pt:g}pt: {_k}\n')
     n = _write_pdf(input_path, output_path, fields, _cbs, font_pt=_live_fonts)
     sys.stderr.write(f'[fill_form15] Filled {n} fields\n')
     return n
