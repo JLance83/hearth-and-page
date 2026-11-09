@@ -353,7 +353,7 @@ items 17a-d). The question also moved to the end of the screen, after
 below the answer that reveals it and in the form's order (17c then 17d).
 Saved answers keep the same key.
 
-**Sentinel:** `/*FIX-F15-17D-SHOWIF*/{key:"yourCircumstancesChildSupport",...showIf:{key:"changeStartWhen",equals:"before_today"}`
+**Sentinel:** `label:"Your circumstances and the children's circumstances that support a change to child support",showIf:{key:"changeStartWhen",equals:"before_today"}` (from the label on, since FIX-FIT-WARN added `fit` after `type`)
 
 ---
 
@@ -409,6 +409,44 @@ YES/NO when names match exactly (see the FIX-F15-CHILD-SUPPORT-YN block
 in `dist/fill_pdf.py`).
 
 **Sentinel:** `/*FIX-F15-CHILD-SUPPORT-YN*/{key:"supportAllChildren",type:"yesno"`
+
+---
+
+### FIX-FIT-WARN — amber note when an answer won't fit its Form 15 box (Nov 9 2026)
+
+**Problem (plan decision D5):** the PDF filler shrinks Form 15 answers
+from 10pt down to 7pt to fit their boxes, but an answer too long even at
+7pt gets cut off on the PDF. The user was never told.
+
+**Fix:** an advice-only amber note under the answer, shown while typing.
+It never blocks Continue and never changes the answer.
+- Helpers near the top of the bundle (before `__hpShowOk`):
+  `__hpW` (Helvetica width, same letter-width table as `_HELV_W` in
+  `dist/fill_pdf.py`), `__hpLines` (word wrap, a line-by-line copy of
+  `_wrapped_line_count`), `__hpFitMsg(field, value)` and
+  `__hpFitNote(s, field, value)`.
+- A field opts in with `fit`:
+  - `{w, h}`: big box, wrapped at 7pt (same test as `_wrap_fit_pt`).
+  - `{w, rows: 7}`: page 3 table; one row per typed line, lines 7+
+    joined with "; " into row 7 (same as `_f15_rows`), each row one line.
+  - `{w}`: one-line box. `money: 1` formats numbers as 1,234.56 first
+    (same as `_f15_money`).
+  Usable width is `(w - 6) * 0.95`, as in the filler.
+- Sizes are the real box sizes from `_box_sizes` on
+  `dist/public/pdfs/form15.pdf`. 24 Form 15 answers: currentTerms,
+  requestedChanges, specialExpensesTypes, otherChangeDetails, the 15
+  income table answers (f15_changes_requested), notFollowingDetails,
+  changeInCircumstances, otherPartyDifficultDetails, whyNotSoonerDetails,
+  yourCircumstancesChildSupport (f15_circumstances). Same-named answers
+  on other forms are not touched.
+- Note shown under textarea and one-line text answers
+  (`data-testid="fit-warn-<key>"`).
+
+**If you change the filler's fitting rule or a template box, update the
+matching `fit` sizes here.** Cross-checked against the Python rule on
+4,000 random answers: 0 differences.
+
+**Sentinel:** `function __hpFitNote(s,t,e){const m=__hpFitMsg(t,e);`
 
 ---
 

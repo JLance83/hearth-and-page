@@ -236,7 +236,8 @@ const PATCHES = [
     commit: 'Nov 9 2026 (see FIX-F15-17D-SHOWIF)',
     name: 'Form 15 item 17d question shows when the support change starts before today (FIX-F15-17D-SHOWIF)',
     file: 'index-CNjoTsGP.js',
-    sentinel: '/*FIX-F15-17D-SHOWIF*/{key:"yourCircumstancesChildSupport",type:"textarea",label:"Your circumstances and the children\'s circumstances that support a change to child support",showIf:{key:"changeStartWhen",equals:"before_today"}',
+    // FIX-FIT-WARN (Nov 9) put fit:{...} between type and label, so match from the label on.
+    sentinel: 'label:"Your circumstances and the children\'s circumstances that support a change to child support",showIf:{key:"changeStartWhen",equals:"before_today"}',
   },
   {
     commit: 'Nov 9 2026 (see FIX-SHOWIF-NESTED)',
@@ -249,6 +250,30 @@ const PATCHES = [
     name: 'Form 15 asks which children the child support change is for (FIX-F15-CHILD-SUPPORT-YN)',
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F15-CHILD-SUPPORT-YN*/{key:"supportAllChildren",type:"yesno"',
+  },
+  {
+    commit: 'Nov 9 2026 (see FIX-FIT-WARN)',
+    name: 'Amber note when an answer is too long for its Form 15 PDF box (FIX-FIT-WARN helper)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'function __hpFitNote(s,t,e){const m=__hpFitMsg(t,e);',
+  },
+  {
+    commit: 'Nov 9 2026 (see FIX-FIT-WARN)',
+    name: 'Fit note shown under written-answer boxes (FIX-FIT-WARN)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '"data-testid":u}),/*FIX-FIT-WARN*/__hpFitNote(s,t,e)]})}if(t.type==="yesno")',
+  },
+  {
+    commit: 'Nov 9 2026 (see FIX-FIT-WARN)',
+    name: 'Fit note shown under one-line answers (FIX-FIT-WARN)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '"data-testid":u,autoComplete:"off"}),/*FIX-FIT-WARN*/__hpFitNote(s,t,e)]})}',
+  },
+  {
+    commit: 'Nov 9 2026 (see FIX-FIT-WARN)',
+    name: 'Form 15 item 13 facts carries its PDF box size (FIX-FIT-WARN)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '{key:"changeInCircumstances",type:"textarea",fit:{w:531.6,h:418.68},',
   },
 ];
 
