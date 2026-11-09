@@ -244,6 +244,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: 'if(g.showIf){/*FIX-SHOWIF-NESTED*/if(!__hpShowOk(g,e,r))return null}',
   },
+  {
+    commit: 'Nov 9 2026 (see FIX-F15-CHILD-SUPPORT-YN)',
+    name: 'Form 15 asks which children the child support change is for (FIX-F15-CHILD-SUPPORT-YN)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F15-CHILD-SUPPORT-YN*/{key:"supportAllChildren",type:"yesno"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

@@ -386,6 +386,32 @@ answer back. The PDF filler gates these answers on its own.
 
 ---
 
+### FIX-F15-CHILD-SUPPORT-YN — Form 15 asks which children the support change is for (Nov 9 2026)
+
+**Problem:** Form 15 page 2 lists each child with a last column "Change
+of support being requested, yes or no". The app never asked, so it was
+always blank.
+
+**Fix (plan decision D3-A):** two optional questions on screen
+`f15_changes_requested`, after "Types of special / extraordinary
+expenses" and before the income table:
+- `supportAllChildren` (yes/no): "Is the child support change for every
+  child listed in this case?" `showIf: {key: "changeTypes", equals:
+  ["child_support_table", "child_support_special"]}`.
+- `supportChildrenNames` (text box): "Which children ... one per line,
+  exactly as you entered it". `showIf: {key: "supportAllChildren",
+  equals: "no"}`. Hides when child support is unticked thanks to
+  FIX-SHOWIF-NESTED.
+
+PDF rows see them as `f15_changes_requested_support_all_children` and
+`f15_changes_requested_support_children_names`. The filler only marks
+YES/NO when names match exactly (see the FIX-F15-CHILD-SUPPORT-YN block
+in `dist/fill_pdf.py`).
+
+**Sentinel:** `/*FIX-F15-CHILD-SUPPORT-YN*/{key:"supportAllChildren",type:"yesno"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
