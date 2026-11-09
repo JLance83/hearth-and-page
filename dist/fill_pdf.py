@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.28'
+FILLER_VERSION = 'dist-2026-10-19.29'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3243,8 +3243,8 @@ def fill_form15(input_path, output_path, form_data_list):
     fields['the agreement that you want to change You can only use this form to change support terms in an agreement that'] = d.get('order_or_agreement_desc', '')
     # FIX-F15-ORDER-TYPE: page 1 "has brought a motion to change" ticks the
     # one box the user picked on "The order or agreement you want to change"
-    # (existingDocType) and prints that choice's details if answered. The
-    # recalculation date has no question in the app, so it stays blank.
+    # (existingDocType) and prints that choice's details if answered
+    # (recalculation date: see FIX-F15-RECALC-DATE below).
     _doc = str(d.get('f15_existing_order_existing_doc_type', '') or '').strip().lower()
     _cbs = {
         'the final order': _doc == 'final_order',
@@ -3259,6 +3259,11 @@ def fill_form15(input_path, output_path, form_data_list):
     elif _doc == 'agreement':
         fields['Name of agreement'] = _g('f15_existing_order_agreement_name')
         fields['Date of agreement'] = format_dob(_g('f15_existing_order_agreement_date'))
+    elif _doc == 'recalculated':
+        # FIX-F15-RECALC-DATE: "...recalculated by the online Child Support
+        # Service on ___" - the new "Date of the recalculation" question
+        # (shown only for this choice). Blank stays blank.
+        fields['Date of order/agreement'] = format_dob(_g('f15_existing_order_recalculation_date'))
     # FIX-F15-CHANGE-TYPES: page 2 item 10 "I want to change the following"
     # ticks one box per choice on "What do you want the court to change?"
     # (saved as a comma list, e.g. "parenting_time,decision_making"; a JSON
