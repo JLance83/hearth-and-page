@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.26'
+FILLER_VERSION = 'dist-2026-10-19.27'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3296,6 +3296,42 @@ def fill_form15(input_path, output_path, form_data_list):
     if _g('f15_circumstances_change_in_circumstances'):
         fields['Facts that show why the court should change the order/agreement'] = \
             _g('f15_circumstances_change_in_circumstances')
+    # FIX-F15-TERMS-TABLE: page 3 item 11 has 7 one-line rows (a-g), each a
+    # "Current term" line and a "Requested change" line. The app asks with
+    # two big boxes, so (Josh, plan D2-A) each line the user typed becomes
+    # one row: line 1 -> row a, line 2 -> row b, ... Empty lines are skipped.
+    # A line too wide for its row shrinks (10pt down to 7pt). More than 7
+    # lines: lines 7+ are joined into row g with "; " so nothing is silently
+    # dropped (the on-screen warning to shorten is a later step). Text is
+    # printed as typed - no rewording.
+    def _f15_rows(v):
+        rows = [ln.strip() for ln in str(v or '').replace('\r\n', '\n').replace('\r', '\n').split('\n')]
+        rows = [ln for ln in rows if ln]
+        if len(rows) > 7:
+            rows = rows[:6] + ['; '.join(rows[6:])]
+        return rows
+    _row_names = {
+        'Current term': [f'Current term {i}' for i in range(1, 8)],
+        'Requested change': [f'Requested change {i}' for i in range(1, 8)],
+    }
+    _row_fill = {}
+    for _label, _key in (('Current term', 'f15_changes_requested_current_terms'),
+                         ('Requested change', 'f15_changes_requested_requested_changes')):
+        for _i, _line in enumerate(_f15_rows(_g(_key))):
+            _row_fill[_row_names[_label][_i]] = _line
+    if _row_fill:
+        _rsz = _box_sizes(input_path, set(_row_fill))
+        for _k, _line in _row_fill.items():
+            fields[_k] = _line
+            if _k not in _rsz:
+                continue
+            _usable = (_rsz[_k][0] - 6.0) * 0.95
+            _pt = 10.0
+            while _pt > 7.0 and _helv_width(_line, _pt) > _usable:
+                _pt -= 0.5
+            _live_fonts[_k] = _pt
+            if _helv_width(_line, _pt) > _usable:
+                sys.stderr.write(f'[fill_form15] too long to fit at {_pt:g}pt: {_k}\n')
     # FIX-F15-SUPPORT-PART: pages 6-7 (items 14-17) were never filled. The
     # form says this part is completed only if asking to change child or
     # spousal support, so nothing prints unless item 10 has a support box
