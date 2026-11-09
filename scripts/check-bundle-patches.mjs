@@ -215,6 +215,17 @@ const PATCHES = [
     name: 'Form 15 asks the recalculation date when a recalculated amount is being changed (FIX-F15-RECALC-DATE)',
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F15-RECALC-DATE*/{key:"recalculationDate",type:"date",label:"Date of the recalculation"',
+  },  {
+    commit: 'Nov 9 2026 (see FIX-SHOWIF-CHECKBOXES)',
+    name: 'Follow-up questions show when their box is one of several ticked (FIX-SHOWIF-CHECKBOXES)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-SHOWIF-CHECKBOXES*/if(!_||!S.some(x=>x===_||String(_).split(",").includes(x)))return null}',
+  },
+  {
+    commit: 'Nov 9 2026 (see FIX-SHOWIF-CHECKBOXES)',
+    name: 'Required-answer check uses the same checkbox-list rule (FIX-SHOWIF-CHECKBOXES)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'if(!Ge||!gt.some(x=>x===Ge||String(Ge).split(",").includes(x)))return!1}',
   },
 ];
 

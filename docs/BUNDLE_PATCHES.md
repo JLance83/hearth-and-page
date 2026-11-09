@@ -289,6 +289,31 @@ key `recalculationDate`; the PDF rows see it as
 
 ---
 
+### FIX-SHOWIF-CHECKBOXES — follow-up questions work when several boxes are ticked (Nov 9 2026)
+
+**Problem:** A question can be set to show only when another answer on the
+same screen has a certain value (`showIf`). Checkbox answers are saved as a
+comma list, e.g. `child_support_special,other`, but the rule compared the
+whole list to one value. So a follow-up only appeared when its box was the
+ONLY box ticked. Example: Form 15 "Types of special / extraordinary
+expenses" vanished as soon as a second change was also ticked. 12
+follow-ups on Forms 15, 15C, 15D, 12, 17, 17C and 17E were affected.
+
+**Fix:** In both places the rule is used (drawing the screen, and the
+"required answers missing" check), a question now shows when the answer
+equals the value OR the comma list contains it. Yes/no and pick-one answers
+never contain commas, so they behave exactly as before (checked: every
+`showIf` in the bundle points at a yes/no, pick-one or checkbox question).
+
+**Not fixed here:** 18 questions point at an answer on a different screen
+and so never show (Form 15 `yourCircumstancesChildSupport`; 17 on Form 23C
+`f23c_claims` pointing at `orderSought`). Separate steps.
+
+**Sentinels:** `/*FIX-SHOWIF-CHECKBOXES*/if(!_||!S.some(x=>x===_||String(_).split(",").includes(x)))return null}`
+and `if(!Ge||!gt.some(x=>x===Ge||String(Ge).split(",").includes(x)))return!1}`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
