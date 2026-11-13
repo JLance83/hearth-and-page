@@ -275,6 +275,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '{key:"changeInCircumstances",type:"textarea",fit:{w:531.6,h:418.68},',
   },
+  {
+    commit: 'Nov 13 2026 (see FIX-F23C-ORDERS)',
+    name: 'Form 23C asks which orders (tick all that apply) on the claims screen, so the claim questions show (FIX-F23C-ORDERS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F23C-ORDERS*/{key:"orderSought",type:"checkboxes",label:"Which orders are you asking for? (tick all that apply)"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

@@ -307,7 +307,8 @@ never contain commas, so they behave exactly as before (checked: every
 
 **Not fixed here:** 18 questions point at an answer on a different screen
 and so never show (Form 15 `yourCircumstancesChildSupport`; 17 on Form 23C
-`f23c_claims` pointing at `orderSought`). Separate steps.
+`f23c_claims` pointing at `orderSought`). Separate steps. Both are now fixed
+(FIX-F15-17D-SHOWIF, FIX-F23C-ORDERS).
 
 **Sentinels:** `/*FIX-SHOWIF-CHECKBOXES*/if(!_||!S.some(x=>x===_||String(_).split(",").includes(x)))return null}`
 and `if(!Ge||!gt.some(x=>x===Ge||String(Ge).split(",").includes(x)))return!1}`
@@ -447,6 +448,36 @@ matching `fit` sizes here.** Cross-checked against the Python rule on
 4,000 random answers: 0 differences.
 
 **Sentinel:** `function __hpFitNote(s,t,e){const m=__hpFitMsg(t,e);`
+
+---
+
+### FIX-F23C-ORDERS — Form 23C claim questions now show (Nov 13 2026)
+
+**Problem:** all 17 questions on the Form 23C "Your claims" screen depend on
+"What type of order are you asking for?" (`orderSought`), which was on step 1
+(`f23c_identity`). The app only checks answers on the same screen, so none of
+the 17 ever showed. The question also allowed only one order, but paragraph 3
+of the official form lets you tick several.
+
+**Fix (Form 23C plan, decisions D1 + D2):**
+- `orderSought` moved from `f23c_identity` to the top of `f23c_claims`. It is now
+  tick boxes ("Which orders are you asking for? (tick all that apply)"):
+  decision-making, parenting time, contact, child support, spousal support,
+  restraining order, other. `otherOrderDetails` moved with it.
+  Spousal support is a tick option here and unlocks paragraph 14. On the PDF, child
+  and spousal support both go to the paragraph 3 "support for" line.
+- Paragraph 7 (`respondentParentingTimeYesNo` + reasons) now shows for decision-making
+  or parenting time, not only decision-making. The options read "is" or "is not" in the children's best interests.
+- Paragraph 8 (`parentingTimeSchedule`) shows for either one and uses the form's
+  three choices: `reasonable`, `reasonable_plus`, `terms`. The old "supervised" choice isn't on the form.
+  `parentingTimeDetails` shows only for `reasonable_plus` or `terms`.
+- The questions are reordered to match the form (paragraphs 5, 6, 7, 8).
+
+No saved 23C answers existed (DB check), so nothing needed migrating. The PDF
+filler doesn't read these answers yet (plan bricks 2–7). After this change no form in the
+bundle has a `showIf` that points at another screen.
+
+**Sentinel:** `/*FIX-F23C-ORDERS*/{key:"orderSought",type:"checkboxes",label:"Which orders are you asking for? (tick all that apply)"`
 
 ---
 
