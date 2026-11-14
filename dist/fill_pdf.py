@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.32'
+FILLER_VERSION = 'dist-2026-10-19.33'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3787,33 +3787,231 @@ def fill_form13b(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 # Form 23C — Affidavit (Divorce)
 # ─────────────────────────────────────────────────────────────────────────────
+def _set_radio_kids(path, group, wanted, court_choice=None):
+    """FIX-F23C-PAGE1-6: tick several buttons of one radio group.
+
+    Some official forms (Form 23C para 3) build a "tick all that apply" list
+    as ONE radio group. Viewers show only one button of a radio group as
+    ticked, so a person asking for several orders would see one tick. In the
+    OUTPUT file only, each button of `group` becomes its own tick box (own
+    name, no parent), turned on when its "on" name (export value), trimmed
+    and lower-cased, is in `wanted`. The blank template is not changed.
+    `court_choice`, when given, is written into the "Name of court"
+    drop-down (the shared writer only fills text boxes and tick boxes).
+    Returns how many boxes were set.
+    """
+    import pypdf
+    from pypdf.generic import NameObject, NumberObject, ArrayObject, create_string_object
+    want = {str(w).strip().lower() for w in wanted if str(w).strip()}
+    reader = pypdf.PdfReader(path)
+    writer = pypdf.PdfWriter()
+    writer.append(reader)
+    acro = writer._root_object['/AcroForm'].get_object()
+    fields_arr = acro.get('/Fields')
+    on = 0
+    idx = 0
+    parents = []
+    for page in writer.pages:
+        for ref in page.get('/Annots') or []:
+            obj = ref.get_object()
+            if obj.get('/Subtype') != '/Widget':
+                continue
+            if court_choice and str(obj.get('/T')) == 'Name of court' and obj.get('/FT') == '/Ch':
+                obj.update({NameObject('/V'): create_string_object(court_choice)})
+                obj.pop('/AP', None)
+                on += 1
+                continue
+            if obj.get('/T') is not None or '/Parent' not in obj:
+                continue
+            pref = obj['/Parent']
+            par = pref.get_object()
+            if str(par.get('/T')) != group:
+                continue
+            if pref not in parents:
+                parents.append(pref)
+            idx += 1
+            names = [str(k) for k in (obj.get('/AP', {}).get('/N', {}) or {}).keys() if str(k) != '/Off']
+            state = '/Off'
+            for nm in names:
+                if nm[1:].strip().lower() in want:
+                    state = nm
+            del obj['/Parent']
+            obj.update({
+                NameObject('/T'): create_string_object(f'{group} {idx}'),
+                NameObject('/FT'): NameObject('/Btn'),
+                NameObject('/Ff'): NumberObject(0),
+                NameObject('/V'): NameObject(state),
+                NameObject('/AS'): NameObject(state),
+            })
+            if fields_arr is not None:
+                fields_arr.append(ref)
+            if state != '/Off':
+                on += 1
+    if fields_arr is not None:
+        for pref in parents:
+            pref.get_object()[NameObject('/Kids')] = ArrayObject()
+            keep = [f for f in fields_arr if f != pref]
+            fields_arr.clear()
+            fields_arr.extend(keep)
+    _set_need_appearances(writer)
+    with open(path, 'wb') as f:
+        writer.write(f)
+    return on
+
+
 def fill_form23c(input_path, output_path, form_data_list):
+    # FIX-F23C-PAGE1-6 (Nov 13 2026, Form 23C plan brick 2 + decision D3):
+    # page 1 and page 6 come from the main case answers wherever the case
+    # already has them, so nobody types their name, city or children twice.
+    # The 23C screens only add what the case cannot know (which orders,
+    # "other", not-served reasons, other issues). Sworn block stays blank
+    # for the commissioner (D4). Blank stays blank; when the main case and
+    # a 23C answer disagree the box is left blank and logged.
     d = _fe_flat(form_data_list)
-    fields = _header(d, pages=4)
-    fields['date of birth'] = d.get('applicant_dob', '')
-    fields['Date of marriage'] = d.get('date_of_marriage', '')
-    fields['Place of marriage'] = d.get('place_of_marriage', '')
-    fields['Date - Separation'] = d.get('date_of_separation', '')
-    # Children table (up to 5)
+
+    def g(*keys):
+        for k in keys:
+            v = str(d.get(k) or '').strip()
+            if v:
+                return v
+        return ''
+
+    def prov(v):
+        v = (v or '').strip()
+        return 'Ontario' if v.upper() in ('ON', 'ONT', 'ONT.') else v
+
+    def one(label, main, alt):
+        main, alt = (main or '').strip(), (alt or '').strip()
+        if main and alt and main != alt:
+            sys.stderr.write(f'[fill_form23c] {label}: case answer and 23C answer differ - left blank\n')
+            return ''
+        return main or alt
+
+    fields = _header(d, pages=6)
+    ap = g('applicant_full_name', 'applicantFullName')
+    re_name = g('respondent_full_name', 'respondentFullName')
+    ap_city, ap_prov = g('applicant_city', 'applicantCity'), prov(g('applicant_province', 'applicantProvince'))
+    re_city, re_prov = g('respondent_city', 'respondentCity'), prov(g('respondent_province', 'respondentProvince'))
+
+    # "My name is" / "I live in"
+    fields['full legal name'] = ap
+    fields['municipality & province'] = _fmt_muni(ap_city, ap_prov)
+
+    # Para 2: children (main case children, same rules as Forms 8 and 15)
+    try:
+        n_kids = int(g('children_count', 'childrenCount') or '0')
+    except Exception:
+        n_kids = 0
+    kid_names = []
     for i in range(1, 6):
-        fields[f'Full Legal NameRow{i}'] = d.get(f'child_{i}_name', '')
-        fields[f'AgeRow{i}'] = d.get(f'child_{i}_age', '')
-        fields[f'Birthdate d m yRow{i}'] = d.get(f'child_{i}_dob', '')
-        # Wizard writes `livesWith` → adapter emits `child_{i}_lives_with`.
-        # Legacy `child_{i}_residence` / `child_{i}_living_with` kept for
-        # backwards compatibility.
-        fields[f'Resident in municipality  provinceRow{i}'] = d.get(f'child_{i}_city', '')
-        fields[f'Now living with name of person and relationship to childRow{i}'] = d.get(
-            f'child_{i}_lives_with',
-            d.get(f'child_{i}_living_with',
-                  d.get(f'child_{i}_residence', ''))
-        )
-    checkboxes = {
-        'married on date': d.get('relationship_type', '') == 'married',
-        'separated on date': bool(d.get('date_of_separation', '')),
-        'never lived together': d.get('relationship_type', '') == 'never_lived_together',
+        cn = g(f'child_{i}_name', f'child{i}Name')
+        cd = g(f'child_{i}_dob', f'child{i}Dob')
+        cr = g(f'child_{i}_lives_with', f'child_{i}_living_with', f'child_{i}_residence').lower()
+        if not (cn or cd or cr):
+            continue
+        if cn:
+            kid_names.append(cn)
+        other = cr in ('respondent', 'with other parent', 'with the other parent', 'with the respondent')
+        if cr in ('applicant', 'with me', 'with the applicant', 'me'):
+            who = ap or 'Applicant'
+        elif other:
+            who = f'{re_name} (other parent)' if re_name else 'Other parent'
+        elif cr == 'both':
+            who = f'{ap or "Applicant"} and {re_name or "Respondent"}'
+        elif cr in ('other', ''):
+            who = ''
+        else:
+            who = g(f'child_{i}_lives_with', f'child_{i}_living_with', f'child_{i}_residence')
+        ex_city, ex_prov = g(f'child_{i}_city'), prov(g(f'child_{i}_province'))
+        if ex_city or ex_prov:
+            c_city, c_prov = ex_city, ex_prov
+        elif other:
+            c_city, c_prov = re_city, re_prov
+        else:
+            c_city, c_prov = ap_city, ap_prov
+        fields[f'Full Legal NameRow{i}'] = cn
+        fields[f'AgeRow{i}'] = calc_age(cd)
+        fields[f'Birthdate d m yRow{i}'] = format_dob(cd)
+        fields[f'Resident in municipality  provinceRow{i}'] = _fmt_muni(c_city, c_prov)
+        fields[f'Now living with name of person and relationship to childRow{i}'] = who
+    count = n_kids or len(kid_names)
+    if count:
+        fields['number of children'] = str(count)
+
+    # Para 3: orders asked for (23C "Which orders" tick boxes)
+    orders = {x.strip() for x in g('f23c_claims_order_sought').split(',') if x.strip()}
+    radio = {
+        'decision_making': 'decision-making responsibility for the child(ren) named above',
+        'parenting_time': 'parenting time with the child(ren) named above',
+        'contact': 'contact with the child(ren) named above',
+        'child_support': 'support for (name of recipient(s))',
+        'spousal_support': 'support for (name of recipient(s))',
+        'restraining_order': 'restraining order against the respondent',
+        'other': 'other (specify)',
     }
+    wanted = {radio[o] for o in orders if o in radio}
+    recips = []
+    if 'child_support' in orders:
+        recips += kid_names
+    if 'spousal_support' in orders and ap:
+        recips.append(ap)
+    if recips:
+        fields['name of recipient(s)'] = recips[0] if len(recips) == 1 else ', '.join(recips[:-1]) + ' and ' + recips[-1]
+    if 'restraining_order' in orders:
+        fields['name of respondent'] = re_name
+        fields['date of birth'] = format_dob(g('respondent_dob'))
+    if 'other' in orders:
+        fields['other (specify)'] = g('f23c_claims_other_order_details')
+
+    # Para 4: relationship (main case first, 23C answer only fills a gap)
+    st = g('f23c_identity_relationship_status')
+    married_main = g('situation_were_married').lower()
+    if married_main and st and (_is_yes(married_main) != (st in ('married', 'separated'))):
+        sys.stderr.write('[fill_form23c] married: case answer and 23C answer differ - left blank\n')
+        married = False
+        st = ''
+    else:
+        married = _is_yes(married_main) or (not married_main and st in ('married', 'separated'))
+    mdate = one('marriage date', g('situation_marriage_date'), g('f23c_identity_marriage_date')) if married else ''
+    sdate = one('separation date', g('situation_separation_date'), g('f23c_identity_separation_date'))
+    cdate = g('f23c_identity_cohabitation_date')
+    checkboxes = {}
+    if married:
+        checkboxes['married on date'] = True
+        fields['married on (date)'] = format_dob(mdate)
+    if sdate:
+        checkboxes['separated on date'] = True
+        fields['separated on (date)'] = format_dob(sdate)
+    if cdate:
+        checkboxes['started living together on date'] = True
+        fields['started living together on (date)'] = format_dob(cdate)
+    if st == 'never_lived_together':
+        if married or sdate or cdate:
+            sys.stderr.write('[fill_form23c] "never lived together" conflicts with marriage/separation/cohabitation answers - left blank\n')
+        else:
+            checkboxes['never lived together'] = True
+
+    # Page 6: para 16 (not served) and other issues. Sworn block left blank (D4).
+    if g('f23c_service_respondent_served').lower() == 'no':
+        fields['My application/motion is not being served on the respondent for the following reasons:'] = g('f23c_service_not_served_reasons')
+    fields['other issues'] = g('f23c_service_other_issues')
+
+    # Court office address box is lower-case on this template. The court
+    # name is a drop-down with three choices; pick the one that matches.
+    fields['court office address'] = fields.get('Court office address', '')
+    cn = str(fields.get('Name of court', ''))
+    if 'Family Court Branch' in cn:
+        court_choice = 'Superior Court of Justice, Family Branch'
+    elif cn.startswith('Superior Court of Justice'):
+        court_choice = 'Superior Court of Justice'
+    elif cn.startswith('Ontario Court of Justice'):
+        court_choice = 'Ontario Court of Justice'
+    else:
+        court_choice = None
+
+    fields = {k: v for k, v in fields.items() if str(v).strip()}
     n = _write_pdf(input_path, output_path, fields, checkboxes)
+    n += _set_radio_kids(output_path, 'I am asking for the following order:', wanted, court_choice)
     sys.stderr.write(f'[fill_form23c] Filled {n} fields\n')
     return n
 
