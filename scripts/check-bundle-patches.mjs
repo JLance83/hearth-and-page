@@ -323,6 +323,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F15-NO-DUPES-1*/{key:"hasLawyer",type:"yesno"',
   },
+  {
+    commit: 'Nov 13 2026 (see FIX-F15-NO-DUPES-2)',
+    name: 'Form 15 step 2 other-party duplicates removed (FIX-F15-NO-DUPES-2)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F15-NO-DUPES-2*/{key:"email",type:"email"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

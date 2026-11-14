@@ -652,6 +652,33 @@ filler. No filler change.
 
 ---
 
+### FIX-F15-NO-DUPES-2 — Form 15 step 2 other-party duplicates removed (Nov 13 2026)
+
+**Problem:** Form 15 step 2 asked again for the other party's name
+(required), address, phone and birth date, and whether they have a
+lawyer with the lawyer's name and phone. The main case "About the other
+person" screen already asks all of these. The PDF prints the main case
+first (FIX-F15-MAIN-FIRST, FIX-F15-THEIR-LAWYER). Form 15 duplicates
+plan brick 3 (Josh D1, D2-A).
+
+**Fix:** `f15_responding_party` now asks only what the main case
+doesn't:
+- `email` ("Their email (if you know it)").
+- `lawyerAddress` and `lawyerEmail`, labelled "only if they have a
+  lawyer". Show/hide rules can only see answers on the same screen, and
+  "has a lawyer" now lives in the main case, so these are always shown
+  but optional. The filler prints them only when the main case says
+  they have a lawyer.
+
+Removed: `fullName`, `address`, `phone`, `dob`, `hasLawyer`,
+`lawyerName`, `lawyerPhone`. The step is retitled "The other party's
+email and lawyer", and the intro says the rest comes from the case
+answers. Old saved answers still fill gaps in the filler.
+
+**Sentinel:** `/*FIX-F15-NO-DUPES-2*/{key:"email",type:"email"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
