@@ -281,6 +281,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F23C-ORDERS*/{key:"orderSought",type:"checkboxes",label:"Which orders are you asking for? (tick all that apply)"',
   },
+  {
+    commit: 'Nov 13 2026 (see FIX-F23C-FIT-WARN)',
+    name: 'Form 23C answers show the too-long note for their PDF box (FIX-F23C-FIT-WARN)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '{key:"decisionMakingReasons",type:"textarea",fit:{w:497.29,h:112.94}',
+  },
 ];
 
 function resolveFile(prefixOrName) {

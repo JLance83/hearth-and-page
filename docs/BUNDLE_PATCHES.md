@@ -481,6 +481,29 @@ bundle has a `showIf` that points at another screen.
 
 ---
 
+### FIX-F23C-FIT-WARN — too-long notes on Form 23C answers (Nov 13 2026)
+
+**Problem:** Form 23C answers now print on the PDF (FIX-F23C-PAGE1-6 and
+FIX-F23C-REASONS), but nothing told people when an answer was too long
+for its box.
+
+**Fix:** the same amber note as FIX-FIT-WARN (no new code, only `fit` sizes
+taken from the official template's box sizes). Nine Form 23C questions:
+- Big boxes `{w,h}`: decisionMakingReasons (para 5), parentingTimeReasons (6),
+  respondentParentingTimeReasons (7), contactReasons (9),
+  respondentIncomeReasons (13), spousalSupportReasons (14),
+  notServedReasons (16), otherIssues (page 6).
+- One-line boxes `{w}`: otherOrderDetails (para 3 "other"), respondentIncome
+  (para 13 amount, printed as typed so no money formatting).
+
+Checked: the note and the filler's own fit check (`_wrap_fit_pt`, 7pt
+smallest) agree on 3,600 random answers across the 8 big boxes (0
+mismatches). Para 10 contact terms gets its size in brick 5.
+
+**Sentinel:** `{key:"decisionMakingReasons",type:"textarea",fit:{w:497.29,h:112.94}`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
