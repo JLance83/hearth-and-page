@@ -335,6 +335,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F15-NO-DUPES-3*/,{key:"cohabitationStartDate"',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F15-TERMS-EXAMPLE)',
+    name: 'Form 15 step 4 terms example has no "Current term N:" label (FIX-F15-TERMS-EXAMPLE)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F15-TERMS-EXAMPLE*/{key:"currentTerms",type:"textarea"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

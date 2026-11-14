@@ -700,6 +700,30 @@ rule).
 
 ---
 
+### FIX-F15-TERMS-EXAMPLE — Form 15 step 4 example without the "Current term" label (Nov 14 2026)
+
+**Problem:** The step 4 example text for `currentTerms` and
+`requestedChanges` began each line with "Current term 1:" / "Requested
+change 1:", and the tip said "You can list each as a numbered term". The
+filler prints each typed line as typed onto its own row (a)-(g) of
+page 3 item 11 (FIX-F15-TERMS-TABLE), so a user who copied the example
+got "Current term 1: ..." printed inside row (a). Item 11 already labels
+the columns, so the prefix is wrong on the form.
+
+**Fix:** Example text only, no filler change (text still prints as
+typed, no rewording):
+- `currentTerms` example: one term per line, each starting with its
+  paragraph number ("Paragraph 4: The Respondent shall pay ..."), no
+  "Current term" label. Item 11 itself asks for "the paragraph number of
+  each term and the wording of the term exactly as it appears". Tip says
+  this and that each line prints on its own row (a) to (g).
+- `requestedChanges` example: same, plus "in the same order as the
+  current terms". Each example line fits a row at 10pt.
+
+**Sentinel:** `/*FIX-F15-TERMS-EXAMPLE*/{key:"currentTerms",type:"textarea"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
