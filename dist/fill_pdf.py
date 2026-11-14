@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.56'
+FILLER_VERSION = 'dist-2026-10-19.57'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4844,6 +4844,9 @@ def _f351_prep_template(input_path):
                 'Full legal name and other names this person has used %d' % _i
             _grow['Relationship to you %d' % _i] = \
                 'Full legal name and other names this person has used %d' % _i
+        # FIX-F351-Q12H-ROWS: paragraph 12(h) child name boxes (page 5).
+        for _i in range(1, 5):
+            _grow['Name of child %d' % _i] = 'Child %d - Description of needs' % _i
         _tall = set(_grow.values())
         for _pg in w.pages:
             _rects, _short = {}, []
@@ -5028,6 +5031,84 @@ def _f351_q12b_rows(d):
 def _f351_yn_val(v):
     v = str(v or '').strip().lower()
     return 'yes' if v in ('yes', 'true', '1') else ('no' if v in ('no', 'false', '0') else '')
+
+
+# FIX-F351-Q12H-ROWS: paragraph 12(h) need types -> page 5 tick boxes.
+_F351_NEED_TYPES = (('medical', 'medical', 'Medical'),
+                    ('educational', 'educational', 'Educational'),
+                    ('mental', 'mental health', 'Mental health'),
+                    ('developmental', 'developmental', 'Developmental'),
+                    ('other', 'other', 'Other'))
+_F351_NEED_TITLE = ('The child or one or more of the children has/have the following special needs '
+                    'and will receive support and services for those needs')
+
+
+def _f351_fill_needs(d, tpl, fields, checkboxes, font, more):
+    """FIX-F351-Q12H-ROWS: paragraph 12(h) table (4 printed rows, page 5).
+    The "does not / has special needs" ticks come from the Yes/No answer
+    (set by the caller). One row per child with special needs: name, need
+    type ticks, description, support. A blank child name is filled only
+    when the case has exactly one child. Rows 5+ and text too long for its
+    box go to the continuation page. Before the rows existed, a single
+    text answer was saved; until rows are filled it is printed in full on
+    the continuation page."""
+    def g(k):
+        return str(d.get(k) or '').strip()
+    yn = g('f351_plan_special_needs').lower()
+    if yn in ('no', 'false', '0'):
+        return
+    kids = [k['name'] for k in _f351_children(d) if k.get('name')]
+    rows = []
+    for i in range(10):
+        p = 'f351_plan_special_needs_rows_%d_' % i
+        r = {c: g(p + c) for c in ('child', 'types', 'description', 'support')}
+        if not any(r.values()):
+            continue
+        if not r['child'] and len(kids) == 1:
+            r['child'] = kids[0]
+        r['types'] = {t.strip() for t in r['types'].split(',') if t.strip()}
+        rows.append(r)
+    if not rows:
+        old = g('f351_plan_special_needs_details')
+        if old and _f351_na(old) != 'N/A':
+            fields['Name of child 1'] = 'See continuation page'
+            font['Name of child 1'] = 7.0
+            more.append(('12(h)', 'Paragraph 12(h). ' + _F351_NEED_TITLE, old))
+        return
+    boxes = []
+    for i in range(1, min(4, len(rows)) + 1):
+        boxes += ['Name of child %d' % i, 'Child %d - Description of needs' % i,
+                  'Support or service child %d will be receiving' % i]
+    sz = _box_sizes(tpl, set(boxes))
+    for i, r in enumerate(rows, start=1):
+        overflow = i > 4
+        if not overflow:
+            for c, k in (('child', 'Name of child %d' % i),
+                         ('description', 'Child %d - Description of needs' % i),
+                         ('support', 'Support or service child %d will be receiving' % i)):
+                if not r[c]:
+                    continue
+                fields[k] = r[c]
+                if k not in sz:
+                    sys.stderr.write(f'[fill_form35_1] box not found: {k[:60]}\n')
+                    continue
+                pt, ok = _wrap_fit_pt(r[c], *sz[k])
+                if ok:
+                    font[k] = pt
+                else:
+                    sys.stderr.write(f'[fill_form35_1] paragraph 12(h) row {i} {c} too long, continued on attached page\n')
+                    fields[k] = 'See continuation page'
+                    font[k] = 7.0
+                    overflow = True
+            for v, box, _lbl in _F351_NEED_TYPES:
+                checkboxes['Child %d - %s special needs' % (i, box)] = v in r['types']
+        if overflow:
+            lines = [("Name of child", r['child']),
+                     ('Special need(s)', ', '.join(l for v, _b, l in _F351_NEED_TYPES if v in r['types'])),
+                     ("Description of child's needs", r['description']),
+                     ('Support or service child will be receiving', r['support'])]
+            more.append(('12(h)', 'Paragraph 12(h). %s: row %d' % (_F351_NEED_TITLE, i),
+                         '\n'.join('%s: %s' % (l, v) for l, v in lines if v)))
 
 
 def _f351_rows(d, prefix, cols, limit=10):
@@ -5259,7 +5340,7 @@ def fill_form35_1(input_path, output_path, form_data_list):
     _sn = _f351_yn('f351_plan_special_needs')
     _cas = _f351_yn('f351_care_history_cas_involved')
     checkboxes = {
-        # Q12h special needs (the per-child table is a later brick)
+        # Q12h special needs Yes/No (the per-child table: _f351_fill_needs)
         'The child(ren) does not/do not have any special medical, educational, mental health or developmental needs': _sn == 'no',
         'The child or one or more of the children has/have the following special needs and will receive support and services for those needs': _sn == 'yes',
         # Q14 children's aid involvement (page 6 Yes / No)
@@ -5365,6 +5446,7 @@ def fill_form35_1(input_path, output_path, form_data_list):
     # FIX-F351-Q4Q5-ROWS: paragraph 4 and 5 tables.
     _tbl_more = []
     _f351_fill_tables(d, _tpl, fields, _f351_font, _tbl_more)
+    _f351_fill_needs(d, _tpl, fields, checkboxes, _f351_font, _tbl_more)
     # FIX-F351-Q12D-WORK: the older free-text work/school answer has no box
     # on the form. Until the new question is answered it is printed in full
     # on the continuation page (nothing is ticked from it).

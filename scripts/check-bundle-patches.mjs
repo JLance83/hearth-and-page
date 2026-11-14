@@ -413,6 +413,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F351-Q12D-WORK*/{key:"workStatus"',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q12H-ROWS)',
+    name: 'Form 35.1 Q12h: per-child special needs rows (FIX-F351-Q12H-ROWS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351-Q12H-ROWS*/{key:"specialNeedsRows"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

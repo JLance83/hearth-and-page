@@ -992,6 +992,28 @@ answered; nothing is ticked from it. Dead tick lines removed.
 
 ---
 
+### FIX-F351-Q12H-ROWS — paragraph 12(h) special needs per child (Nov 14 2026)
+
+**Problem:** Form 35.1 paragraph 12(h) has a 4-row table on page 5 (child's
+name; medical / educational / mental health / developmental / other ticks;
+description; support or services). The app asked one free-text box and the
+table was left empty (only the top "does not / has" tick was set).
+
+**Fix (bundle):** in the `f351_plan` screen, `specialNeedsDetails` is
+replaced by `specialNeedsRows` (shown on Yes; up to 8): child's name, need
+types (choose all that apply), description, support. Uses the `rows` type;
+the need types use the existing `checkboxes` type inside a row.
+
+**Filler side (FILLER_VERSION .57):** `_f351_fill_needs` fills names, the
+five ticks per child, description and support (sized to fit). A blank name
+is filled only when the case has exactly one child. Rows 5+ and too-long
+text go to the continuation page. An old free-text answer goes to the
+continuation page until rows are filled. Name boxes made row-height.
+
+**Sentinel:** `/*FIX-F351-Q12H-ROWS*/{key:"specialNeedsRows"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
