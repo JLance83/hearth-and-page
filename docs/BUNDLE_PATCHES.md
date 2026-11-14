@@ -573,6 +573,36 @@ The filler side is a separate commit.
 
 ---
 
+### FIX-F23C-RO-TERMS — Form 23C para 15 restraining order terms (Nov 13 2026)
+
+**Problem:** para 15 on the official form sets out the restraining order
+terms: (a) no contact with listed people (5 name/birth date rows) with
+four exceptions, (b) stay a set distance (metres/yards/feet) from
+locations, with optional exception conditions, (c) additional terms, then
+the reasons. The app only asked the restrained person's name/DOB and the
+reasons.
+
+**Fix:** in `f23c_claims`, when Restraining order is ticked:
+- `roTerms` tick boxes: no_contact, distance, additional.
+- (a) `roProtect` (me / children / other). Names and birth dates for "me"
+  and "the children" come from the main case (filler side), so nothing is
+  typed twice. "Other" asks `roOtherName1/Dob1`, `roOtherName2/Dob2`.
+  `roContactExceptions` (through_person, parenting_time, counsel,
+  counsel_ocl), with `roThroughPerson` and `roPtWhen` for the first two
+  (the children for the parenting-time exception come from the case).
+- (b) `roDistance`, `roDistanceUnit` (metres/yards/feet), `roLocations`,
+  `roDistanceConditions` (optional).
+- (c) `roAdditionalTerms`.
+- `fit` sizes from the template on every text answer, including
+  `restrainingReasons`.
+
+The filler side is a separate commit. The old restrainedPersonName/Dob
+duplicates are removed in brick 8.
+
+**Sentinel:** `/*FIX-F23C-RO-TERMS*/{key:"roTerms",type:"checkboxes"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

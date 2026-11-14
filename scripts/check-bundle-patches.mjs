@@ -305,6 +305,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '{key:"respondentOtherIncomeSource",type:"text",fit:{w:481.33}',
   },
+  {
+    commit: 'Nov 13 2026 (see FIX-F23C-RO-TERMS)',
+    name: 'Form 23C para 15 restraining order terms questions (FIX-F23C-RO-TERMS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F23C-RO-TERMS*/{key:"roTerms",type:"checkboxes"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
