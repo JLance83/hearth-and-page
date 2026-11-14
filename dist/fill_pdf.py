@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.46'
+FILLER_VERSION = 'dist-2026-10-19.47'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2452,6 +2452,160 @@ def _set_need_appearances(writer):
         pass
 
 
+# FIX-CONTINUATION-PAGE: some court forms have small answer boxes and say
+# "Attach extra pages if you need more space". This builds plain
+# continuation pages (US Letter, Helvetica, no extra libraries) that a
+# filler appends after the form, so a long answer is printed in full
+# instead of being shrunk or cut off. Used by Form 35.1 first.
+_WINANSI_EXTRA = {0x20AC: 128, 0x2026: 133, 0x2018: 145, 0x2019: 146, 0x201C: 147,
+                  0x201D: 148, 0x2022: 149, 0x2013: 150, 0x2014: 151, 0x2122: 153}
+_WINANSI_SUBST = {0x2010: '-', 0x2011: '-', 0x2012: '-', 0x2015: '-', 0x00A0: ' ',
+                  0x201A: "'", 0x201E: '"', 0x2032: "'", 0x2033: '"'}
+
+
+def _winansi_text(s):
+    """Escaped PDF string body for s in WinAnsi (unknown letters -> '?')."""
+    out = []
+    for ch in str(s):
+        c = ord(ch)
+        if ch in '()\\':
+            out.append('\\' + ch)
+        elif 32 <= c < 127:
+            out.append(ch)
+        elif c in _WINANSI_EXTRA:
+            out.append('\\%03o' % _WINANSI_EXTRA[c])
+        elif c in _WINANSI_SUBST:
+            out.append(_WINANSI_SUBST[c])
+        elif 160 <= c < 256:
+            out.append('\\%03o' % c)
+        elif ch == '\t':
+            out.append('    ')
+        else:
+            out.append('?')
+    return ''.join(out)
+
+
+def _wrap_lines(text, width, pt):
+    """Wrap text into lines no wider than width at pt (Helvetica)."""
+    lines = []
+    for para in str(text).replace('\r\n', '\n').replace('\r', '\n').split('\n'):
+        if not para.strip():
+            lines.append('')
+            continue
+        cur = ''
+        for word in para.split(' '):
+            trial = word if not cur else cur + ' ' + word
+            if _helv_width(trial, pt) <= width:
+                cur = trial
+                continue
+            if cur:
+                lines.append(cur)
+            cur = ''
+            # A word longer than the line is broken letter by letter.
+            for ch in word:
+                if _helv_width(cur + ch, pt) > width and cur:
+                    lines.append(cur)
+                    cur = ch
+                else:
+                    cur += ch
+        lines.append(cur)
+    return lines
+
+
+def _continuation_pdf_bytes(title, header_rows, items):
+    """PDF bytes for continuation pages.
+    title: list of lines (bold) at the top of every page.
+    header_rows: [(label, value)] printed on the first page.
+    items: [(heading, text)] printed in order, each heading in bold."""
+    W, H, L, R, TOP, BOT = 612, 792, 54, 54, 54, 60
+    body_w = W - L - R
+    BODY, LEAD = 11, 14.5
+    pages, ops = [], []
+    state = {'y': 0}
+
+    def text(x, y, s, font='F1', size=BODY):
+        ops.append('BT /%s %g Tf %.2f %.2f Td (%s) Tj ET' % (font, size, x, y, _winansi_text(s)))
+
+    def new_page():
+        if ops:
+            pages.append(list(ops))
+            ops.clear()
+        y = H - TOP
+        for t in title:
+            text(L, y, t, 'F2', 12)
+            y -= 15
+        ops.append('0.5 w %d %.2f m %d %.2f l S' % (L, y + 6, W - R, y + 6))
+        state['y'] = y - 14
+
+    def need(h):
+        if state['y'] - h < BOT:
+            new_page()
+
+    new_page()
+    for label, value in header_rows:
+        if not str(value or '').strip():
+            continue
+        need(LEAD)
+        text(L, state['y'], label, 'F2')
+        text(L + 140, state['y'], str(value))
+        state['y'] -= LEAD
+    state['y'] -= 8
+    for heading, body in items:
+        hl = _wrap_lines(heading, body_w * 0.9, BODY)   # bold letters are ~8% wider
+        need(LEAD * (len(hl) + 2))
+        for ln in hl:
+            text(L, state['y'], ln, 'F2')
+            state['y'] -= LEAD
+        for ln in _wrap_lines(body, body_w, BODY):
+            need(LEAD)
+            if ln:
+                text(L, state['y'], ln)
+            state['y'] -= LEAD
+        state['y'] -= 10
+    pages.append(list(ops))
+
+    n = len(pages)
+    objs = {1: b'<< /Type /Catalog /Pages 2 0 R >>',
+            3: b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+            4: b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'}
+    kids = []
+    for i, pops in enumerate(pages):
+        pops = pops + ['BT /F1 9 Tf %d %d Td (%s) Tj ET' % (W - R - 150, 36, 'Continuation page %d of %d' % (i + 1, n))]
+        stream = '\n'.join(pops).encode('latin-1', errors='replace')
+        pn, cn = 5 + i * 2, 6 + i * 2
+        kids.append(pn)
+        objs[pn] = (b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] /Contents %d 0 R '
+                    b'/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>') % (W, H, cn)
+        objs[cn] = b'<< /Length %d >>\nstream\n' % len(stream) + stream + b'\nendstream'
+    objs[2] = ('<< /Type /Pages /Kids [%s] /Count %d >>' % (' '.join('%d 0 R' % k for k in kids), n)).encode()
+    out = bytearray(b'%PDF-1.4\n%\xe2\xe3\xcf\xd3\n')
+    offs = {}
+    for k in sorted(objs):
+        offs[k] = len(out)
+        out += b'%d 0 obj\n' % k + objs[k] + b'\nendobj\n'
+    xref = len(out)
+    out += b'xref\n0 %d\n0000000000 65535 f \n' % (max(objs) + 1)
+    for k in range(1, max(objs) + 1):
+        out += b'%010d 00000 n \n' % offs[k]
+    out += b'trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n' % (max(objs) + 1, xref)
+    return bytes(out)
+
+
+def _append_continuation(output_path, title, header_rows, items):
+    """Append continuation pages to the filled PDF at output_path."""
+    import io
+    extra = pypdf.PdfReader(io.BytesIO(_continuation_pdf_bytes(title, header_rows, items)))
+    base = pypdf.PdfReader(output_path)
+    wr = pypdf.PdfWriter()
+    wr.append(base)
+    for pg in extra.pages:
+        wr.add_page(pg)
+    _set_need_appearances(wr)
+    with open(output_path, 'wb') as fh:
+        wr.write(fh)
+    return len(extra.pages)
+
+
 def _write_pdf(input_path, output_path, fields, checkboxes=None, short_line_pt=None, font_pt=None):
     """Generic PDF writer used by all fill functions below."""
     import pypdf
@@ -4522,6 +4676,28 @@ def fill_form25g(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 # Form 35.1 — Affidavit (Best Interests of Child)
 # ─────────────────────────────────────────────────────────────────────────────
+# FIX-F351-CONTINUATION: paragraph number and wording for each Form 35.1
+# answer box, in form order (used on the continuation page).
+_F351_PARA = {
+    'Describe incident(s) or episode(s) and provide information about the nature of the violence or abuse, who committed the violence and who the victim(s) was/were':
+        ('8', 'Violence or abuse the court should consider'),
+    'Details of civil protection order': ('9', 'Civil protection order or proceeding involving the other party'),
+    'Details of criminal offence or any criminal orders that relate to you or to a member of your family':
+        ('10', 'Criminal charges or orders involving the other party'),
+    'address': ('12(a)', 'I plan to live at the following address'),
+    'Name of your place of work or school': ('12(d)', 'Name of my place of work or school'),
+    'child(ren) will attend school, daycare or be cared for by others on a regular basis - details':
+        ('12(e)', 'The child(ren) will attend school, daycare or be cared for by others on a regular basis as follows'),
+    'plan for the other parent’s time with the child - details':
+        ('12(f)', "My plan for the other parent's time with the child, which is in the child's best interests"),
+    'plan for the child(ren) to have contact with others, including other family members - details':
+        ('12(g)', 'My plan for the child(ren) to have contact with others, including other family members'),
+    'Relatives, friends or community services supporting care of the child(ren)':
+        ('12(i)', 'I will have support from the following relatives, friends or community services'),
+}
+_F351_ORDER = list(_F351_PARA)
+
+
 def fill_form35_1(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
     # FIX-F351-PAGE1: the form has 8 pages, so the court file number goes on
@@ -4635,9 +4811,12 @@ def fill_form35_1(input_path, output_path, form_data_list):
             if _ok:
                 _f351_font[_k] = _pt
             else:
-                sys.stderr.write(f'[fill_form35_1] too long to fit at 7pt, left blank: {_k[:60]}\n')
+                # FIX-F351-CONTINUATION: printed in full on an attached
+                # continuation page; the box points the reader to it.
+                sys.stderr.write(f'[fill_form35_1] too long for its box, continued on attached page: {_k[:60]}\n')
                 _f351_too_long.append((_k, fields[_k]))
-                fields[_k] = ''
+                fields[_k] = 'See attached continuation page, paragraph %s.' % _F351_PARA[_k][0]
+                _f351_font[_k] = 9.0
     n = _write_pdf(input_path, output_path, fields, checkboxes, font_pt=_f351_font)
     # FIX-F351-ONE-BOX: the page 6 Q14 "Yes" / "No" boxes, unlike every
     # other tick box on this form, carry their own border/background and no
@@ -4660,6 +4839,22 @@ def fill_form35_1(input_path, output_path, form_data_list):
             _wr.write(_fh)
     except Exception as _e:
         sys.stderr.write(f'[fill_form35_1] Q14 box style skipped: {_e}\n')
+    if _f351_too_long:
+        try:
+            _cfn = (d.get('court_file_number') or d.get('fileNumber') or '').strip()
+            _np = _append_continuation(
+                output_path,
+                ['Form 35.1: Affidavit (decision-making responsibility, parenting time, contact)',
+                 'Continuation of answers that did not fit on the form'],
+                [('Court file number:', _cfn),
+                 ('Applicant(s):', (d.get('applicant_full_name') or '').strip()),
+                 ('Respondent(s):', (d.get('respondent_full_name') or '').strip()),
+                 ('Affidavit of:', fields.get('Full legal name', ''))],
+                [('Paragraph %s. %s' % _F351_PARA[_k], _v) for _k, _v in
+                 sorted(_f351_too_long, key=lambda kv: _F351_ORDER.index(kv[0]))])
+            sys.stderr.write(f'[fill_form35_1] appended {_np} continuation page(s)\n')
+        except Exception as _e:
+            sys.stderr.write(f'[fill_form35_1] continuation page failed: {_e}\n')
     sys.stderr.write(f'[fill_form35_1] Filled {n} fields\n')
     return n
 
