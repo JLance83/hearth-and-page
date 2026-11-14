@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.45'
+FILLER_VERSION = 'dist-2026-10-19.46'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4552,7 +4552,48 @@ def fill_form35_1(input_path, output_path, form_data_list):
         fields[f'Children in this case - full legal name - child {i}'] = d.get(f'child_{i}_name', '')
         fields[f'Children in this case - Birthdate (d, m, y) - child {i}'] = d.get(f'child_{i}_dob', '')
         fields[f'Children in this case - Age - child {i}'] = d.get(f'child_{i}_age', '')
+    # FIX-F351-ONE-BOX: answers from the Form 35.1 screens that match one
+    # box on the form. Printed as the user typed them (trimmed). Blank stays
+    # blank. Yes/no questions tick only when answered.
+    def _f351(key):
+        return str(d.get(key) or '').strip()
+    def _f351_yn(key):
+        v = _f351(key).lower()
+        return 'yes' if v in ('yes', 'true', '1') else ('no' if v in ('no', 'false', '0') else '')
+    # Q8 violence or abuse the court should consider
+    fields['Describe incident(s) or episode(s) and provide information about the nature of the violence or abuse, who committed the violence and who the victim(s) was/were'] = _f351('f351_violence_violence_history')
+    # Q9 / Q10: "If yes, provide details." A "No" answer prints "No."
+    for _yn, _det, _box in (
+        ('f351_violence_other_party_protection', 'f351_violence_other_party_protection_details',
+         'Details of civil protection order'),
+        ('f351_violence_other_party_criminal', 'f351_violence_other_party_criminal_details',
+         'Details of criminal offence or any criminal orders that relate to you or to a member of your family'),
+    ):
+        _a = _f351_yn(_yn)
+        if _a == 'yes':
+            fields[_box] = _f351(_det)
+        elif _a == 'no':
+            fields[_box] = 'No.'
+    # Q12a planned address. The app's "use my address" button joins the
+    # Unit answer even when it is "N/A"; drop those parts (same rule as
+    # FIX-UNIT-NA).
+    _pa = [x.strip() for x in _f351('f351_plan_plan_address').split(',')]
+    fields['address'] = ', '.join(x for x in _pa if x and x.lower() not in _NO_UNIT)
+    # Q12d-i text boxes
+    fields['Name of your place of work or school'] = _f351('f351_plan_workplace_name')
+    fields['child(ren) will attend school, daycare or be cared for by others on a regular basis - details'] = _f351('f351_plan_childcare_arrangements')
+    fields['plan for the other parent’s time with the child - details'] = _f351('f351_plan_other_parent_time')
+    fields['plan for the child(ren) to have contact with others, including other family members - details'] = _f351('f351_plan_contact_with_others')
+    fields['Relatives, friends or community services supporting care of the child(ren)'] = _f351('f351_plan_support_network')
+    _sn = _f351_yn('f351_plan_special_needs')
+    _cas = _f351_yn('f351_care_history_cas_involved')
     checkboxes = {
+        # Q12h special needs (the per-child table is a later brick)
+        'The child(ren) does not/do not have any special medical, educational, mental health or developmental needs': _sn == 'no',
+        'The child or one or more of the children has/have the following special needs and will receive support and services for those needs': _sn == 'yes',
+        # Q14 children's aid involvement (page 6 Yes / No)
+        'Yes': _cas == 'yes',
+        'No': _cas == 'no',
         'by me': d.get('affidavit_by', '') == 'me',
         'jointly by me and names of persons': d.get('affidavit_by', '') == 'jointly',
         'I work': d.get('employment_status', '') in ('employed','working'),
@@ -4560,7 +4601,65 @@ def fill_form35_1(input_path, output_path, form_data_list):
         'full time': d.get('work_schedule', '') == 'full_time',
         'part time': d.get('work_schedule', '') == 'part_time',
     }
-    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    # FIX-F351-ONE-BOX: size each filled answer box so its wrapped text
+    # fits (10pt down to 7pt, real Helvetica widths, same as Forms 15/23C).
+    # An answer too long to fit even at 7pt is left blank and logged, never
+    # cut off part-way.
+    _f351_big = (
+        'Describe incident(s) or episode(s) and provide information about the nature of the violence or abuse, who committed the violence and who the victim(s) was/were',
+        'Details of civil protection order',
+        'Details of criminal offence or any criminal orders that relate to you or to a member of your family',
+        'child(ren) will attend school, daycare or be cared for by others on a regular basis - details',
+        'plan for the other parent’s time with the child - details',
+        'plan for the child(ren) to have contact with others, including other family members - details',
+        'Relatives, friends or community services supporting care of the child(ren)',
+    )
+    _f351_line = ('address', 'Name of your place of work or school')
+    _f351_font = {}
+    _f351_too_long = []
+    _want = [k for k in _f351_big + _f351_line if str(fields.get(k) or '').strip()]
+    if _want:
+        _sz = _box_sizes(input_path, set(_want))
+        for _k in _want:
+            if _k not in _sz:
+                sys.stderr.write(f'[fill_form35_1] box not found: {_k[:60]}\n')
+                continue
+            _w, _h = _sz[_k]
+            if _k in _f351_line:
+                _pt = 10.0
+                while _pt > 7.0 and _wrapped_line_count(fields[_k], (_w - 6.0) * 0.95, _pt) > 1:
+                    _pt -= 0.5
+                _ok = _wrapped_line_count(fields[_k], (_w - 6.0) * 0.95, _pt) == 1
+            else:
+                _pt, _ok = _wrap_fit_pt(fields[_k], _w, _h)
+            if _ok:
+                _f351_font[_k] = _pt
+            else:
+                sys.stderr.write(f'[fill_form35_1] too long to fit at 7pt, left blank: {_k[:60]}\n')
+                _f351_too_long.append((_k, fields[_k]))
+                fields[_k] = ''
+    n = _write_pdf(input_path, output_path, fields, checkboxes, font_pt=_f351_font)
+    # FIX-F351-ONE-BOX: the page 6 Q14 "Yes" / "No" boxes, unlike every
+    # other tick box on this form, carry their own border/background and no
+    # text style. Viewers that redraw filled forms then show a broken
+    # outline and a solid square instead of a tick. Give them the same
+    # style as the other boxes (tick mark, the printed square is the border).
+    try:
+        from pypdf.generic import NameObject as _N, DictionaryObject as _D, create_string_object as _S
+        _r = pypdf.PdfReader(output_path)
+        _wr = pypdf.PdfWriter()
+        _wr.append(_r)
+        for _pg in _wr.pages:
+            for _an in _pg.get('/Annots') or []:
+                _o = _an.get_object()
+                if _o.get('/FT') == '/Btn' and str(_o.get('/T', '')) in ('Yes', 'No'):
+                    _o[_N('/DA')] = _S('/ZaDb 0 Tf 0 g')
+                    _o[_N('/MK')] = _D({_N('/CA'): _S('4')})
+        _set_need_appearances(_wr)
+        with open(output_path, 'wb') as _fh:
+            _wr.write(_fh)
+    except Exception as _e:
+        sys.stderr.write(f'[fill_form35_1] Q14 box style skipped: {_e}\n')
     sys.stderr.write(f'[fill_form35_1] Filled {n} fields\n')
     return n
 
