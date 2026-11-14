@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.42'
+FILLER_VERSION = 'dist-2026-10-19.43'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3093,15 +3093,33 @@ def fill_form15(input_path, output_path, form_data_list):
             prov = 'Ontario'
         addr = _fmt_addr(street, unit, _g(f'{main}_city', f'{f15}_city'), prov,
                          _g(f'{main}_postal_code', f'{f15}_postal_code'))
-        has_law = _g(f'{f15}_has_lawyer').lower() in ('yes', 'true', '1')
+        # FIX-F15-THEIR-LAWYER (Nov 13 2026, Josh D2-A): the main case asks
+        # about the other party's lawyer (has lawyer, name, firm, phone), so
+        # for the respondent those come from the main case first; the old
+        # Form 15 answers only fill a gap. Form 15 still asks the lawyer's
+        # address and email (the main case doesn't); the firm name goes in
+        # front of that address. Your own lawyer is Form 15 only (the main
+        # case never asks), so nothing changes there.
+        if main == 'respondent':
+            _hl = _g('respondent_has_lawyer', f'{f15}_has_lawyer').lower()
+            has_law = _hl in ('yes', 'true', '1')
+            firm = _g('respondent_lawyer_firm')
+            law_addr = ', '.join(x for x in (firm, _g(f'{f15}_lawyer_address')) if x)
+            law_name = _g('respondent_lawyer_name', f'{f15}_lawyer_name')
+            law_phone = _g('respondent_lawyer_phone', f'{f15}_lawyer_phone')
+        else:
+            has_law = _g(f'{f15}_has_lawyer').lower() in ('yes', 'true', '1')
+            law_addr = _g(f'{f15}_lawyer_address')
+            law_name = _g(f'{f15}_lawyer_name')
+            law_phone = _g(f'{f15}_lawyer_phone')
         return {
             'name': _g(f'{main}_full_name', f'{f15}_full_name'),
             'address': addr,
             'phone': format_phone(_g(f'{main}_phone', f'{f15}_phone')),
             'email': _g(f'{main}_email', f'{f15}_email'),
-            'law_name': _g(f'{f15}_lawyer_name') if has_law else '',
-            'law_address': _g(f'{f15}_lawyer_address') if has_law else '',
-            'law_phone': format_phone(_g(f'{f15}_lawyer_phone')) if has_law else '',
+            'law_name': law_name if has_law else '',
+            'law_address': law_addr if has_law else '',
+            'law_phone': format_phone(law_phone) if has_law else '',
             'law_email': _g(f'{f15}_lawyer_email') if has_law else '',
         }
     _me = _party('f15_requesting_party', 'applicant')
