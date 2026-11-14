@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.34'
+FILLER_VERSION = 'dist-2026-10-19.35'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4028,6 +4028,11 @@ def fill_form23c(input_path, output_path, form_data_list):
         big['I believe that the respondent’s current annual income from all income sources is a given amount for the following reasons: (Give your reasons for believing the dollar amount set out.)'] = g('f23c_claims_respondent_income_reasons')
     if 'spousal_support' in orders:
         big['I need spousal support for the following reasons:  (Give details of your financial needs.)'] = g('f23c_claims_spousal_support_reasons')
+    # FIX-F23C-P6-FIT: page 6 boxes use the same wrap-aware size (they were
+    # left at the template's auto size and printed very large).
+    if g('f23c_service_respondent_served').lower() == 'no':
+        big['My application/motion is not being served on the respondent for the following reasons:'] = g('f23c_service_not_served_reasons')
+    big['other issues'] = g('f23c_service_other_issues')
     big = {k: v for k, v in big.items() if v}
     font_pt = {}
     if big:
@@ -4043,9 +4048,7 @@ def fill_form23c(input_path, output_path, form_data_list):
         fields.update(big)
 
     # Page 6: para 16 (not served) and other issues. Sworn block left blank (D4).
-    if g('f23c_service_respondent_served').lower() == 'no':
-        fields['My application/motion is not being served on the respondent for the following reasons:'] = g('f23c_service_not_served_reasons')
-    fields['other issues'] = g('f23c_service_other_issues')
+    # (para 16 and other issues are filled with the reasons boxes above)
 
     # Court office address box is lower-case on this template. The court
     # name is a drop-down with three choices; pick the one that matches.
