@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.37'
+FILLER_VERSION = 'dist-2026-10-19.38'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3787,7 +3787,7 @@ def fill_form13b(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 # Form 23C — Affidavit (Divorce)
 # ─────────────────────────────────────────────────────────────────────────────
-def _set_radio_kids(path, groups, court_choice=None):
+def _set_radio_kids(path, groups, court_choice=None, unhide=None):
     """FIX-F23C-PAGE1-6: tick several buttons of one radio group.
 
     `groups` is {group name: (wanted on-names, split)}. FIX-F23C-REASONS
@@ -3802,6 +3802,9 @@ def _set_radio_kids(path, groups, court_choice=None):
     and lower-cased, is in `wanted`. The blank template is not changed.
     `court_choice`, when given, is written into the "Name of court"
     drop-down (the shared writer only fills text boxes and tick boxes).
+    `unhide` (FIX-F23C-CS-FILL): names of filled boxes the template marks
+    "hidden on screen" (NoView flag); the flag is cleared so viewers show
+    the answer, not only printers.
     Returns how many boxes were set.
     """
     import pypdf
@@ -3824,6 +3827,8 @@ def _set_radio_kids(path, groups, court_choice=None):
                 obj.pop('/AP', None)
                 on += 1
                 continue
+            if unhide and str(obj.get('/T')) in unhide:
+                obj.update({NameObject('/F'): NumberObject((int(obj.get('/F', 0)) & ~32) | 4)})
             if obj.get('/T') is not None or '/Parent' not in obj:
                 continue
             pref = obj['/Parent']
@@ -4098,7 +4103,31 @@ def fill_form23c(input_path, output_path, form_data_list):
                 sys.stderr.write('[fill_form23c] para 10 terms chosen but the contact terms box is empty\n')
         elif csched.strip() and not ctype:
             sys.stderr.write('[fill_form23c] para 10 contact terms saved but no contact order type chosen - left blank\n')
+    one_line = {}
     if 'child_support' in orders:
+        # FIX-F23C-CS-FILL (brick 6): para 11 number of children (the same
+        # children listed on page 1 and named as support recipients) and
+        # para 12 income sources. A detail saved without its tick box is
+        # not guessed: left blank and logged.
+        if count:
+            fields['number of children_2'] = str(count)
+        srcs = {x.strip() for x in g('f23c_claims_respondent_income_source').split(',') if x.strip()}
+        for src, box, txt_key, txt_box in (
+            ('employment', 'employment income at employers name and address', 'f23c_claims_respondent_employer', 'employment income at (employer’s name and address)'),
+            ('commission', 'commissions tips overtime bonuses etc', None, None),
+            ('self_employment', 'selfemployment as name or nature of respondents business', 'f23c_claims_respondent_business', 'self-employment as (name or nature of respondent’s business)'),
+            ('other', 'other specify_2', 'f23c_claims_respondent_other_income_source', 'other (specify)_3'),
+        ):
+            txt = g(txt_key).strip() if txt_key else ''
+            if src in srcs:
+                checkboxes[box] = True
+                if txt_box:
+                    if txt:
+                        one_line[txt_box] = txt
+                    else:
+                        sys.stderr.write(f'[fill_form23c] para 12 "{src}" ticked but its detail is empty\n')
+            elif txt:
+                sys.stderr.write(f'[fill_form23c] para 12 "{src}" detail saved but not ticked - left blank\n')
         amt = g('f23c_claims_respondent_income').replace('$', '').strip()
         if amt:
             fields['dollar amount'] = amt
@@ -4123,9 +4152,25 @@ def fill_form23c(input_path, output_path, form_data_list):
             if not ok:
                 sys.stderr.write(f'[fill_form23c] too long to fit at {pt:g}pt: {k[:60]}\n')
         fields.update(big)
+    # Para 12 detail blanks are single-line (no wrapping): largest size,
+    # 10pt down to 7pt, at which the text fits on one line.
+    if one_line:
+        sizes = _box_sizes(input_path, set(one_line))
+        for k, v in one_line.items():
+            if k not in sizes:
+                sys.stderr.write(f'[fill_form23c] box not found: {k[:60]}\n')
+                continue
+            w = sizes[k][0]
+            pt = 10.0
+            while pt > 7.0 and _wrapped_line_count(v, (w - 6.0) * 0.95, pt) > 1:
+                pt -= 0.5
+            if _wrapped_line_count(v, (w - 6.0) * 0.95, pt) > 1:
+                sys.stderr.write(f'[fill_form23c] too long to fit at {pt:g}pt: {k[:60]}\n')
+            font_pt[k] = pt
+        fields.update(one_line)
     # Para 8 one-line blanks: 10pt like the rest of the form (the template's
     # auto size prints them oversized).
-    for k in ('time', 'time_2', 'date', 'year', 'number of weeks', 'date_2', 'date_3'):
+    for k in ('time', 'time_2', 'date', 'year', 'number of weeks', 'date_2', 'date_3', 'number of children_2'):
         if str(fields.get(k, '')).strip():
             font_pt[k] = 10
 
@@ -4148,7 +4193,10 @@ def fill_form23c(input_path, output_path, form_data_list):
     fields = {k: v for k, v in fields.items() if str(v).strip()}
     fields.pop(')', None)
     n = _write_pdf(input_path, output_path, fields, checkboxes, font_pt=font_pt)
-    n += _set_radio_kids(output_path, radio_groups, court_choice)
+    # The template marks the self-employment blank "hidden on screen"
+    # (only form-wide box with this flag); show it when it has an answer.
+    unhide = {k for k in ('self-employment as (name or nature of respondent’s business)',) if k in fields}
+    n += _set_radio_kids(output_path, radio_groups, court_choice, unhide=unhide)
     sys.stderr.write(f'[fill_form23c] Filled {n} fields\n')
     return n
 
