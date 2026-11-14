@@ -550,6 +550,29 @@ The filler side is a separate commit.
 
 ---
 
+### FIX-F23C-INCOME-SRC — Form 23C para 12 income sources (Nov 13 2026)
+
+**Problem:** para 12 on the official form has four income-source tick
+boxes, three with a text blank (employer name and address; self-employment
+business; other). The app showed the employer and business questions
+whenever child support was ticked, even if that source wasn't, and never
+asked for the "other" source.
+
+**Fix:** in `f23c_claims`:
+- `respondentEmployer` shows only when Employment is ticked;
+  `respondentBusiness` only when Self-employment is ticked.
+- New `respondentOtherIncomeSource` (text) shows when Other is ticked.
+- One-line `fit` sizes from the template for all three, labels match the
+  form, and the income-source question gets a tooltip.
+- `respondentIncome` moved below the sources so the screen follows the
+  form (para 12, then para 13).
+
+The filler side is a separate commit.
+
+**Sentinel:** `{key:"respondentOtherIncomeSource",type:"text",fit:{w:481.33}` (plus `/*FIX-F23C-INCOME-SRC*/` before `respondentIncomeSource`)
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

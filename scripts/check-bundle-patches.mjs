@@ -299,6 +299,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F23C-CONTACT-TYPE*/{key:"contactOrderType",type:"select"',
   },
+  {
+    commit: 'Nov 13 2026 (see FIX-F23C-INCOME-SRC)',
+    name: 'Form 23C para 12 income-source details tied to their tick boxes (FIX-F23C-INCOME-SRC)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '{key:"respondentOtherIncomeSource",type:"text",fit:{w:481.33}',
+  },
 ];
 
 function resolveFile(prefixOrName) {
