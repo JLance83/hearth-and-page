@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.40'
+FILLER_VERSION = 'dist-2026-10-19.41'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3142,18 +3142,43 @@ def fill_form15(input_path, output_path, form_data_list):
     re_city = (d.get('respondent_city') or d.get('respondentCity') or '').strip()
     ap_prov = _prov_name(d.get('applicant_province') or d.get('applicantProvince') or d.get('province') or '')
     re_prov = _prov_name(d.get('respondent_province') or d.get('respondentProvince') or '')
-    # FIX-F15-MUNICIPALITY: the Form 15 screen asks "Municipality where you
-    # currently live" / "...where the other party currently lives". Those
-    # answers win (Form 15 answer first). Then the Form 15 address city
-    # (requesting party only - the responding screen has no city), then the
-    # main address city. Printed as typed. Child rows below are unchanged.
-    _me_muni = (_g('f15_existing_order_requesting_party_municipality')
-                or _g('f15_requesting_party_city') or ap_city)
-    _them_muni = _g('f15_existing_order_responding_party_municipality') or re_city
-    if _me_muni:
-        fields['Municipality requesting party lives in'] = _me_muni
-    if _them_muni:
-        fields['Municipality responding party lives in'] = _them_muni
+    # FIX-F15-PLACE-MAIN (Nov 13 2026, Josh: "Main case wins"): page 2 used
+    # the Form 15 "where you currently live" answers for the party boxes but
+    # the main case city for the child rows, so one household could show two
+    # towns. Now both use the main case city first (same rule as Form 23C).
+    # The Form 15 answers ("Municipality where you currently live" / "...the
+    # other party currently lives") only fill a gap when the main city is
+    # blank. If both exist and name a different place, the box is left blank
+    # and logged. The Form 15 "City / town" (mailing address, requesting
+    # party) is used only when both of those are blank; it is never treated
+    # as a conflict, since a mailing city can differ ("Greater Sudbury").
+    # "Val Caron, Ontario" vs main "Val Caron" / "ON" is the same place.
+    def _f15_place(label, m_city, m_prov, alt):
+        alt = (alt or '').strip()
+        a_city, _, a_prov = alt.partition(',')
+        a_city, a_prov = a_city.strip(), _prov_name(a_prov)
+        if m_city and alt:
+            same = a_city.lower() == m_city.lower() and (
+                not a_prov or not m_prov or a_prov.lower() == m_prov.lower())
+            if not same:
+                sys.stderr.write(f'[fill_form15] {label}: case answer and Form 15 answer differ - left blank\n')
+                return '', ''
+        if m_city:
+            return m_city, m_prov
+        if alt:
+            return a_city, a_prov or m_prov
+        return '', m_prov
+    _me_alt = _g('f15_existing_order_requesting_party_municipality')
+    _me_fallback = not ap_city and not _me_alt
+    ap_city, ap_prov = _f15_place('where you live', ap_city, ap_prov, _me_alt)
+    if _me_fallback:
+        ap_city, ap_prov = _f15_place('where you live', '', ap_prov, _g('f15_requesting_party_city'))
+    re_city, re_prov = _f15_place('where the other party lives', re_city, re_prov,
+        _g('f15_existing_order_responding_party_municipality'))
+    if ap_city:
+        fields['Municipality requesting party lives in'] = ap_city
+    if re_city:
+        fields['Municipality responding party lives in'] = re_city
     # FIX-F15-P2-DATES: page 2 items 1-5 (living together, married,
     # separated, both birth dates) were never filled. Form 15 answer first,
     # then the matching main answer, printed d/m/y. The form says to write
