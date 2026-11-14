@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.33'
+FILLER_VERSION = 'dist-2026-10-19.34'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3787,8 +3787,12 @@ def fill_form13b(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 # Form 23C — Affidavit (Divorce)
 # ─────────────────────────────────────────────────────────────────────────────
-def _set_radio_kids(path, group, wanted, court_choice=None):
+def _set_radio_kids(path, groups, court_choice=None):
     """FIX-F23C-PAGE1-6: tick several buttons of one radio group.
+
+    `groups` is {group name: (wanted on-names, split)}. FIX-F23C-REASONS
+    added pick-one groups (split=False): the chosen button is turned on
+    and the group stays a normal radio group.
 
     Some official forms (Form 23C para 3) build a "tick all that apply" list
     as ONE radio group. Viewers show only one button of a radio group as
@@ -3802,7 +3806,6 @@ def _set_radio_kids(path, group, wanted, court_choice=None):
     """
     import pypdf
     from pypdf.generic import NameObject, NumberObject, ArrayObject, create_string_object
-    want = {str(w).strip().lower() for w in wanted if str(w).strip()}
     reader = pypdf.PdfReader(path)
     writer = pypdf.PdfWriter()
     writer.append(reader)
@@ -3825,16 +3828,25 @@ def _set_radio_kids(path, group, wanted, court_choice=None):
                 continue
             pref = obj['/Parent']
             par = pref.get_object()
-            if str(par.get('/T')) != group:
+            group = str(par.get('/T'))
+            if group not in groups:
                 continue
-            if pref not in parents:
-                parents.append(pref)
-            idx += 1
+            gw, split = groups[group]
+            want = {str(w).strip().lower() for w in gw if str(w).strip()}
             names = [str(k) for k in (obj.get('/AP', {}).get('/N', {}) or {}).keys() if str(k) != '/Off']
             state = '/Off'
             for nm in names:
                 if nm[1:].strip().lower() in want:
                     state = nm
+            if not split:
+                obj.update({NameObject('/AS'): NameObject(state)})
+                if state != '/Off':
+                    par.update({NameObject('/V'): NameObject(state)})
+                    on += 1
+                continue
+            if pref not in parents:
+                parents.append(pref)
+            idx += 1
             del obj['/Parent']
             obj.update({
                 NameObject('/T'): create_string_object(f'{group} {idx}'),
@@ -3991,6 +4003,45 @@ def fill_form23c(input_path, output_path, form_data_list):
         else:
             checkboxes['never lived together'] = True
 
+    # FIX-F23C-REASONS (brick 3): paras 5, 6, 7, 9, 13, 14. Only printed
+    # when the matching order is ticked (unticking hides an answer on screen
+    # but keeps it saved). Several of these boxes have the short name ")"
+    # on the template; their FULL names differ, so they are always written
+    # by full name and ")" is never used as a key.
+    radio_groups = {'I am asking for the following order:': (wanted, True)}
+    big = {}
+    if 'decision_making' in orders:
+        big['An order giving me decision-making responsibility for the child(ren) is in the best interests of the child(ren) because (Give reasons)'] = g('f23c_claims_decision_making_reasons')
+    if 'parenting_time' in orders:
+        big['An order giving me parenting time with the child(ren) is in the best interests of the child(ren) because: (Give reasons.)'] = g('f23c_claims_parenting_time_reasons')
+    if orders & {'decision_making', 'parenting_time'}:
+        yn = g('f23c_claims_respondent_parenting_time_yes_no').lower()
+        if yn in ('yes', 'no'):
+            radio_groups['An order giving the respondent parenting time with the children'] = ([{'yes': 'is', 'no': 'is not'}[yn]], False)
+        big['An order giving the respondent parenting time with the children is or is not in the best interests of the child(ren) because: (Give reasons)'] = g('f23c_claims_respondent_parenting_time_reasons')
+    if 'contact' in orders:
+        big['An order giving me contact with the child(ren) is in the best interests of the child(ren) because:  (Give reasons.)'] = g('f23c_claims_contact_reasons')
+    if 'child_support' in orders:
+        amt = g('f23c_claims_respondent_income').replace('$', '').strip()
+        if amt:
+            fields['dollar amount'] = amt
+        big['I believe that the respondent’s current annual income from all income sources is a given amount for the following reasons: (Give your reasons for believing the dollar amount set out.)'] = g('f23c_claims_respondent_income_reasons')
+    if 'spousal_support' in orders:
+        big['I need spousal support for the following reasons:  (Give details of your financial needs.)'] = g('f23c_claims_spousal_support_reasons')
+    big = {k: v for k, v in big.items() if v}
+    font_pt = {}
+    if big:
+        sizes = _box_sizes(input_path, set(big))
+        for k, v in big.items():
+            if k not in sizes:
+                sys.stderr.write(f'[fill_form23c] box not found: {k[:60]}\n')
+                continue
+            pt, ok = _wrap_fit_pt(v, *sizes[k])
+            font_pt[k] = pt
+            if not ok:
+                sys.stderr.write(f'[fill_form23c] too long to fit at {pt:g}pt: {k[:60]}\n')
+        fields.update(big)
+
     # Page 6: para 16 (not served) and other issues. Sworn block left blank (D4).
     if g('f23c_service_respondent_served').lower() == 'no':
         fields['My application/motion is not being served on the respondent for the following reasons:'] = g('f23c_service_not_served_reasons')
@@ -4010,8 +4061,9 @@ def fill_form23c(input_path, output_path, form_data_list):
         court_choice = None
 
     fields = {k: v for k, v in fields.items() if str(v).strip()}
-    n = _write_pdf(input_path, output_path, fields, checkboxes)
-    n += _set_radio_kids(output_path, 'I am asking for the following order:', wanted, court_choice)
+    fields.pop(')', None)
+    n = _write_pdf(input_path, output_path, fields, checkboxes, font_pt=font_pt)
+    n += _set_radio_kids(output_path, radio_groups, court_choice)
     sys.stderr.write(f'[fill_form23c] Filled {n} fields\n')
     return n
 
