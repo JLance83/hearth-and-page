@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.35'
+FILLER_VERSION = 'dist-2026-10-19.36'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4019,6 +4019,63 @@ def fill_form23c(input_path, output_path, form_data_list):
         if yn in ('yes', 'no'):
             radio_groups['An order giving the respondent parenting time with the children'] = ([{'yes': 'is', 'no': 'is not'}[yn]], False)
         big['An order giving the respondent parenting time with the children is or is not in the best interests of the child(ren) because: (Give reasons)'] = g('f23c_claims_respondent_parenting_time_reasons')
+        # FIX-F23C-PT-TERMS (brick 4): para 8 schedule choice and the
+        # fixed terms. Terms only print for "including ... the terms below"
+        # or "on the following terms". Each term's blanks only print when
+        # that term is ticked. A ticked term with an empty blank is logged.
+        sched = g('f23c_claims_parenting_time_schedule').lower()
+        sched_on = {
+            'reasonable': 'reasonable parenting time on reasonable notice; ',
+            'reasonable_plus': 'reasonable parenting time on reasonable notice including but not limited to the terms below;',
+            'terms': 'on the following terms',
+        }
+        if sched in sched_on:
+            radio_groups['If an order for parenting time is made, it should be:'] = ([sched_on[sched]], False)
+        if sched in ('reasonable_plus', 'terms'):
+            terms = {x.strip() for x in g('f23c_claims_pt_terms').split(',') if x.strip()}
+
+            def _pm(raw):
+                # The form prints "p.m." after these blanks. Drop a typed
+                # p.m.; an a.m. time would contradict the form, so blank it.
+                t = str(raw or '').strip()
+                if _re_amt.search(r'a\.?\s*m\.?$', t, _re_amt.I):
+                    sys.stderr.write('[fill_form23c] para 8 weekend time is a.m. but the form prints p.m. - left blank\n')
+                    return ''
+                return _re_amt.sub(r'\s*p\.?\s*m\.?$', '', t, flags=_re_amt.I).strip()
+
+            def _blanks(term, vals):
+                for v in vals:
+                    if not str(v).strip():
+                        sys.stderr.write(f'[fill_form23c] para 8 "{term}" ticked but a blank is empty\n')
+                        break
+
+            if 'weekends' in terms:
+                checkboxes['every other weekend from'] = True
+                vals = (_pm(g('f23c_claims_pt_weekend_from')), _pm(g('f23c_claims_pt_weekend_until')), format_dob(g('f23c_claims_pt_weekend_start')))
+                fields['time'], fields['time_2'], fields['date'] = vals
+                _blanks('every other weekend', vals)
+            if 'spring_break' in terms:
+                checkboxes['alternate spring breaks starting in year'] = True
+                fields['year'] = g('f23c_claims_pt_spring_year').strip()
+                _blanks('alternate spring breaks', (fields['year'],))
+            if 'summer' in terms:
+                checkboxes['numbe of weeks during the summer vacation, to be decided by the parties before April 1 of each year'] = True
+                fields['number of weeks'] = g('f23c_claims_pt_summer_weeks').strip()
+                _blanks('summer weeks', (fields['number of weeks'],))
+            if 'winter_break' in terms:
+                checkboxes['one half of the winter break starting on date'] = True
+                vals = (format_dob(g('f23c_claims_pt_winter_start')), format_dob(g('f23c_claims_pt_winter_end')), g('f23c_claims_pt_winter_shared'))
+                fields['date_2'], fields['date_3'] = vals[0], vals[1]
+                big['shared as follows'] = vals[2]
+                _blanks('winter break', vals)
+            if 'special_days' in terms:
+                checkboxes['List any other special days such as religious festivals Christmas Day birthdays Mothers Day Fathers'] = True
+                big['List any other special days such as religious festivals, Christmas Day, birthdays, Mother’s Day, Father’s Day, etc., and indicate with which person the children will be on each day. (Specify dates and times.)'] = g('f23c_claims_pt_special_days')
+                _blanks('special days', (g('f23c_claims_pt_special_days'),))
+            if 'other' in terms:
+                checkboxes['other Specify'] = True
+                big['other (specify)_2'] = g('f23c_claims_parenting_time_details')
+                _blanks('other terms', (g('f23c_claims_parenting_time_details'),))
     if 'contact' in orders:
         big['An order giving me contact with the child(ren) is in the best interests of the child(ren) because:  (Give reasons.)'] = g('f23c_claims_contact_reasons')
     if 'child_support' in orders:
@@ -4046,6 +4103,11 @@ def fill_form23c(input_path, output_path, form_data_list):
             if not ok:
                 sys.stderr.write(f'[fill_form23c] too long to fit at {pt:g}pt: {k[:60]}\n')
         fields.update(big)
+    # Para 8 one-line blanks: 10pt like the rest of the form (the template's
+    # auto size prints them oversized).
+    for k in ('time', 'time_2', 'date', 'year', 'number of weeks', 'date_2', 'date_3'):
+        if str(fields.get(k, '')).strip():
+            font_pt[k] = 10
 
     # Page 6: para 16 (not served) and other issues. Sworn block left blank (D4).
     # (para 16 and other issues are filled with the reasons boxes above)
