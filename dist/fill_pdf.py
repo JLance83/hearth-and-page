@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.51'
+FILLER_VERSION = 'dist-2026-10-19.52'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4817,6 +4817,13 @@ def _f351_prep_template(input_path):
                 'Family court case(s) - Names of parties in the case %d' % _i
             _grow['Civil protection proceedings - Court location %d' % _i] = \
                 'Civil protection proceedings - Names of people involved in the case %d' % _i
+        # FIX-F351-Q3-ROWS: same for the paragraph 3 name and relationship
+        # boxes (one line tall, the row's "lives with" box is two lines).
+        for _i in range(1, 4):
+            _lw = 'Not listed in paragraph 2 - Name(s) of person(s) with whom child lives now (if child is under 18 years old) - child %d' % _i
+            _grow['Not listed in paragraph 2 - Full Legal Name - child %d' % _i] = _lw
+            _grow[') - child %d' % _i] = _lw
+            _grow['Not listed in paragraph 2 - Birthdate (d, m, y) - child %d' % _i] = _lw
         _tall = set(_grow.values())
         for _pg in w.pages:
             _rects, _short = {}, []
@@ -4849,6 +4856,17 @@ def _f351_prep_template(input_path):
 # prefix (0-based rows), the number of rows printed on the form, and the
 # columns (answer name, label, form box name with the 1-based row number).
 _F351_TABLES = (
+    # FIX-F351-Q3-ROWS: page 2 relationship boxes are named ') - child N'
+    # (the page 1 boxes of the same name are renamed in the working copy).
+    ('3', 'I am also the parent of or have acted as a parent to the following child(ren)',
+     'f351_other_children_other_children_any', 'f351_other_children_other_children',
+     'f351_other_children_other_child_rows', 3, (
+         ('name', "Child's full legal name", 'Not listed in paragraph 2 - Full Legal Name - child %d'),
+         ('dob', 'Birthdate (d, m, y)', 'Not listed in paragraph 2 - Birthdate (d, m, y) - child %d'),
+         ('relationship', 'My relationship to the child', ') - child %d'),
+         ('lives_with', 'Name(s) of the person(s) with whom the child lives now',
+          'Not listed in paragraph 2 - Name(s) of person(s) with whom child lives now (if child is under 18 years old) - child %d'),
+     )),
     ('4', 'I am or have been a party in the following family court case(s)',
      'f351_history_family_cases_any', 'f351_history_family_cases',
      'f351_history_family_case_rows', 3, (
@@ -4881,7 +4899,10 @@ _F351_TABLES = (
      )),
 )
 # FIX-F351-Q6Q7-ROWS: date-picker answers (yyyy-mm-dd) print dd/mm/yyyy.
-_F351_DATE_COLS = {('7', 'next_date')}
+_F351_DATE_COLS = {('3', 'dob'), ('7', 'next_date')}
+# Columns kept to one line even when their box is made row-height (so the
+# row's text lines up at the top).
+_F351_ONE_LINE_COLS = {('3', 'dob')}
 # FIX-F351-Q6Q7-ROWS (decision D8): the app's question 6.5 (discharges,
 # withdrawn charges, other prior involvement) has no box of its own on the
 # form. It is printed under paragraph 6 as "Other involvement: ..." in the
@@ -4997,7 +5018,7 @@ def _f351_fill_one_table(d, tpl, fields, font, more, para, title, any_key,
                     sys.stderr.write(f'[fill_form35_1] box not found: {k[:60]}\n')
                     continue
                 w, h = sz[k]
-                if h < 20:
+                if h < 20 or (para, c) in _F351_ONE_LINE_COLS:
                     pt = 10.0
                     while pt > 7.0 and _wrapped_line_count(row[c], (w - 4.0) * 0.95, pt) > 1:
                         pt -= 0.5

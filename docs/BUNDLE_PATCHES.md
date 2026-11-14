@@ -874,6 +874,27 @@ viewers don't draw it at auto size.
 
 ---
 
+### FIX-F351-Q3-ROWS — paragraph 3 other children as rows (Nov 14 2026)
+
+**Problem:** Form 35.1 paragraph 3 (other children you are or have acted as
+a parent to) is a table on page 2; the app asked one free-text box and the
+PDF left the table empty.
+
+**Fix (bundle):** the `f351_other_children` screen's `otherChildren` text
+box is replaced by `otherChildrenAny` (Yes/No) + `otherChildRows` (name,
+birthdate as a date picker, relationship, lives with; up to 6), using the
+`rows` type from FIX-F351-ROWS. Intro text updated (no more "write N/A").
+
+**Filler side (FILLER_VERSION .52):** `_F351_TABLES` entry for paragraph 3
+(page 2 relationship boxes are the ones named `) - child N`). Birthdate
+printed dd/mm/yyyy, kept on one line. Name, birthdate and relationship
+boxes made row-height in the working copy so the row lines up at the top.
+"No" or an old "N/A" answer prints N/A.
+
+**Sentinel:** `/*FIX-F351-Q3-ROWS*/{key:"otherChildrenAny"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
