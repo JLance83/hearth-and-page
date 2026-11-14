@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.53'
+FILLER_VERSION = 'dist-2026-10-19.54'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4828,6 +4828,13 @@ def _f351_prep_template(input_path):
         for _i in range(1, 6):
             _grow["Child's Name %d" % _i] = \
                 'Name(s) of Caregiver(s) or children\u2019s aid society) %d' % _i
+        # FIX-F351-Q12B-ROWS: paragraph 12(b) birthdate and relationship
+        # boxes (page 4) made row-height so the row lines up at the top.
+        for _i in range(1, 5):
+            _grow['Birthdate (d, m, y) %d' % _i] = \
+                'Full legal name and other names this person has used %d' % _i
+            _grow['Relationship to you %d' % _i] = \
+                'Full legal name and other names this person has used %d' % _i
         _tall = set(_grow.values())
         for _pg in w.pages:
             _rects, _short = {}, []
@@ -4912,12 +4919,26 @@ _F351_TABLES = (
          ('period', 'Period(s) of time with caregiver(s) (d,m,y to d,m,y)',
           'Period(s) of Time with Caregiver(s) (d,m,y to d,m,y) %d'),
      )),
+    # FIX-F351-Q12B-ROWS: people (other than the children in this case) who
+    # will live with the user. Rows are built by _f351_q12b_rows.
+    ('12(b)', 'The following people (other than the child(ren) involved in this case) will be living with me',
+     'f351_plan_household_any', 'f351_plan_household_members',
+     'f351_plan_household_rows', 4, (
+         ('name', 'Full legal name and other names this person has used',
+          'Full legal name and other names this person has used %d'),
+         ('dob', 'Birthdate (d,m,y)', 'Birthdate (d, m, y) %d'),
+         ('relationship', 'Relationship to you', 'Relationship to you %d'),
+         ('cas', 'Has a child of this person ever been in the care of a children\u2019s aid society?',
+          'Has a child of this person ever been in the care of a children\u2019s aid society? (if yes, give details) %d'),
+         ('crim', 'Has this person been found guilty of a criminal offence (no pardon) or is he/she currently facing criminal charges?',
+          'Has this person been found guilty of a criminal offence (for which he/she has not received a pardon) or is he/she currently facing criminal charges? (if yes, give details) %d'),
+     )),
 )
 # FIX-F351-Q6Q7-ROWS: date-picker answers (yyyy-mm-dd) print dd/mm/yyyy.
 _F351_DATE_COLS = {('3', 'dob'), ('7', 'next_date')}
 # Columns kept to one line even when their box is made row-height (so the
 # row's text lines up at the top).
-_F351_ONE_LINE_COLS = {('3', 'dob')}
+_F351_ONE_LINE_COLS = {('3', 'dob'), ('12(b)', 'dob')}
 # FIX-F351-Q6Q7-ROWS (decision D8): the app's question 6.5 (discharges,
 # withdrawn charges, other prior involvement) has no box of its own on the
 # form. It is printed under paragraph 6 as "Other involvement: ..." in the
@@ -4963,6 +4984,41 @@ def _f351_q11_rows(d):
             child = kids[0]
         out.append({'child': child, 'caregivers': cg, 'period': period})
     return out
+
+
+def _f351_q12b_rows(d):
+    """FIX-F351-Q12B-ROWS: paragraph 12(b) rows. The children's aid and
+    criminal columns are a Yes/No question plus details on the screen; the
+    form box prints "No", or "Yes" followed by the details. Details are
+    printed only when the answer is Yes (a stale detail left after changing
+    to No is not printed). Unanswered stays blank."""
+    def g(k):
+        return str(d.get(k) or '').strip()
+
+    def yn_cell(ans, det):
+        a = _f351_yn_val(ans)
+        if a == 'yes':
+            return ('Yes. ' + det) if det else 'Yes'
+        if a == 'no':
+            return 'No'
+        return ''
+    out = []
+    for i in range(10):
+        p = 'f351_plan_household_rows_%d_' % i
+        raw = {c: g(p + c) for c in ('name', 'dob', 'relationship', 'cas_any',
+                                     'cas_details', 'crim_any', 'crim_details')}
+        if not any(raw.values()):
+            continue
+        out.append({'name': raw['name'], 'dob': format_dob(raw['dob']),
+                    'relationship': raw['relationship'],
+                    'cas': yn_cell(raw['cas_any'], raw['cas_details']),
+                    'crim': yn_cell(raw['crim_any'], raw['crim_details'])})
+    return out
+
+
+def _f351_yn_val(v):
+    v = str(v or '').strip().lower()
+    return 'yes' if v in ('yes', 'true', '1') else ('no' if v in ('no', 'false', '0') else '')
 
 
 def _f351_rows(d, prefix, cols, limit=10):
@@ -5022,7 +5078,12 @@ def _f351_fill_one_table(d, tpl, fields, font, more, para, title, any_key,
     whole table counts as used when rows went past the printed rows)."""
     yn = str(d.get(any_key) or '').strip().lower() if any_key else ''
     yn = 'yes' if yn in ('yes', 'true', '1') else ('no' if yn in ('no', 'false', '0') else '')
-    rows = _f351_q11_rows(d) if para == '11' else _f351_rows(d, prefix, cols)
+    if para == '11':
+        rows = _f351_q11_rows(d)
+    elif para == '12(b)':
+        rows = _f351_q12b_rows(d)
+    else:
+        rows = _f351_rows(d, prefix, cols)
     old = str(d.get(old_key) or '').strip()
     first_box = cols[0][2] % 1
     if yn == 'no':

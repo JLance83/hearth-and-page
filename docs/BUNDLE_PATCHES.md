@@ -919,6 +919,34 @@ made row-height so rows line up.
 
 ---
 
+### FIX-F351-Q12B-ROWS — paragraph 12(b) people living with you as rows (Nov 14 2026)
+
+**Problem:** Form 35.1 paragraph 12(b) (people other than the children in
+this case who will live with you) is a 5-column table on page 4; the app
+asked one free-text box and the PDF printed nothing.
+
+**Fix (bundle):** in the `f351_plan` screen, the `householdMembers` text
+box is replaced by `householdAny` (Yes/No) + `householdRows` (full legal
+name and other names, birthdate date picker, relationship, children's aid
+Yes/No + details, criminal Yes/No + details; up to 8).
+
+**FIX-F351-ROWS-SHOWIF (same commit):** the generic rows renderer now
+honours `showIf` on a column, pointing to another column in the same row.
+Used here so "Give details" shows only after Yes. Columns without
+`showIf` are unchanged.
+
+**Filler side (FILLER_VERSION .54):** `_F351_TABLES` entry for 12(b), 4
+printed rows. `_f351_q12b_rows` prints the children's aid and criminal
+boxes as "No", or "Yes. <details>"; details are printed only when the
+answer is Yes. Birthdate dd/mm/yyyy on one line. Birthdate and
+relationship boxes made row-height. "No" prints N/A. Rows 5+ and
+too-long cells go to the continuation page. An old free-text answer goes to
+the continuation page.
+
+**Sentinel:** `/*FIX-F351-Q12B-ROWS*/{key:"householdAny"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

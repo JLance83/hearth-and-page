@@ -389,6 +389,18 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F351-Q11-ROWS*/{key:"careRows"',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q12B-ROWS)',
+    name: 'Form 35.1 Q12b: yes/no + table rows for people living with you (FIX-F351-Q12B-ROWS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351-Q12B-ROWS*/{key:"householdAny"',
+  },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q12B-ROWS)',
+    name: 'Rows renderer: a column can show only when another column in the same row has an answer (FIX-F351-ROWS-SHOWIF)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351-ROWS-SHOWIF*/...(g.columns||[]).filter(',
+  },
 ];
 
 function resolveFile(prefixOrName) {
