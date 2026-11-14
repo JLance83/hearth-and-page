@@ -969,6 +969,29 @@ free text. The dead `affidavit_by` lines are removed.
 
 ---
 
+### FIX-F351-Q12D-WORK — paragraph 12(d) work and school ticks (Nov 14 2026)
+
+**Problem:** Form 35.1 paragraph 12(d) has tick boxes (stay-at-home / I
+work full or part time / I attend school full or part time / my plans may
+change) plus a changes box. The app asked one free-text box; the filler
+ticked from `employment_status` / `work_schedule`, which no screen saves.
+
+**Fix (bundle):** in the `f351_plan` screen, `workSituation` is replaced by
+`workStatus` (choose all that apply: home / work / school), `workTime` and
+`schoolTime` (full / part, shown for their choice), `plansChange` (Yes/No)
+and `plansChangeDetails` (shown on Yes). `workplaceName` now shows only when
+work or school is chosen.
+
+**Filler side (FILLER_VERSION .56):** ticks from those answers; full/part
+time only under its own choice; workplace printed when work or school is
+chosen (or the question is unanswered); changes box only on Yes. The older
+free-text answer goes to the continuation page until the new question is
+answered; nothing is ticked from it. Dead tick lines removed.
+
+**Sentinel:** `/*FIX-F351-Q12D-WORK*/{key:"workStatus"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

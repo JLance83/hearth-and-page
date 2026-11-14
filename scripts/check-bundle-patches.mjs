@@ -407,6 +407,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F351-Q12C-WHO*/{key:"decisionWho"',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q12D-WORK)',
+    name: 'Form 35.1 Q12d: work/school choices, full/part time, plans may change (FIX-F351-Q12D-WORK)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351-Q12D-WORK*/{key:"workStatus"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

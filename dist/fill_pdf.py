@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.55'
+FILLER_VERSION = 'dist-2026-10-19.56'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4700,6 +4700,8 @@ _F351_PARA = {
     'Decisions for the child(ren) - further details':
         ('12(c)', 'Decisions for the child(ren) - additional details'),
     'Name of your place of work or school': ('12(d)', 'Name of my place of work or school'),
+    'Changes to plans for work and/or school':
+        ('12(d)', 'I anticipate that my plans for work and/or school may change as follows'),
     'child(ren) will attend school, daycare or be cared for by others on a regular basis - details':
         ('12(e)', 'The child(ren) will attend school, daycare or be cared for by others on a regular basis as follows'),
     'plan for the other parent’s time with the child - details':
@@ -5226,7 +5228,19 @@ def fill_form35_1(input_path, output_path, form_data_list):
     _pa = [x.strip() for x in _f351('f351_plan_plan_address').split(',')]
     fields['address'] = ', '.join(x for x in _pa if x and x.lower() not in _NO_UNIT)
     # Q12d-i text boxes
-    fields['Name of your place of work or school'] = _f351('f351_plan_workplace_name')
+    # FIX-F351-Q12D-WORK: Q12d. Ticks from the "work or school right now"
+    # choices (more than one allowed, as on the form); full/part time only
+    # under the choice it belongs to. The workplace name prints when work
+    # or school is chosen, or when the question is not answered yet (older
+    # answers). "Plans may change" ticks only on Yes, with its details.
+    _ws = {x.strip() for x in _f351('f351_plan_work_status').split(',') if x.strip()}
+    _wt = _f351('f351_plan_work_time').lower()
+    _st = _f351('f351_plan_school_time').lower()
+    _pc = _f351_yn('f351_plan_plans_change')
+    if not _ws or _ws & {'work', 'school'}:
+        fields['Name of your place of work or school'] = _f351('f351_plan_workplace_name')
+    if _pc == 'yes':
+        fields['Changes to plans for work and/or school'] = _f351('f351_plan_plans_change_details')
     fields['child(ren) will attend school, daycare or be cared for by others on a regular basis - details'] = _f351('f351_plan_childcare_arrangements')
     fields['plan for the other parent’s time with the child - details'] = _f351('f351_plan_other_parent_time')
     fields['plan for the child(ren) to have contact with others, including other family members - details'] = _f351('f351_plan_contact_with_others')
@@ -5255,10 +5269,15 @@ def fill_form35_1(input_path, output_path, form_data_list):
         'jointly by me and names of persons': _who == 'jointly',
         'by me': _who == 'me',
         'by (name(s) of person(s))': _who == 'other',
-        'I work': d.get('employment_status', '') in ('employed','working'),
-        'I attend school': d.get('employment_status', '') == 'student',
-        'full time': d.get('work_schedule', '') == 'full_time',
-        'part time': d.get('work_schedule', '') == 'part_time',
+        # FIX-F351-Q12D-WORK
+        'I am a stay-at-home parent': 'home' in _ws,
+        'I work': 'work' in _ws,
+        'full time': 'work' in _ws and _wt == 'full',
+        'part time': 'work' in _ws and _wt == 'part',
+        'I attend school': 'school' in _ws,
+        'attend school full time': 'school' in _ws and _st == 'full',
+        'attend school part time': 'school' in _ws and _st == 'part',
+        'I anticipate that my plans for work and/or school may change as follows': _pc == 'yes',
     }
     # FIX-F351-ONE-BOX: size each filled answer box so its wrapped text
     # fits (10pt down to 7pt, real Helvetica widths, same as Forms 15/23C).
@@ -5273,6 +5292,7 @@ def fill_form35_1(input_path, output_path, form_data_list):
         'plan for the child(ren) to have contact with others, including other family members - details',
         'Relatives, friends or community services supporting care of the child(ren)',
         'Decisions for the child(ren) - further details',
+        'Changes to plans for work and/or school',
     )
     _f351_line = ('Names you have been known by', 'address', 'Name of your place of work or school',
                   'Names of person(s) making decisions for the child(ren) jointly with me',
@@ -5345,6 +5365,12 @@ def fill_form35_1(input_path, output_path, form_data_list):
     # FIX-F351-Q4Q5-ROWS: paragraph 4 and 5 tables.
     _tbl_more = []
     _f351_fill_tables(d, _tpl, fields, _f351_font, _tbl_more)
+    # FIX-F351-Q12D-WORK: the older free-text work/school answer has no box
+    # on the form. Until the new question is answered it is printed in full
+    # on the continuation page (nothing is ticked from it).
+    _old_ws = _f351('f351_plan_work_situation')
+    if not _ws and _old_ws and _f351_na(_old_ws) != 'N/A':
+        _tbl_more.append(('12(d)', 'Paragraph 12(d). My work or school situation', _old_ws))
     n = _write_pdf(_tpl, output_path, fields, checkboxes, font_pt=_f351_font)
     # FIX-F351-ONE-BOX: the page 6 Q14 "Yes" / "No" boxes, unlike every
     # other tick box on this form, carry their own border/background and no
