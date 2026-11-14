@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.36'
+FILLER_VERSION = 'dist-2026-10-19.37'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4078,6 +4078,26 @@ def fill_form23c(input_path, output_path, form_data_list):
                 _blanks('other terms', (g('f23c_claims_parenting_time_details'),))
     if 'contact' in orders:
         big['An order giving me contact with the child(ren) is in the best interests of the child(ren) because:  (Give reasons.)'] = g('f23c_claims_contact_reasons')
+        # FIX-F23C-CONTACT-FILL (brick 5): para 10 contact order type and
+        # terms box. Terms only print for "including ... the terms below" or
+        # "on the following terms". Terms saved with no type are not
+        # guessed: left blank and logged.
+        ctype = g('f23c_claims_contact_order_type').lower()
+        c_terms_box = 'on the following terms:  (Specify when, where, and how you want to have contact with the children, including dates and times, whether by phone or in-person, etc.)'
+        ctype_on = {
+            'reasonable': 'reasonable contact on reasonable notice; ',
+            'reasonable_plus': 'reasonable contact on reasonable notice including but not limited to the terms below; ',
+            'terms': c_terms_box,
+        }
+        csched = g('f23c_claims_contact_schedule')
+        if ctype in ctype_on:
+            radio_groups['The contact order should be:'] = ([ctype_on[ctype]], False)
+        if ctype in ('reasonable_plus', 'terms'):
+            big[c_terms_box] = csched
+            if not csched.strip():
+                sys.stderr.write('[fill_form23c] para 10 terms chosen but the contact terms box is empty\n')
+        elif csched.strip() and not ctype:
+            sys.stderr.write('[fill_form23c] para 10 contact terms saved but no contact order type chosen - left blank\n')
     if 'child_support' in orders:
         amt = g('f23c_claims_respondent_income').replace('$', '').strip()
         if amt:
