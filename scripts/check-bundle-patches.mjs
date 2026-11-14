@@ -371,6 +371,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F351-Q4Q5-ROWS*/{key:"familyCasesAny"',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q6Q7-ROWS)',
+    name: 'Form 35.1 Q6/Q7: yes/no + table rows for offences found guilty of and current charges (FIX-F351-Q6Q7-ROWS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351-Q6Q7-ROWS*/{key:"convictionsAny"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.50'
+FILLER_VERSION = 'dist-2026-10-19.51'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2650,6 +2650,12 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None, short_line_pt=N
                     obj.update({pypdf.generic.NameObject('/DA'): pypdf.generic.create_string_object(_da)})
                 if own_t is None and parent is not None:
                     parent.update({pypdf.generic.NameObject('/V'): pypdf.generic.create_string_object(str(fields[t]))})
+                    # FIX-F351-Q6Q7-ROWS: a box whose name sits on a parent
+                    # object (Form 35.1 Q6 "Sentence received 1") was drawn
+                    # with the parent's auto size by some viewers. A size
+                    # chosen to fit goes on the parent too.
+                    if t in font_pt:
+                        parent.update({pypdf.generic.NameObject('/DA'): pypdf.generic.create_string_object(_da)})
                 filled += 1
             elif ft == '/Btn' and t in checkboxes:
                 v = _checkbox_on_state(obj) if checkboxes[t] else '/Off'
@@ -4858,7 +4864,33 @@ _F351_TABLES = (
          ('people', 'Names of people involved in the case', 'Civil protection proceedings - Names of people involved in the case %d'),
          ('orders', 'Civil protection orders made (include dates of orders)', 'Civil protection proceedings - Civil protection orders made (include dates) %d'),
      )),
+    # FIX-F351-Q6Q7-ROWS
+    ('6', 'I have been found guilty of the following criminal offence(s) for which I have not received a pardon',
+     'f351_history_convictions_any', 'f351_history_criminal_convictions',
+     'f351_history_conviction_rows', 3, (
+         ('charge', 'Charge', 'Found guilty - Charge %d'),
+         ('date', 'Approximate date of finding of guilt', 'Found guilty - Approximate date of finding of guilt %d'),
+         ('sentence', 'Sentence received', 'Found guilty - Sentence received %d'),
+     )),
+    ('7', 'I am now charged with the following criminal offence(s)',
+     'f351_history_current_charges_any', 'f351_history_current_charges',
+     'f351_history_current_charge_rows', 3, (
+         ('charge', 'Charge', 'Charged with criminal offence(s) - Charge %d'),
+         ('next_date', 'Date of next court appearance', 'Charged with criminal offence(s) - Date of next court appearance %d'),
+         ('release', 'Terms of release while waiting for trial', 'Charged with criminal offence(s) - Terms of release while waiting for trial %d'),
+     )),
 )
+# FIX-F351-Q6Q7-ROWS: date-picker answers (yyyy-mm-dd) print dd/mm/yyyy.
+_F351_DATE_COLS = {('7', 'next_date')}
+# FIX-F351-Q6Q7-ROWS (decision D8): the app's question 6.5 (discharges,
+# withdrawn charges, other prior involvement) has no box of its own on the
+# form. It is printed under paragraph 6 as "Other involvement: ..." in the
+# Charge box of the next empty row, or on the continuation page if there is
+# no empty row or it doesn't fit on one line.
+_F351_TABLE_EXTRA = {
+    '6': ('f351_history_criminal_other_involvement', 'Other involvement',
+          'Other involvement (discharges, withdrawn charges and other prior involvement)'),
+}
 # Order of paragraphs on the continuation page.
 _F351_PARA_SEQ = ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
                   '12(a)', '12(b)', '12(c)', '12(d)', '12(e)', '12(f)',
@@ -4892,58 +4924,97 @@ def _f351_fill_tables(d, tpl, fields, font, more):
       text is printed in full on the continuation page.
     more: list of (paragraph, title, text) for the continuation page."""
     for para, title, any_key, old_key, prefix, nrows, cols in _F351_TABLES:
-        yn = str(d.get(any_key) or '').strip().lower()
-        yn = 'yes' if yn in ('yes', 'true', '1') else ('no' if yn in ('no', 'false', '0') else '')
-        rows = _f351_rows(d, prefix, cols)
-        old = str(d.get(old_key) or '').strip()
-        first_box = cols[0][2] % 1
-        if yn == 'no':
-            fields[first_box] = 'N/A'
-            font[first_box] = 10.0
-            continue
-        if not rows:
-            if yn == 'yes':
-                sys.stderr.write(f'[fill_form35_1] paragraph {para}: answered yes but no rows filled\n')
-            elif old:
-                if _f351_na(old) == 'N/A':
-                    fields[first_box] = 'N/A'
-                    font[first_box] = 10.0
+        used = _f351_fill_one_table(d, tpl, fields, font, more, para, title, any_key,
+                                    old_key, prefix, nrows, cols)
+        if para in _F351_TABLE_EXTRA:
+            _f351_table_extra(d, tpl, fields, font, more, para, nrows, cols, used)
+
+
+def _f351_table_extra(d, tpl, fields, font, more, para, nrows, cols, used):
+    key, lead, title = _F351_TABLE_EXTRA[para]
+    v = _f351_na(d.get(key))
+    if not v or v == 'N/A':
+        return
+    line = '%s: %s' % (lead, v)
+    if used < nrows:
+        k = cols[0][2] % (used + 1)
+        w, _h = _box_sizes(tpl, {k}).get(k, (0.0, 0.0))
+        pt = 10.0
+        while pt > 7.0 and _wrapped_line_count(line, (w - 4.0) * 0.95, pt) > 1:
+            pt -= 0.5
+        if w and _wrapped_line_count(line, (w - 4.0) * 0.95, pt) == 1:
+            fields[k] = line
+            font[k] = pt
+            return
+        fields[k] = '%s: see continuation page' % lead
+        font[k] = 7.0
+    sys.stderr.write(f'[fill_form35_1] paragraph {para} {lead.lower()} continued on attached page\n')
+    more.append((para, 'Paragraph %s. %s' % (para, title), v))
+
+
+def _f351_fill_one_table(d, tpl, fields, font, more, para, title, any_key,
+                         old_key, prefix, nrows, cols):
+    """Fill one table. Returns how many printed rows are now used (the
+    whole table counts as used when rows went past the printed rows)."""
+    yn = str(d.get(any_key) or '').strip().lower()
+    yn = 'yes' if yn in ('yes', 'true', '1') else ('no' if yn in ('no', 'false', '0') else '')
+    rows = _f351_rows(d, prefix, cols)
+    old = str(d.get(old_key) or '').strip()
+    first_box = cols[0][2] % 1
+    if yn == 'no':
+        fields[first_box] = 'N/A'
+        font[first_box] = 10.0
+        return 1
+    if not rows:
+        if yn == 'yes':
+            sys.stderr.write(f'[fill_form35_1] paragraph {para}: answered yes but no rows filled\n')
+            return 0
+        elif old:
+            if _f351_na(old) == 'N/A':
+                fields[first_box] = 'N/A'
+                font[first_box] = 10.0
+            else:
+                fields[first_box] = 'See continuation page'
+                font[first_box] = 7.0
+                more.append((para, 'Paragraph %s. %s' % (para, title), old))
+            return 1
+        return 0
+    for row in rows:
+        for c, _l, _b in cols:
+            if (para, c) in _F351_DATE_COLS and _re_amt.match(r'^\d{4}-\d{2}-\d{2}$', row[c]):
+                row[c] = format_dob(row[c])
+    boxes = [b % i for i in range(1, min(nrows, len(rows)) + 1) for _c, _l, b in cols]
+    sz = _box_sizes(tpl, set(boxes))
+    for i, row in enumerate(rows, start=1):
+        overflow = i > nrows
+        if not overflow:
+            for c, _l, b in cols:
+                k = b % i
+                if not row[c]:
+                    continue
+                fields[k] = row[c]
+                if k not in sz:
+                    sys.stderr.write(f'[fill_form35_1] box not found: {k[:60]}\n')
+                    continue
+                w, h = sz[k]
+                if h < 20:
+                    pt = 10.0
+                    while pt > 7.0 and _wrapped_line_count(row[c], (w - 4.0) * 0.95, pt) > 1:
+                        pt -= 0.5
+                    ok = _wrapped_line_count(row[c], (w - 4.0) * 0.95, pt) == 1
                 else:
-                    fields[first_box] = 'See continuation page'
-                    font[first_box] = 7.0
-                    more.append((para, 'Paragraph %s. %s' % (para, title), old))
-            continue
-        boxes = [b % i for i in range(1, min(nrows, len(rows)) + 1) for _c, _l, b in cols]
-        sz = _box_sizes(tpl, set(boxes))
-        for i, row in enumerate(rows, start=1):
-            overflow = i > nrows
-            if not overflow:
-                for c, _l, b in cols:
-                    k = b % i
-                    if not row[c]:
-                        continue
-                    fields[k] = row[c]
-                    if k not in sz:
-                        sys.stderr.write(f'[fill_form35_1] box not found: {k[:60]}\n')
-                        continue
-                    w, h = sz[k]
-                    if h < 20:
-                        pt = 10.0
-                        while pt > 7.0 and _wrapped_line_count(row[c], (w - 4.0) * 0.95, pt) > 1:
-                            pt -= 0.5
-                        ok = _wrapped_line_count(row[c], (w - 4.0) * 0.95, pt) == 1
-                    else:
-                        pt, ok = _wrap_fit_pt(row[c], w, h)
-                    if ok:
-                        font[k] = pt
-                    else:
-                        sys.stderr.write(f'[fill_form35_1] paragraph {para} row {i} {c} too long, continued on attached page\n')
-                        fields[k] = 'See continuation page'
-                        font[k] = 7.0
-                        overflow = True
-            if overflow:
-                more.append((para, 'Paragraph %s. %s: row %d' % (para, title, i),
-                             '\n'.join('%s: %s' % (l, row[c]) for c, l, _b in cols if row[c])))
+                    pt, ok = _wrap_fit_pt(row[c], w, h)
+                if ok:
+                    font[k] = pt
+                else:
+                    sys.stderr.write(f'[fill_form35_1] paragraph {para} row {i} {c} too long, continued on attached page\n')
+                    fields[k] = 'See continuation page'
+                    font[k] = 7.0
+                    overflow = True
+        if overflow:
+            more.append((para, 'Paragraph %s. %s: row %d' % (para, title, i),
+                         '\n'.join('%s: %s' % (l, row[c]) for c, l, _b in cols if row[c])))
+    return nrows if len(rows) > nrows else len(rows)
 
 
 def fill_form35_1(input_path, output_path, form_data_list):

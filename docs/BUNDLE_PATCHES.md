@@ -847,6 +847,33 @@ paragraph.
 
 ---
 
+### FIX-F351-Q6Q7-ROWS — paragraphs 6 and 7 as rows (Nov 14 2026)
+
+**Problem:** Form 35.1 paragraphs 6 (offences found guilty of, no pardon)
+and 7 (current charges) are tables on the form; the app asked each as one
+free-text box and the PDF left them empty.
+
+**Fix (bundle):** on the `f351_history` screen, `criminalConvictions` is
+replaced by `convictionsAny` (Yes/No) + `convictionRows` (charge,
+approximate date, sentence; up to 6), and `currentCharges` by
+`currentChargesAny` (Yes/No) + `currentChargeRows` (charge, next court
+date as a date picker, terms of release; up to 6). Uses the `rows` type
+from FIX-F351-ROWS. Question 6.5 (`criminalOtherInvolvement`) is unchanged
+except its label now says it prints under Question 6.
+
+**Filler side (FILLER_VERSION .51):** two more `_F351_TABLES` entries.
+Next court date prints dd/mm/yyyy. Decision D8: question 6.5 prints in the
+paragraph 6 table as "Other involvement: ..." in the Charge box of the next
+empty row (none-type answers print nothing), or on the continuation page
+when there is no empty row or it doesn't fit on one line. `_write_pdf`: when
+a size is chosen for a box whose name is on a parent object (page 3
+"Found guilty - Sentence received 1"), the parent gets the same size so
+viewers don't draw it at auto size.
+
+**Sentinel:** `/*FIX-F351-Q6Q7-ROWS*/{key:"convictionsAny"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
