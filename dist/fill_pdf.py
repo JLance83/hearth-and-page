@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.39'
+FILLER_VERSION = 'dist-2026-10-19.40'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3125,17 +3125,12 @@ def fill_form15(input_path, output_path, form_data_list):
             fields[f'{_law} - address'] = _who['law_address']
             fields[f'{_law} - phone & fax'] = _who['law_phone']
             fields[f'{_law} - email'] = _who['law_email']
-    # FIX-F15-CITY: wizard saves applicant_city / applicant_province, not city.
-    # This is the "Sworn/Affirmed before me at ___ in ___" line. ON is written
-    # out as Ontario. A blank city leaves the municipality box empty.
-    _city = (d.get('applicant_city') or d.get('applicantCity') or d.get('city') or '').strip()
-    _prov = (d.get('applicant_province') or d.get('applicantProvince') or d.get('province') or '').strip()
-    if _prov.upper() in ('ON', 'ONT', 'ONT.'):
-        _prov = 'Ontario'
-    if _city:
-        fields['municipality'] = _city
-    if _prov:
-        fields['province, state or country'] = _prov
+    # FIX-F15-SWORN-BLANK (Nov 13 2026): page 7 "Sworn/Affirmed before me at
+    # (municipality) in (province, state or country) on (date)" is where the
+    # commissioner takes the oath, not where the user lives. It used to
+    # print the user's home city/province (FIX-F15-CITY), which is wrong
+    # whenever they swear it somewhere else. The whole sworn block now stays
+    # blank for the commissioner, the same rule as Form 23C (D4).
     # FIX-F15-LIVES-IN: page 2 "where you live" boxes were never filled.
     # Party boxes ask for the municipality only. The child column asks for
     # municipality and province. A child living with the other parent uses
