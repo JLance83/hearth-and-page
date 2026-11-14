@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.38'
+FILLER_VERSION = 'dist-2026-10-19.39'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4134,6 +4134,72 @@ def fill_form23c(input_path, output_path, form_data_list):
         big['I believe that the respondent’s current annual income from all income sources is a given amount for the following reasons: (Give your reasons for believing the dollar amount set out.)'] = g('f23c_claims_respondent_income_reasons')
     if 'spousal_support' in orders:
         big['I need spousal support for the following reasons:  (Give details of your financial needs.)'] = g('f23c_claims_spousal_support_reasons')
+    if 'restraining_order' in orders:
+        # FIX-F23C-RO-FILL (brick 7): para 15. The person restrained is the
+        # respondent from the main case; the older 23C name/birth date
+        # answers only fill a gap (a conflict is left blank and logged).
+        # Protected people "me" and "the children" come from the main case.
+        def _iso_dmy(v):
+            v = (v or '').strip()
+            return format_dob(v) if len(v) == 10 and v[4] == '-' and v[7] == '-' else v
+        one_line['full legal name of person restrained'] = one('restrained person name', re_name, g('f23c_claims_restrained_person_name'))
+        fields['date of birth of person restrained'] = one('restrained person birth date', format_dob(g('respondent_dob')), _iso_dmy(g('f23c_claims_restrained_person_dob')))
+        ro_terms = {x.strip() for x in g('f23c_claims_ro_terms').split(',') if x.strip()}
+        kids = []
+        for i in range(1, 6):
+            cn = g(f'child_{i}_name', f'child{i}Name')
+            if cn:
+                kids.append((cn, format_dob(g(f'child_{i}_dob', f'child{i}Dob'))))
+        if 'no_contact' in ro_terms:
+            checkboxes['contacting or communicating directly or indirectly with the following people full legal name and dates of'] = True
+            prot = {x.strip() for x in g('f23c_claims_ro_protect').split(',') if x.strip()}
+            people = []
+            if 'me' in prot and ap:
+                people.append((ap, format_dob(g('applicant_dob'))))
+            if 'children' in prot:
+                people += kids
+            if 'other' in prot:
+                for j in (1, 2):
+                    on_ = g(f'f23c_claims_ro_other_name{j}')
+                    od_ = g(f'f23c_claims_ro_other_dob{j}')
+                    if on_:
+                        people.append((on_, format_dob(od_)))
+                    elif od_:
+                        sys.stderr.write(f'[fill_form23c] para 15 other person {j}: birth date with no name - left blank\n')
+            if not people:
+                sys.stderr.write('[fill_form23c] para 15 no-contact ticked but no protected people\n')
+            if len(people) > 5:
+                sys.stderr.write(f'[fill_form23c] para 15 has {len(people)} protected people; the form has 5 rows - first 5 printed\n')
+            for i, (pn, pd) in enumerate(people[:5], 1):
+                one_line[f'NameRow{i}'] = pn
+                fields[f'Birthdate dmyRow{i}'] = pd
+            exc = {x.strip() for x in g('f23c_claims_ro_contact_exceptions').split(',') if x.strip()}
+            if 'through_person' in exc:
+                checkboxes['except through name of person or agency'] = True
+                one_line['name of person or agency'] = g('f23c_claims_ro_through_person')
+            if 'parenting_time' in exc:
+                checkboxes['except to permit parenting time with the children names and birth dates'] = True
+                one_line['names and birth dates'] = ', '.join(f'{n} ({b})' if b else n for n, b in kids)
+                one_line['dates/days and times'] = g('f23c_claims_ro_pt_when')
+            if 'counsel' in exc:
+                checkboxes['except through or in the presence of counsel'] = True
+            if 'counsel_ocl' in exc:
+                checkboxes['except through or in the presence of counsel or a clinical investigator from the Office of the'] = True
+        if 'distance' in ro_terms:
+            checkboxes['coming within'] = True
+            fields['distance (in numbers)'] = g('f23c_claims_ro_distance')
+            unit = g('f23c_claims_ro_distance_unit').lower()
+            if unit in ('metres', 'yards', 'feet'):
+                radio_groups['unit of distance'] = ([unit], False)
+            one_line['locations and addresses'] = g('f23c_claims_ro_locations')
+            cond = g('f23c_claims_ro_distance_conditions')
+            if cond:
+                checkboxes['except under the following conditions provide details of conditions including times purposes of'] = True
+                big['provide details of conditions, including time(s), purpose(s) of  exception(s) and address(es) as applicable'] = cond
+        if 'additional' in ro_terms:
+            checkboxes['any additional terms'] = True
+            big['any additional terms_2'] = g('f23c_claims_ro_additional_terms')
+        big['I need a restraining order for the following reasons:'] = g('f23c_claims_restraining_reasons')
     # FIX-F23C-P6-FIT: page 6 boxes use the same wrap-aware size (they were
     # left at the template's auto size and printed very large).
     if g('f23c_service_respondent_served').lower() == 'no':
@@ -4154,6 +4220,7 @@ def fill_form23c(input_path, output_path, form_data_list):
         fields.update(big)
     # Para 12 detail blanks are single-line (no wrapping): largest size,
     # 10pt down to 7pt, at which the text fits on one line.
+    one_line = {k: v for k, v in one_line.items() if str(v).strip()}
     if one_line:
         sizes = _box_sizes(input_path, set(one_line))
         for k, v in one_line.items():
@@ -4170,7 +4237,8 @@ def fill_form23c(input_path, output_path, form_data_list):
         fields.update(one_line)
     # Para 8 one-line blanks: 10pt like the rest of the form (the template's
     # auto size prints them oversized).
-    for k in ('time', 'time_2', 'date', 'year', 'number of weeks', 'date_2', 'date_3', 'number of children_2'):
+    for k in ('time', 'time_2', 'date', 'year', 'number of weeks', 'date_2', 'date_3', 'number of children_2', 'distance (in numbers)',
+              'date of birth of person restrained') + tuple(f'Birthdate dmyRow{i}' for i in range(1, 6)):
         if str(fields.get(k, '')).strip():
             font_pt[k] = 10
 
