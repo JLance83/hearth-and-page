@@ -947,6 +947,28 @@ the continuation page.
 
 ---
 
+### FIX-F351-Q12C-WHO — paragraph 12(c) who makes decisions (Nov 14 2026)
+
+**Problem:** Form 35.1 paragraph 12(c) has 3 tick boxes (jointly by me
+and [names] / by me / by [names]) plus an additional-details box. The app
+asked one free-text box; the filler ticked from `affidavit_by`, which no
+screen saves, so nothing was ever ticked or printed.
+
+**Fix (bundle):** in the `f351_plan` screen, `decisionWho` (choice: me
+and someone else jointly / me / someone else) is added, with
+`decisionJointWith` or `decisionOthers` (names) shown for the matching
+choice. The existing `decisionMakingPlan` box stays, now optional and
+labelled "Further details".
+
+**Filler side (FILLER_VERSION .55):** one tick from `decisionWho`; the
+names box only for its own choice; details in the additional-details box
+(sized to fit, else continuation page). Nothing is ticked from the older
+free text. The dead `affidavit_by` lines are removed.
+
+**Sentinel:** `/*FIX-F351-Q12C-WHO*/{key:"decisionWho"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

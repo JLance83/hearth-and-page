@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.54'
+FILLER_VERSION = 'dist-2026-10-19.55'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4692,6 +4692,13 @@ _F351_PARA = {
     'Details of criminal offence or any criminal orders that relate to you or to a member of your family':
         ('10', 'Criminal charges or orders involving the other party'),
     'address': ('12(a)', 'I plan to live at the following address'),
+    # FIX-F351-Q12C-WHO
+    'Names of person(s) making decisions for the child(ren) jointly with me':
+        ('12(c)', 'Decisions for the child(ren) will be made jointly by me and'),
+    'Names of person(s) making decisions for the child(ren)':
+        ('12(c)', 'Decisions for the child(ren) will be made by'),
+    'Decisions for the child(ren) - further details':
+        ('12(c)', 'Decisions for the child(ren) - additional details'),
     'Name of your place of work or school': ('12(d)', 'Name of my place of work or school'),
     'child(ren) will attend school, daycare or be cared for by others on a regular basis - details':
         ('12(e)', 'The child(ren) will attend school, daycare or be cared for by others on a regular basis as follows'),
@@ -5224,6 +5231,17 @@ def fill_form35_1(input_path, output_path, form_data_list):
     fields['plan for the other parent’s time with the child - details'] = _f351('f351_plan_other_parent_time')
     fields['plan for the child(ren) to have contact with others, including other family members - details'] = _f351('f351_plan_contact_with_others')
     fields['Relatives, friends or community services supporting care of the child(ren)'] = _f351('f351_plan_support_network')
+    # FIX-F351-Q12C-WHO: Q12c. One tick from the "who decides" choice. The
+    # names box is printed only for the choice it belongs to (a name left
+    # over from an earlier choice is not printed). The older free-text
+    # answer is kept as "additional details". Nothing is ticked from the
+    # old free text (it is not guessed).
+    _who = str(d.get('f351_plan_decision_who') or '').strip().lower()
+    if _who == 'jointly':
+        fields['Names of person(s) making decisions for the child(ren) jointly with me'] = _f351('f351_plan_decision_joint_with')
+    elif _who == 'other':
+        fields['Names of person(s) making decisions for the child(ren)'] = _f351('f351_plan_decision_others')
+    fields['Decisions for the child(ren) - further details'] = _f351('f351_plan_decision_making_plan')
     _sn = _f351_yn('f351_plan_special_needs')
     _cas = _f351_yn('f351_care_history_cas_involved')
     checkboxes = {
@@ -5233,8 +5251,10 @@ def fill_form35_1(input_path, output_path, form_data_list):
         # Q14 children's aid involvement (page 6 Yes / No)
         'Yes': _cas == 'yes',
         'No': _cas == 'no',
-        'by me': d.get('affidavit_by', '') == 'me',
-        'jointly by me and names of persons': d.get('affidavit_by', '') == 'jointly',
+        # FIX-F351-Q12C-WHO: Q12c who makes decisions (one tick)
+        'jointly by me and names of persons': _who == 'jointly',
+        'by me': _who == 'me',
+        'by (name(s) of person(s))': _who == 'other',
         'I work': d.get('employment_status', '') in ('employed','working'),
         'I attend school': d.get('employment_status', '') == 'student',
         'full time': d.get('work_schedule', '') == 'full_time',
@@ -5252,8 +5272,11 @@ def fill_form35_1(input_path, output_path, form_data_list):
         'plan for the other parent’s time with the child - details',
         'plan for the child(ren) to have contact with others, including other family members - details',
         'Relatives, friends or community services supporting care of the child(ren)',
+        'Decisions for the child(ren) - further details',
     )
-    _f351_line = ('Names you have been known by', 'address', 'Name of your place of work or school')
+    _f351_line = ('Names you have been known by', 'address', 'Name of your place of work or school',
+                  'Names of person(s) making decisions for the child(ren) jointly with me',
+                  'Names of person(s) making decisions for the child(ren)')
     _f351_font = {}
     _f351_too_long = []
     _want = [k for k in _f351_big + _f351_line if str(fields.get(k) or '').strip()]

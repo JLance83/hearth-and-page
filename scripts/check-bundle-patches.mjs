@@ -401,6 +401,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F351-ROWS-SHOWIF*/...(g.columns||[]).filter(',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q12C-WHO)',
+    name: 'Form 35.1 Q12c: who makes decisions choice + names (FIX-F351-Q12C-WHO)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351-Q12C-WHO*/{key:"decisionWho"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
