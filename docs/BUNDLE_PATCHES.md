@@ -504,6 +504,33 @@ mismatches). Para 10 contact terms gets its size in brick 5.
 
 ---
 
+### FIX-F23C-PT-TERMS — Form 23C para 8 parenting-time terms (Nov 13 2026)
+
+**Problem:** para 8 on the official form is a list of fixed terms with
+blanks (every other weekend from __ p.m. Friday to __ p.m. Sunday starting
+__; alternate spring breaks starting __; __ weeks of summer; half the
+winter break __ to __ shared as follows __; special days __; other __).
+The app only asked one free-text "details" box, which fits none of them.
+
+**Fix:** in `f23c_claims`, when the schedule is "including but not limited
+to the terms below" or "on the following terms":
+- `ptTerms` tick boxes: weekends, spring_break, summer, winter_break,
+  special_days, other.
+- Each term's blanks show only when it's ticked: `ptWeekendFrom` /
+  `ptWeekendUntil` (p.m. time picker, 12:00 to 11:30 in half hours, since the
+  form prints "p.m."), `ptWeekendStart` (date), `ptSpringYear`,
+  `ptSummerWeeks` (number), `ptWinterStart` / `ptWinterEnd` (dates),
+  `ptWinterShared`, `ptSpecialDays`.
+- The old `parentingTimeDetails` key is kept as the "Other terms" answer
+  (no answers lost, no duplicate question).
+- Too-long notes (`fit`) on the three big boxes and the Other box.
+
+The filler side is a separate commit.
+
+**Sentinel:** `/*FIX-F23C-PT-TERMS*/{key:"ptTerms",type:"checkboxes"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

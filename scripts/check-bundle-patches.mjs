@@ -287,6 +287,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '{key:"decisionMakingReasons",type:"textarea",fit:{w:497.29,h:112.94}',
   },
+  {
+    commit: 'Nov 13 2026 (see FIX-F23C-PT-TERMS)',
+    name: 'Form 23C para 8 parenting-time terms questions (FIX-F23C-PT-TERMS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F23C-PT-TERMS*/{key:"ptTerms",type:"checkboxes"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
