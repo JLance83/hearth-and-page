@@ -293,6 +293,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F23C-PT-TERMS*/{key:"ptTerms",type:"checkboxes"',
   },
+  {
+    commit: 'Nov 13 2026 (see FIX-F23C-CONTACT-TYPE)',
+    name: 'Form 23C para 10 contact order type + terms (FIX-F23C-CONTACT-TYPE)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F23C-CONTACT-TYPE*/{key:"contactOrderType",type:"select"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

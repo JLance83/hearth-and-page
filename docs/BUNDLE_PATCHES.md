@@ -531,6 +531,25 @@ The filler side is a separate commit.
 
 ---
 
+### FIX-F23C-CONTACT-TYPE — Form 23C para 10 contact order type (Nov 13 2026)
+
+**Problem:** para 10 on the official form has three choices (reasonable
+contact on reasonable notice; reasonable, including but not limited to the
+terms below; on the following terms) and one big terms box. The app only
+asked a free-text schedule, with no choice.
+
+**Fix:** in `f23c_claims`, when Contact is ticked:
+- New `contactOrderType` select (reasonable / reasonable_plus / terms).
+- `contactSchedule` (same key, so saved answers are kept) now shows only for
+  reasonable_plus or terms, relabelled to match the form, with a `fit`
+  size of the page 3 terms box (481.32 x 366.61).
+
+The filler side is a separate commit.
+
+**Sentinel:** `/*FIX-F23C-CONTACT-TYPE*/{key:"contactOrderType",type:"select"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
