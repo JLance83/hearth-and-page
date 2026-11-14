@@ -329,6 +329,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F15-NO-DUPES-2*/{key:"email",type:"email"',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F15-NO-DUPES-3)',
+    name: 'Form 15 step 3 marriage/separation/municipality duplicates removed (FIX-F15-NO-DUPES-3)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F15-NO-DUPES-3*/,{key:"cohabitationStartDate"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

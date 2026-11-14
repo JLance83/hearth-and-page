@@ -679,6 +679,27 @@ answers. Old saved answers still fill gaps in the filler.
 
 ---
 
+### FIX-F15-NO-DUPES-3 — Form 15 step 3 marriage, separation and where-you-live duplicates removed (Nov 14 2026)
+
+**Problem:** Form 15 step 3 asked again for the marriage date, the
+separation date (required) and the municipality where each party lives.
+The main case already asks all of these, and the PDF prints the main
+case first (FIX-F15-MAIN-FIRST for the dates, FIX-F15-PLACE-MAIN for
+the cities). Form 15 duplicates plan brick 4 (Josh D1, D3-A).
+
+**Fix:** `f15_existing_order` keeps `existingDocType`, `justiceName`,
+`orderDate`, `agreementName`, `agreementDate`, `recalculationDate` and
+`cohabitationStartDate`. Removed: `marriageDate`, `separationDate`,
+`requestingPartyMunicipality`, `respondingPartyMunicipality`. The intro
+now says the dates and cities come from the main case answers. Old
+saved answers still fill gaps in the filler (marriage date only when the
+main case says married; cities follow the strict FIX-F15-PLACE-MAIN
+rule).
+
+**Sentinel:** `/*FIX-F15-NO-DUPES-3*/,{key:"cohabitationStartDate"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
