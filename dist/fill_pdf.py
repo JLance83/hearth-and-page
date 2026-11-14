@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.44'
+FILLER_VERSION = 'dist-2026-10-19.45'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4524,10 +4524,28 @@ def fill_form25g(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 def fill_form35_1(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
-    fields = _header(d, pages=5)
-    fields['Full legal name'] = d.get('filer_full_name', d.get('applicant_full_name', ''))
-    fields['Date of birth (d, m, y)'] = d.get('filer_dob', '')
-    fields['Name of city, town or municipality and province, state or country if outside of Ontario'] = d.get('filer_city', d.get('city', ''))
+    # FIX-F351-PAGE1: the form has 8 pages, so the court file number goes on
+    # pages 1-8 (was 1-5). Name, birthdate and "I live in" read the Form 35.1
+    # identity answers first (asked when Form 35.1 is on its own), then the
+    # main case answers (combined cases hide the identity screen). The old
+    # names filer_dob / filer_city are never saved by any screen.
+    fields = _header(d, pages=8)
+    fields['Full legal name'] = (
+        d.get('f351_identity_full_name') or d.get('filer_full_name')
+        or d.get('applicant_full_name') or '').strip()
+    fields['Date of birth (d, m, y)'] = format_dob(
+        (d.get('f351_identity_dob') or d.get('filer_dob')
+         or d.get('applicant_dob') or '').strip())
+    _f351_city = (d.get('f351_identity_city') or '').strip()
+    if not _f351_city:
+        # Main case: city + province. ON is written out as Ontario. No
+        # province is printed if none was given (never assumed).
+        _c = (d.get('applicant_city') or '').strip()
+        _p = (d.get('applicant_province') or '').strip()
+        if _p.upper() in ('ON', 'ONT', 'ONT.'):
+            _p = 'Ontario'
+        _f351_city = ', '.join(x for x in (_c, _p) if x)
+    fields['Name of city, town or municipality and province, state or country if outside of Ontario'] = _f351_city
     fields['Court address'] = COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), '')
     # Children (up to 5)
     for i in range(1, 6):
