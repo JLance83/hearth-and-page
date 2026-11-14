@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.43'
+FILLER_VERSION = 'dist-2026-10-19.44'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -911,7 +911,12 @@ def fill_form8(input_path, output_path, form_data_list):
     were_married = _is_yes(_pick(d, 'situationWereMarried', 'situation_were_married',
                                     'wereMarried', 'were_married'))
 
-    marriage_date = _pick(d, 'marriageDate', 'marriage_date')
+    # FIX-F8-MARRIAGE-DATE: the main case "Your situation" screen saves the
+    # marriage date as situation_marriage_date (server toFillRows adds the
+    # section prefix). This only read the old bare names, so "Married on"
+    # never printed on a divorce application. Old names still read first.
+    marriage_date = _pick(d, 'marriageDate', 'marriage_date',
+                             'situationMarriageDate', 'situation_marriage_date')
     sep_date      = _pick(d, 'separationDate', 'separation_date',
                              'situationSeparationDate', 'situation_separation_date')
     rel_type      = _pick(d, 'relationshipType', 'relationship_type')
@@ -940,7 +945,10 @@ def fill_form8(input_path, output_path, form_data_list):
     #   - askingDivorce flag is yes (wizard's explicit question)
     # If askingDivorce is explicitly 'no' we treat that as a hard override.
     claims_csv_early = str(d.get('claims', '') or '')
-    asking_divorce = str(_pick(d, 'askingDivorce', 'asking_divorce') or '').lower()
+    # FIX-F8-MARRIAGE-DATE: also read situation_asking_divorce (the name the
+    # main case screen saves), so an explicit "No" keeps the divorce section blank.
+    asking_divorce = str(_pick(d, 'askingDivorce', 'asking_divorce',
+                               'situationAskingDivorce', 'situation_asking_divorce') or '').lower()
     is_divorce_case = (
         asking_divorce not in ('no', 'false', '0')
         and (
