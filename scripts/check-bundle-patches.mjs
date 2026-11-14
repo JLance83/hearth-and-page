@@ -311,6 +311,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F23C-RO-TERMS*/{key:"roTerms",type:"checkboxes"',
   },
+  {
+    commit: 'Nov 13 2026 (see FIX-F23C-NO-DUPES)',
+    name: 'Form 23C duplicate name/city/children/restrained-person questions removed (FIX-F23C-NO-DUPES)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F23C-NO-DUPES*/{key:"relationshipStatus",type:"select"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

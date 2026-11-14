@@ -603,6 +603,34 @@ duplicates are removed in brick 8.
 
 ---
 
+### FIX-F23C-NO-DUPES — Form 23C duplicate questions removed (Nov 13 2026)
+
+**Problem:** the Form 23C screens still asked things the main case already
+answers: your full name, municipality, province, number of children, a
+whole "Children" screen (3 children x name/age/birth date/city/living
+with), and the restrained person's name and birth date. The filler
+already prints all of these from the main case (FIX-F23C-PAGE1-6 and
+FIX-F23C-RO-FILL), so the duplicates were never printed and only made
+the user type things twice (plan decision D3).
+
+**Fix:**
+- `f23c_identity`: removed `deponentName`, `municipality`, `province`,
+  `numberOfChildren`. Kept the relationship questions (they only fill a
+  gap when the case has no marriage/separation date). Title is now "Your
+  relationship to the Respondent"; the intro says name, city and children
+  come from the case answers.
+- Removed the `f23c_children` screen (pill `pill-f23c_children`).
+- `f23c_claims`: removed `restrainedPersonName` / `restrainedPersonDob`
+  (the respondent from the main case is the person restrained).
+- Subtitles renumbered to "Step 1/2/3 of 3".
+
+Old saved answers under the removed keys (none exist today) still work as
+gap-fill in the filler; no filler change.
+
+**Sentinel:** `/*FIX-F23C-NO-DUPES*/{key:"relationshipStatus",type:"select"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
