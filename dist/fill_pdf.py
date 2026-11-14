@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.41'
+FILLER_VERSION = 'dist-2026-10-19.42'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3072,9 +3072,12 @@ def fill_form15(input_path, output_path, form_data_list):
     # agreement, no court case: the person asking is the Applicant) puts the
     # user in the Applicant boxes; 'respondent' puts the user in the
     # Respondent boxes. No answer: the party boxes stay blank (no guessing).
-    # Each piece is Form 15's own answer first, else the main answer. The
-    # unit goes with the street it came from. Lawyer boxes only when that
-    # party's Form 15 "has a lawyer" answer is yes.
+    # FIX-F15-MAIN-FIRST (Nov 13 2026, Form 15 duplicates plan brick 1,
+    # Josh D3-A): each piece is the MAIN CASE answer first; an old Form 15
+    # answer only fills a gap (no conflict blanking - "Mark St" vs "Mark
+    # Street" is not a reason to leave the address off). The unit goes with
+    # the street it came from. Lawyer boxes only when that party's Form 15
+    # "has a lawyer" answer is yes.
     def _g(*keys):
         for k in keys:
             v = str(d.get(k, '') or '').strip()
@@ -3082,20 +3085,20 @@ def fill_form15(input_path, output_path, form_data_list):
                 return v
         return ''
     def _party(f15, main):
-        own_street = _g(f'{f15}_address')
-        street = own_street or _g(f'{main}_address')
-        unit = '' if own_street else _g(f'{main}_unit')
-        prov = _g(f'{f15}_province', f'{main}_province')
+        main_street = _g(f'{main}_address')
+        street = main_street or _g(f'{f15}_address')
+        unit = _g(f'{main}_unit') if main_street else ''
+        prov = _g(f'{main}_province', f'{f15}_province')
         if prov.upper() in ('ON', 'ONT', 'ONT.'):
             prov = 'Ontario'
-        addr = _fmt_addr(street, unit, _g(f'{f15}_city', f'{main}_city'), prov,
-                         _g(f'{f15}_postal_code', f'{main}_postal_code'))
+        addr = _fmt_addr(street, unit, _g(f'{main}_city', f'{f15}_city'), prov,
+                         _g(f'{main}_postal_code', f'{f15}_postal_code'))
         has_law = _g(f'{f15}_has_lawyer').lower() in ('yes', 'true', '1')
         return {
-            'name': _g(f'{f15}_full_name', f'{main}_full_name'),
+            'name': _g(f'{main}_full_name', f'{f15}_full_name'),
             'address': addr,
-            'phone': format_phone(_g(f'{f15}_phone', f'{main}_phone')),
-            'email': _g(f'{f15}_email', f'{main}_email'),
+            'phone': format_phone(_g(f'{main}_phone', f'{f15}_phone')),
+            'email': _g(f'{main}_email', f'{f15}_email'),
             'law_name': _g(f'{f15}_lawyer_name') if has_law else '',
             'law_address': _g(f'{f15}_lawyer_address') if has_law else '',
             'law_phone': format_phone(_g(f'{f15}_lawyer_phone')) if has_law else '',
@@ -3180,8 +3183,9 @@ def fill_form15(input_path, output_path, form_data_list):
     if re_city:
         fields['Municipality responding party lives in'] = re_city
     # FIX-F15-P2-DATES: page 2 items 1-5 (living together, married,
-    # separated, both birth dates) were never filled. Form 15 answer first,
-    # then the matching main answer, printed d/m/y. The form says to write
+    # separated, both birth dates) were never filled. Main case answer
+    # first, then the old Form 15 answer as gap-fill (FIX-F15-MAIN-FIRST),
+    # printed d/m/y. The form says to write
     # "N/A" if not applicable: that is printed only when the user's own
     # answer says so (typed "N/A", or "Were the two of you married?" = no).
     # No answer at all stays blank. No question asks "never lived
@@ -3194,12 +3198,12 @@ def fill_form15(input_path, output_path, form_data_list):
     _married = _g('situation_were_married').lower()
     _p2 = {
         'Date parties started living together': _p2_date('f15_existing_order_cohabitation_start_date'),
-        'Date parties married': _p2_date('f15_existing_order_marriage_date')
+        'Date parties married': ('N/A' if _married in ('no', 'false', '0') else '')
             or (_p2_date('situation_marriage_date') if _married in ('yes', 'true', '1') else '')
-            or ('N/A' if _married in ('no', 'false', '0') else ''),
-        'Date parties separated': _p2_date('f15_existing_order_separation_date', 'situation_separation_date'),
-        'Requesting party’s birth date': _p2_date('f15_requesting_party_dob', 'applicant_dob'),
-        'Responding party’s birth date': _p2_date('f15_responding_party_dob', 'respondent_dob'),
+            or _p2_date('f15_existing_order_marriage_date'),
+        'Date parties separated': _p2_date('situation_separation_date', 'f15_existing_order_separation_date'),
+        'Requesting party’s birth date': _p2_date('applicant_dob', 'f15_requesting_party_dob'),
+        'Responding party’s birth date': _p2_date('respondent_dob', 'f15_responding_party_dob'),
     }
     for _k, _v in _p2.items():
         if _v:
