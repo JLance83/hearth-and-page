@@ -747,6 +747,28 @@ stays blank; too long goes to the continuation page.
 
 ---
 
+### FIX-F351-NO-CLIENT-PATCH — Form 35.1 browser PDF patcher turned off (Nov 14 2026)
+
+**Problem:** After the server returned a filled Form 35.1, the browser ran
+`window.__patchForm35PDF_real` (in `hp-patches.js`) on every download and
+email. It used pdf-lib to:
+- rewrite the Q12(a) "address" box with the raw saved answer, putting back
+  the "N/A" unit part the filler drops (case 17: "3674 Mark St, N/A, Val
+  Caron, ON") and ignoring the filler's text size;
+- rewrite the Q12(d) workplace box (untrimmed, filler size ignored);
+- try to put the user's own name in every Q11 caregiver row, which is a
+  guess. That part did nothing only because its field names use a straight
+  apostrophe and the template uses a curly one.
+
+**Fix:** The function returns `null` at once, so the callers keep the
+server PDF exactly as filled (they already treat `null` as "no change").
+The server filler (`fill_form35_1`) fills these boxes. Cache token for
+`hp-patches.js` bumped to `?v=20261114f351np`.
+
+**Sentinel:** `// FIX-F351-NO-CLIENT-PATCH (Nov 14 2026)` in `hp-patches.js`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

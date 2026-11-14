@@ -347,6 +347,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '__hpQ1=/*FIX-F351-Q1-NAMES*/(t,on)=>',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-NO-CLIENT-PATCH)',
+    name: 'Form 35.1 browser PDF patcher turned off (FIX-F351-NO-CLIENT-PATCH)',
+    file: 'hp-patches.js',
+    sentinel: '// FIX-F351-NO-CLIENT-PATCH (Nov 14 2026)',
+  },
 ];
 
 function resolveFile(prefixOrName) {

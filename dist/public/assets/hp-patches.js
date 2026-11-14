@@ -35,6 +35,13 @@ function __authHdr() {
 
 // ─── Form 35.1 PDF patcher ────────────────────────────────────────────────────
 window.__patchForm35PDF_real = async function(pdfBlob, caseId) {
+  // FIX-F351-NO-CLIENT-PATCH (Nov 14 2026): the server filler now fills
+  // every Form 35.1 box from the saved answers. This old browser patcher
+  // rewrote the Q12(a) address with the raw answer (putting back the "N/A"
+  // unit part the filler drops) and the Q12(d) workplace at the wrong text
+  // size, and tried to put the user's name in the Q11 caregiver table (a
+  // guess). Returning null keeps the server PDF exactly as filled.
+  return null;
   try {
     if (!window.PDFLib) return null;
     var resp = await fetch('/api/cases/' + caseId + '/form-data', {headers: __authHdr()});
