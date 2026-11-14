@@ -724,6 +724,29 @@ typed, no rewording):
 
 ---
 
+### FIX-F351-Q1-NAMES — Form 35.1 Q1 other names asked in combined cases (Nov 14 2026)
+
+**Problem:** When Form 35.1 comes with other forms (for example Form 8 or
+Form 15), the "Your identity" screen was skipped so name, birthdate and
+city aren't asked twice. That also hid "Other names you've used"
+(Q1), which only Form 35.1 asks, so Q1 was always blank.
+
+**Fix:** New helper `__hpQ1(screen, on)`, declared right after the Form
+35.1 screen list `Su`. When `on`, the `f351_identity` screen is shown
+with only the `otherNames` question, a new title ("Other names you've
+used") and an intro saying the name, birthdate and city come from earlier
+answers. Applied at all four places that used to skip `f351_identity` in
+combined flows (the `__hpP` multi-form loop and the three
+`Su.filter(...)` lists). `f351_children` is still skipped (brick 3).
+Answers save to the same `f351_identity.otherNames` key as before.
+Filler side (`fill_form35_1`): prints the answer on the Q1 line; "none",
+"no", "n/a" and similar print "N/A" (the form's own instruction); blank
+stays blank; too long goes to the continuation page.
+
+**Sentinel:** `__hpQ1=/*FIX-F351-Q1-NAMES*/(t,on)=>`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

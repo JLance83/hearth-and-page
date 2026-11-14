@@ -341,6 +341,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F15-TERMS-EXAMPLE*/{key:"currentTerms",type:"textarea"',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q1-NAMES)',
+    name: 'Form 35.1 Q1 other names asked in combined cases (FIX-F351-Q1-NAMES)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '__hpQ1=/*FIX-F351-Q1-NAMES*/(t,on)=>',
+  },
 ];
 
 function resolveFile(prefixOrName) {

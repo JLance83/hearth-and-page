@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.47'
+FILLER_VERSION = 'dist-2026-10-19.48'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4679,6 +4679,7 @@ def fill_form25g(input_path, output_path, form_data_list):
 # FIX-F351-CONTINUATION: paragraph number and wording for each Form 35.1
 # answer box, in form order (used on the continuation page).
 _F351_PARA = {
+    'Names you have been known by': ('1', 'During my life, I have also used or been known by the following names'),
     'Describe incident(s) or episode(s) and provide information about the nature of the violence or abuse, who committed the violence and who the victim(s) was/were':
         ('8', 'Violence or abuse the court should consider'),
     'Details of civil protection order': ('9', 'Civil protection order or proceeding involving the other party'),
@@ -4696,6 +4697,15 @@ _F351_PARA = {
         ('12(i)', 'I will have support from the following relatives, friends or community services'),
 }
 _F351_ORDER = list(_F351_PARA)
+# FIX-F351-Q1-NAMES: the form says "Write N/A if any of the paragraphs do
+# not apply". Answers that only say none / no / not applicable print "N/A".
+_F351_NA_WORDS = {'n/a', 'na', 'n.a.', 'none', 'no', 'nil', 'nothing',
+                  'not applicable', 'does not apply', 'no other names'}
+
+
+def _f351_na(v):
+    v = str(v or '').strip()
+    return 'N/A' if v.rstrip('.').strip().lower() in _F351_NA_WORDS else v
 
 
 def fill_form35_1(input_path, output_path, form_data_list):
@@ -4723,6 +4733,9 @@ def fill_form35_1(input_path, output_path, form_data_list):
         _f351_city = ', '.join(x for x in (_c, _p) if x)
     fields['Name of city, town or municipality and province, state or country if outside of Ontario'] = _f351_city
     fields['Court address'] = COURTHOUSE_ADDRESSES_FE.get(d.get('courthouse',''), '')
+    # FIX-F351-Q1-NAMES: Q1 other names used, from the Form 35.1 identity
+    # screen (now also asked in combined cases). Blank stays blank.
+    fields['Names you have been known by'] = _f351_na(d.get('f351_identity_other_names'))
     # Children (up to 5)
     for i in range(1, 6):
         fields[f'Children in this case - full legal name - child {i}'] = d.get(f'child_{i}_name', '')
@@ -4790,7 +4803,7 @@ def fill_form35_1(input_path, output_path, form_data_list):
         'plan for the child(ren) to have contact with others, including other family members - details',
         'Relatives, friends or community services supporting care of the child(ren)',
     )
-    _f351_line = ('address', 'Name of your place of work or school')
+    _f351_line = ('Names you have been known by', 'address', 'Name of your place of work or school')
     _f351_font = {}
     _f351_too_long = []
     _want = [k for k in _f351_big + _f351_line if str(fields.get(k) or '').strip()]
