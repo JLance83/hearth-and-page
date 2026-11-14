@@ -895,6 +895,30 @@ boxes made row-height in the working copy so the row lines up at the top.
 
 ---
 
+### FIX-F351-Q11-ROWS — paragraph 11 caregivers as rows (Nov 14 2026)
+
+**Problem:** Form 35.1 paragraph 11 (who the child(ren) have lived with
+since birth) is a 3-column table on page 4; the app asked one free-text box
+and the PDF left the table empty.
+
+**Fix (bundle):** the `f351_care_history` screen's `careHistory` text box
+is replaced by `careRows` (child's name, caregiver(s), from date, to date;
+up to 10), using the `rows` type from FIX-F351-ROWS. No Yes/No question
+(every child has had a caregiver). The CAS questions are unchanged.
+
+**Filler side (FILLER_VERSION .53):** `_F351_TABLES` entry for paragraph 11
+with no Yes/No key. `_f351_q11_rows` joins From/To into one
+"dd/mm/yyyy to dd/mm/yyyy" box; a blank To prints "present" (the screen
+says to leave it blank if the child still lives there). A blank child name
+is filled only when the case has exactly one child. Rows 6+ and too-long
+cells go to the continuation page. An old free-text answer goes to the
+continuation page with "See continuation page" in row 1. Child's name boxes
+made row-height so rows line up.
+
+**Sentinel:** `/*FIX-F351-Q11-ROWS*/{key:"careRows"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

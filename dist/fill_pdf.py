@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.52'
+FILLER_VERSION = 'dist-2026-10-19.53'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4824,6 +4824,10 @@ def _f351_prep_template(input_path):
             _grow['Not listed in paragraph 2 - Full Legal Name - child %d' % _i] = _lw
             _grow[') - child %d' % _i] = _lw
             _grow['Not listed in paragraph 2 - Birthdate (d, m, y) - child %d' % _i] = _lw
+        # FIX-F351-Q11-ROWS: paragraph 11 child name boxes (page 4).
+        for _i in range(1, 6):
+            _grow["Child's Name %d" % _i] = \
+                'Name(s) of Caregiver(s) or children\u2019s aid society) %d' % _i
         _tall = set(_grow.values())
         for _pg in w.pages:
             _rects, _short = {}, []
@@ -4897,6 +4901,17 @@ _F351_TABLES = (
          ('next_date', 'Date of next court appearance', 'Charged with criminal offence(s) - Date of next court appearance %d'),
          ('release', 'Terms of release while waiting for trial', 'Charged with criminal offence(s) - Terms of release while waiting for trial %d'),
      )),
+    # FIX-F351-Q11-ROWS: no Yes/No (every child has had a caregiver).
+    # Rows are built by _f351_q11_rows from child / caregivers / from / to.
+    ('11', 'To the best of my knowledge, since birth, the child(ren) in this case has/have lived with the following caregiver(s)',
+     None, 'f351_care_history_care_history',
+     'f351_care_history_care_rows', 5, (
+         ('child', "Child's name", "Child's Name %d"),
+         ('caregivers', 'Name(s) of caregiver(s) or children\u2019s aid society',
+          'Name(s) of Caregiver(s) or children\u2019s aid society) %d'),
+         ('period', 'Period(s) of time with caregiver(s) (d,m,y to d,m,y)',
+          'Period(s) of Time with Caregiver(s) (d,m,y to d,m,y) %d'),
+     )),
 )
 # FIX-F351-Q6Q7-ROWS: date-picker answers (yyyy-mm-dd) print dd/mm/yyyy.
 _F351_DATE_COLS = {('3', 'dob'), ('7', 'next_date')}
@@ -4920,6 +4935,34 @@ _F351_PARA_SEQ = ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
 
 def _f351_para_pos(para):
     return _F351_PARA_SEQ.index(para) if para in _F351_PARA_SEQ else len(_F351_PARA_SEQ)
+
+
+def _f351_q11_rows(d):
+    """FIX-F351-Q11-ROWS: paragraph 11 rows. The screen asks From and To
+    dates; the form has one "d,m,y to d,m,y" box. A blank To date means the
+    child still lives with that caregiver (the screen says so) and prints
+    "present". A blank child name is filled in only when the case has
+    exactly one child (the name from the children answers)."""
+    def g(k):
+        return str(d.get(k) or '').strip()
+    kids = [k['name'] for k in _f351_children(d) if k.get('name')]
+    out = []
+    for i in range(10):
+        p = 'f351_care_history_care_rows_%d_' % i
+        child, cg, fr, to = g(p + 'child'), g(p + 'caregivers'), g(p + 'from'), g(p + 'to')
+        if not (child or cg or fr or to):
+            continue
+        fr, to = format_dob(fr), format_dob(to)
+        if fr:
+            period = '%s to %s' % (fr, to or 'present')
+        elif to:
+            period = 'until %s' % to
+        else:
+            period = ''
+        if not child and len(kids) == 1:
+            child = kids[0]
+        out.append({'child': child, 'caregivers': cg, 'period': period})
+    return out
 
 
 def _f351_rows(d, prefix, cols, limit=10):
@@ -4977,9 +5020,9 @@ def _f351_fill_one_table(d, tpl, fields, font, more, para, title, any_key,
                          old_key, prefix, nrows, cols):
     """Fill one table. Returns how many printed rows are now used (the
     whole table counts as used when rows went past the printed rows)."""
-    yn = str(d.get(any_key) or '').strip().lower()
+    yn = str(d.get(any_key) or '').strip().lower() if any_key else ''
     yn = 'yes' if yn in ('yes', 'true', '1') else ('no' if yn in ('no', 'false', '0') else '')
-    rows = _f351_rows(d, prefix, cols)
+    rows = _f351_q11_rows(d) if para == '11' else _f351_rows(d, prefix, cols)
     old = str(d.get(old_key) or '').strip()
     first_box = cols[0][2] % 1
     if yn == 'no':

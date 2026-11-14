@@ -383,6 +383,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F351-Q3-ROWS*/{key:"otherChildrenAny"',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q11-ROWS)',
+    name: 'Form 35.1 Q11: table rows for caregivers since birth (FIX-F351-Q11-ROWS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351-Q11-ROWS*/{key:"careRows"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
