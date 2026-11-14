@@ -809,6 +809,44 @@ doesn't fit, and any child after the 5th, goes to the continuation page.
 
 ---
 
+### FIX-F351-ROWS + FIX-F351-Q4Q5-ROWS — table questions as rows (Nov 14 2026)
+
+**Problem:** Form 35.1 paragraphs 4 (family court cases) and 5 (civil
+protection proceedings) are tables on the form, but the app asked each as
+one free-text box, and the filler printed neither.
+
+**Fix (bundle):**
+- New field type `rows`, drawn by a new helper `__hpRows` (declared after
+  `__hpQ3`). The field has `columns` (each a normal field: key, label,
+  type, placeholder), `rowLabel`, `addLabel` and `max` (default 3). It
+  shows one card per row ("Case 1", "Case 2", ...). Each cell is drawn by
+  the normal single-field renderer `_3` and saved as
+  `<key>_<row>_<column>` (row is 0-based). "+ Add another ..." saves
+  `<key>_count`; "Remove" (last row, not row 1) clears that row's cells and
+  lowers the count. Rows with answers always show, even if the count is
+  stale.
+- The field-list renderer `ZE` sends `type:"rows"` to `__hpRows`.
+- `f351_history`: `familyCases` / `civilProtection` text boxes replaced by
+  `familyCasesAny` (Yes/No) + `familyCaseRows` (location, parties,
+  children, orders; up to 6) and `civilProtectionAny` (Yes/No) +
+  `civilProtectionRows` (location, people, orders; up to 6). Rows show only
+  after "Yes".
+
+**Filler side (`fill_form35_1`, FILLER_VERSION .50):** generic table helper
+`_f351_fill_tables` driven by `_F351_TABLES`. "No" prints N/A in row 1
+Court location. Each cell sized 10pt down to 7pt; a cell that doesn't fit
+says "See continuation page" and the whole row goes on the continuation
+page, as do rows 4 and up. Old free-text answers (saved before this change,
+Yes/No not answered): none-type words print N/A; other text goes on the
+continuation page. The template working copy makes the one-line Court
+location boxes row-height with wrapping. Continuation items are sorted by
+paragraph.
+
+**Sentinels:** `__hpRows=/*FIX-F351-ROWS*/(` and
+`/*FIX-F351-Q4Q5-ROWS*/{key:"familyCasesAny"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.49'
+FILLER_VERSION = 'dist-2026-10-19.50'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4801,6 +4801,32 @@ def _f351_prep_template(input_path):
                     x1, x2 = float(o['/Rect'][0]), float(o['/Rect'][2])
                     o[_N('/Rect')] = _A([_F(x1), _F(rows[i][0]), _F(x2), _F(rows[i][1])])
                     o[_N('/Ff')] = _Num(int(o.get('/Ff') or 0) | 4096)  # multiline
+        # FIX-F351-Q4Q5-ROWS: in the paragraph 4 and 5 tables the "Court
+        # location" box is one line tall inside a row that is three lines
+        # tall. It is made as tall as the next box in the same printed row
+        # and allowed to wrap, so "Ontario Court of Justice, Sudbury" fits.
+        _grow = {}
+        for _i in range(1, 4):
+            _grow['Family court case(s) - Court location %d' % _i] = \
+                'Family court case(s) - Names of parties in the case %d' % _i
+            _grow['Civil protection proceedings - Court location %d' % _i] = \
+                'Civil protection proceedings - Names of people involved in the case %d' % _i
+        _tall = set(_grow.values())
+        for _pg in w.pages:
+            _rects, _short = {}, []
+            for a in _pg.get('/Annots') or []:
+                o = a.get_object()
+                t = str(o.get('/T') or '')
+                if t in _tall:
+                    _rects[t] = (float(o['/Rect'][1]), float(o['/Rect'][3]))
+                elif t in _grow:
+                    _short.append((t, o))
+            for t, o in _short:
+                if _grow[t] in _rects:
+                    y1, y2 = _rects[_grow[t]]
+                    x1, x2 = float(o['/Rect'][0]), float(o['/Rect'][2])
+                    o[_N('/Rect')] = _A([_F(x1), _F(y1), _F(x2), _F(y2)])
+                    o[_N('/Ff')] = _Num(int(o.get('/Ff') or 0) | 4096)  # multiline
         fd, path = tempfile.mkstemp(suffix='.pdf', prefix='f351tpl_')
         with os.fdopen(fd, 'wb') as fh:
             w.write(fh)
@@ -4808,6 +4834,116 @@ def _f351_prep_template(input_path):
     except Exception as e:
         sys.stderr.write(f'[fill_form35_1] template prep skipped: {e}\n')
         return input_path
+
+
+# FIX-F351-Q4Q5-ROWS: Form 35.1 tables filled from the app's "rows"
+# questions (one card per row on the screen). Each table: paragraph number,
+# the paragraph's words for the continuation page, the yes/no answer key,
+# the older free-text answer key (before rows existed), the row answer key
+# prefix (0-based rows), the number of rows printed on the form, and the
+# columns (answer name, label, form box name with the 1-based row number).
+_F351_TABLES = (
+    ('4', 'I am or have been a party in the following family court case(s)',
+     'f351_history_family_cases_any', 'f351_history_family_cases',
+     'f351_history_family_case_rows', 3, (
+         ('location', 'Court location', 'Family court case(s) - Court location %d'),
+         ('parties', 'Names of parties in the case', 'Family court case(s) - Names of parties in the case %d'),
+         ('children', 'Name(s) of child(ren)', 'Family court case(s) - Name(s) of child(ren) %d'),
+         ('orders', 'Court orders made (include dates of orders)', 'Family court case(s) - Court orders made (include dates) %d'),
+     )),
+    ('5', 'I am or have been involved in the following civil protection proceedings',
+     'f351_history_civil_protection_any', 'f351_history_civil_protection',
+     'f351_history_civil_protection_rows', 3, (
+         ('location', 'Court location', 'Civil protection proceedings - Court location %d'),
+         ('people', 'Names of people involved in the case', 'Civil protection proceedings - Names of people involved in the case %d'),
+         ('orders', 'Civil protection orders made (include dates of orders)', 'Civil protection proceedings - Civil protection orders made (include dates) %d'),
+     )),
+)
+# Order of paragraphs on the continuation page.
+_F351_PARA_SEQ = ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
+                  '12(a)', '12(b)', '12(c)', '12(d)', '12(e)', '12(f)',
+                  '12(g)', '12(h)', '12(i)', '13', '14', '15', '16')
+
+
+def _f351_para_pos(para):
+    return _F351_PARA_SEQ.index(para) if para in _F351_PARA_SEQ else len(_F351_PARA_SEQ)
+
+
+def _f351_rows(d, prefix, cols, limit=10):
+    """Rows the user filled in (any cell not blank), in screen order.
+    Every row index is checked, so a stale row count never loses a row."""
+    out = []
+    for i in range(limit):
+        row = {c: str(d.get('%s_%d_%s' % (prefix, i, c)) or '').strip() for c, _l, _b in cols}
+        if any(row.values()):
+            out.append(row)
+    return out
+
+
+def _f351_fill_tables(d, tpl, fields, font, more):
+    """Fill the Form 35.1 tables in _F351_TABLES.
+    - "No" prints N/A in the first box of row 1 (the form says write N/A).
+    - "Yes" prints each row the user filled. Each box is sized to fit
+      (10pt down to 7pt). A box too long even at 7pt says "See continuation
+      page" and that whole row is printed on the continuation page. Rows
+      past the printed rows go on the continuation page too.
+    - Not answered: blank, unless the older single free-text answer exists
+      (saved before the rows questions): none-type words print N/A, other
+      text is printed in full on the continuation page.
+    more: list of (paragraph, title, text) for the continuation page."""
+    for para, title, any_key, old_key, prefix, nrows, cols in _F351_TABLES:
+        yn = str(d.get(any_key) or '').strip().lower()
+        yn = 'yes' if yn in ('yes', 'true', '1') else ('no' if yn in ('no', 'false', '0') else '')
+        rows = _f351_rows(d, prefix, cols)
+        old = str(d.get(old_key) or '').strip()
+        first_box = cols[0][2] % 1
+        if yn == 'no':
+            fields[first_box] = 'N/A'
+            font[first_box] = 10.0
+            continue
+        if not rows:
+            if yn == 'yes':
+                sys.stderr.write(f'[fill_form35_1] paragraph {para}: answered yes but no rows filled\n')
+            elif old:
+                if _f351_na(old) == 'N/A':
+                    fields[first_box] = 'N/A'
+                    font[first_box] = 10.0
+                else:
+                    fields[first_box] = 'See continuation page'
+                    font[first_box] = 7.0
+                    more.append((para, 'Paragraph %s. %s' % (para, title), old))
+            continue
+        boxes = [b % i for i in range(1, min(nrows, len(rows)) + 1) for _c, _l, b in cols]
+        sz = _box_sizes(tpl, set(boxes))
+        for i, row in enumerate(rows, start=1):
+            overflow = i > nrows
+            if not overflow:
+                for c, _l, b in cols:
+                    k = b % i
+                    if not row[c]:
+                        continue
+                    fields[k] = row[c]
+                    if k not in sz:
+                        sys.stderr.write(f'[fill_form35_1] box not found: {k[:60]}\n')
+                        continue
+                    w, h = sz[k]
+                    if h < 20:
+                        pt = 10.0
+                        while pt > 7.0 and _wrapped_line_count(row[c], (w - 4.0) * 0.95, pt) > 1:
+                            pt -= 0.5
+                        ok = _wrapped_line_count(row[c], (w - 4.0) * 0.95, pt) == 1
+                    else:
+                        pt, ok = _wrap_fit_pt(row[c], w, h)
+                    if ok:
+                        font[k] = pt
+                    else:
+                        sys.stderr.write(f'[fill_form35_1] paragraph {para} row {i} {c} too long, continued on attached page\n')
+                        fields[k] = 'See continuation page'
+                        font[k] = 7.0
+                        overflow = True
+            if overflow:
+                more.append((para, 'Paragraph %s. %s: row %d' % (para, title, i),
+                             '\n'.join('%s: %s' % (l, row[c]) for c, l, _b in cols if row[c])))
 
 
 def fill_form35_1(input_path, output_path, form_data_list):
@@ -4987,6 +5123,9 @@ def fill_form35_1(input_path, output_path, form_data_list):
                     ('Age', 'age'), ('Full legal name(s) of parent(s)', 'parents'),
                     ('Name(s) of all people child lives with now', 'lives_with'),
                     ('My relationship to the child', 'relationship')) if _kid.get(_c))))
+    # FIX-F351-Q4Q5-ROWS: paragraph 4 and 5 tables.
+    _tbl_more = []
+    _f351_fill_tables(d, _tpl, fields, _f351_font, _tbl_more)
     n = _write_pdf(_tpl, output_path, fields, checkboxes, font_pt=_f351_font)
     # FIX-F351-ONE-BOX: the page 6 Q14 "Yes" / "No" boxes, unlike every
     # other tick box on this form, carry their own border/background and no
@@ -5009,7 +5148,15 @@ def fill_form35_1(input_path, output_path, form_data_list):
             _wr.write(_fh)
     except Exception as _e:
         sys.stderr.write(f'[fill_form35_1] Q14 box style skipped: {_e}\n')
-    if _f351_too_long or _q2_more:
+    # FIX-F351-Q4Q5-ROWS: continuation items in paragraph order (Python's
+    # sort keeps the order within a paragraph).
+    _cont = sorted(
+        [(_F351_PARA[_k][0], 'Paragraph %s. %s' % _F351_PARA[_k], _v) for _k, _v in
+         sorted(_f351_too_long, key=lambda kv: _F351_ORDER.index(kv[0]))]
+        + [('2', _t, _v) for _t, _v in _q2_more]
+        + _tbl_more,
+        key=lambda it: _f351_para_pos(it[0]))
+    if _cont:
         try:
             _cfn = (d.get('court_file_number') or d.get('fileNumber') or '').strip()
             _np = _append_continuation(
@@ -5020,13 +5167,7 @@ def fill_form35_1(input_path, output_path, form_data_list):
                  ('Applicant(s):', (d.get('applicant_full_name') or '').strip()),
                  ('Respondent(s):', (d.get('respondent_full_name') or '').strip()),
                  ('Affidavit of:', fields.get('Full legal name', ''))],
-                [('Paragraph %s. %s' % _F351_PARA[_k], _v) for _k, _v in
-                 sorted(_f351_too_long, key=lambda kv: _F351_ORDER.index(kv[0]))
-                 if _F351_PARA[_k][0] == '1']
-                + _q2_more
-                + [('Paragraph %s. %s' % _F351_PARA[_k], _v) for _k, _v in
-                   sorted(_f351_too_long, key=lambda kv: _F351_ORDER.index(kv[0]))
-                   if _F351_PARA[_k][0] != '1'])
+                [(_t, _v) for _p, _t, _v in _cont])
             sys.stderr.write(f'[fill_form35_1] appended {_np} continuation page(s)\n')
         except Exception as _e:
             sys.stderr.write(f'[fill_form35_1] continuation page failed: {_e}\n')

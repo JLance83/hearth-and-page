@@ -359,6 +359,18 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '__hpQ3=/*FIX-F351-Q2-CHILDREN*/t=>',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-ROWS)',
+    name: 'Generic "rows" question type (one card per table row) (FIX-F351-ROWS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '__hpRows=/*FIX-F351-ROWS*/(',
+  },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q4Q5-ROWS)',
+    name: 'Form 35.1 Q4/Q5: yes/no + table rows for family cases and civil protection (FIX-F351-Q4Q5-ROWS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351-Q4Q5-ROWS*/{key:"familyCasesAny"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
