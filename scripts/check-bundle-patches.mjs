@@ -353,6 +353,12 @@ const PATCHES = [
     file: 'hp-patches.js',
     sentinel: '// FIX-F351-NO-CLIENT-PATCH (Nov 14 2026)',
   },
+  {
+    commit: 'Nov 14 2026 (see FIX-F351-Q2-CHILDREN)',
+    name: 'Form 35.1 Q2 children: parents + relationship asked in combined cases (FIX-F351-Q2-CHILDREN)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '__hpQ3=/*FIX-F351-Q2-CHILDREN*/t=>',
+  },
 ];
 
 function resolveFile(prefixOrName) {

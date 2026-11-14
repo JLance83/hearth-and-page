@@ -769,6 +769,46 @@ The server filler (`fill_form35_1`) fills these boxes. Cache token for
 
 ---
 
+### FIX-F351-Q2-CHILDREN — Form 35.1 Q2 children table questions (Nov 14 2026)
+
+**Problem:** Form 35.1 Q2 needs, for each child, the parents' names and
+your relationship to the child. Combined flows skipped the
+`f351_children` screen, so those were never asked. With Form 15 or 15C
+(no main "Your children" screen) the children were not asked at all, so Q2
+was empty.
+
+**Fix:**
+- New helper `__hpQ3(screen)`, declared after `__hpQ1`. For
+  `f351_children` it returns a short version: title "Children's parents
+  and your relationship", `lockCount:1`, and
+  `childFields` = only `parents` and `relationship` (taken from `AF`).
+- The children component `tR` takes a new `lockCount` prop. When set, the
+  count box is replaced by "Children from your earlier answers: N" (the
+  count comes from the main children answers, merged in by `z0`). Each
+  child card heading now shows the child's name when known ("Child 1 —
+  Paeton Lance").
+- The wizard passes `Ee.childFields||Ne` and `Ee.lockCount` to `tR`;
+  required-field checks use `Pe.childFields||Ne`. Every other children
+  screen has no `childFields`, so nothing else changes.
+- Flows: `f351_children` is no longer skipped. When the main `children`
+  screen is in the flow (Form 8 combinations: the `Be` list and the
+  `__hpP` loop when it contains `children`), the short version is shown.
+  Otherwise (Form 15 / 15C combinations) the full Form 35.1 children
+  screen is shown.
+
+Filler side (`fill_form35_1`): see FILLER_VERSION .49. Name, birthdate and
+lives-with come from the main children answers when given, else the Form
+35.1 screen; parents and relationship from the Form 35.1 screen. Birthdate
+dd/mm/yyyy; age worked out on the day (Toronto date; "N mo" under 1). A
+working copy of the template renames the page 1 relationship boxes (they
+shared the name `) - child N` with page 2 Q3 boxes) and makes the name,
+parents and relationship boxes row-height with wrapping. A cell that still
+doesn't fit, and any child after the 5th, goes to the continuation page.
+
+**Sentinel:** `__hpQ3=/*FIX-F351-Q2-CHILDREN*/t=>`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

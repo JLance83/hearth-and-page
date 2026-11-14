@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.48'
+FILLER_VERSION = 'dist-2026-10-19.49'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4708,8 +4708,111 @@ def _f351_na(v):
     return 'N/A' if v.rstrip('.').strip().lower() in _F351_NA_WORDS else v
 
 
+def _f351_today():
+    try:
+        from zoneinfo import ZoneInfo
+        from datetime import datetime as _dtm
+        return _dtm.now(ZoneInfo('America/Toronto')).date()
+    except Exception:
+        return date.today()
+
+
+def _f351_children(d):
+    """FIX-F351-Q2-CHILDREN: one dict per child for Form 35.1 Q2."""
+    def g(k):
+        return str(d.get(k) or '').strip()
+    def count(k):
+        try:
+            return max(0, min(10, int(float(g(k)))))
+        except ValueError:
+            return 0
+    n = max(count('children_count'), count('f351_children_count'))
+    for j in range(10):  # answers present beyond the count still count
+        if g(f'child_{j+1}_name') or g(f'f351_children_child_{j}_full_name'):
+            n = max(n, j + 1)
+    today = _f351_today()
+    kids = []
+    for j in range(n):
+        m = f'child_{j+1}_'           # main case children (1-based)
+        f = f'f351_children_child_{j}_'  # Form 35.1 children screen (0-based)
+        dob_raw = g(m + 'dob') or g(f + 'dob')
+        age = ''
+        try:
+            y, mo, dd = (int(x) for x in dob_raw.split('-'))
+            b = date(y, mo, dd)
+            if b <= today:
+                yrs = today.year - y - ((today.month, today.day) < (mo, dd))
+                if yrs >= 1:
+                    age = str(yrs)
+                else:
+                    mos = (today.year - y) * 12 + today.month - mo - (today.day < dd)
+                    age = '%d mo' % mos
+        except (ValueError, TypeError):
+            pass
+        kids.append({
+            'name': g(m + 'name') or g(f + 'full_name'),
+            'dob': format_dob(dob_raw),
+            'age': age or g(f + 'age'),
+            'parents': g(f + 'parents'),
+            'lives_with': g(m + 'lives_with') or g(f + 'lives_with'),
+            'relationship': g(f + 'relationship'),
+        })
+    return kids
+
+
+def _f351_prep_template(input_path):
+    """FIX-F351-Q2-CHILDREN: a working copy of the Form 35.1 template for
+    this fill only (the template file is never changed).
+    - The page 1 Q2 "My relationship to the child" boxes are named
+      ') - child N', the same name as the page 2 Q3 boxes, so filling one
+      filled both. The page 1 ones are renamed 'Q2 relationship - child N'.
+    - The Q2 name, parents and relationship boxes are only one line tall
+      inside a row that is two lines tall. They are made as tall as the
+      row's "lives with" box (same printed row) and allowed to wrap, so a
+      name like "Jordan Smith and Alex Lee" fits.
+    Returns the copy's path, or the original path if anything goes wrong."""
+    import tempfile
+    from pypdf.generic import NameObject as _N, NumberObject as _Num, \
+        ArrayObject as _A, FloatObject as _F, create_string_object as _S
+    try:
+        r = pypdf.PdfReader(input_path)
+        w = pypdf.PdfWriter()
+        w.append(r)
+        pg = w.pages[0]
+        rows = {}
+        widgets = []
+        for a in pg.get('/Annots') or []:
+            o = a.get_object()
+            t = str(o.get('/T') or '')
+            for i in range(1, 6):
+                if t == 'Children in this case - Name(s) of all people child lives with now (include address if child does not live with you) - child %d' % i:
+                    rows[i] = (float(o['/Rect'][1]), float(o['/Rect'][3]))
+            widgets.append((t, o))
+        for t, o in widgets:
+            for i in range(1, 6):
+                grow = t in ('Children in this case - full legal name - child %d' % i,
+                             'Children in this case - Full legal name(s) of parent(s) - child %d' % i,
+                             ') - child %d' % i)
+                if not grow:
+                    continue
+                if t == ') - child %d' % i:
+                    o[_N('/T')] = _S('Q2 relationship - child %d' % i)
+                if i in rows:
+                    x1, x2 = float(o['/Rect'][0]), float(o['/Rect'][2])
+                    o[_N('/Rect')] = _A([_F(x1), _F(rows[i][0]), _F(x2), _F(rows[i][1])])
+                    o[_N('/Ff')] = _Num(int(o.get('/Ff') or 0) | 4096)  # multiline
+        fd, path = tempfile.mkstemp(suffix='.pdf', prefix='f351tpl_')
+        with os.fdopen(fd, 'wb') as fh:
+            w.write(fh)
+        return path
+    except Exception as e:
+        sys.stderr.write(f'[fill_form35_1] template prep skipped: {e}\n')
+        return input_path
+
+
 def fill_form35_1(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
+    _tpl = _f351_prep_template(input_path)
     # FIX-F351-PAGE1: the form has 8 pages, so the court file number goes on
     # pages 1-8 (was 1-5). Name, birthdate and "I live in" read the Form 35.1
     # identity answers first (asked when Form 35.1 is on its own), then the
@@ -4736,11 +4839,26 @@ def fill_form35_1(input_path, output_path, form_data_list):
     # FIX-F351-Q1-NAMES: Q1 other names used, from the Form 35.1 identity
     # screen (now also asked in combined cases). Blank stays blank.
     fields['Names you have been known by'] = _f351_na(d.get('f351_identity_other_names'))
-    # Children (up to 5)
-    for i in range(1, 6):
-        fields[f'Children in this case - full legal name - child {i}'] = d.get(f'child_{i}_name', '')
-        fields[f'Children in this case - Birthdate (d, m, y) - child {i}'] = d.get(f'child_{i}_dob', '')
-        fields[f'Children in this case - Age - child {i}'] = d.get(f'child_{i}_age', '')
+    # FIX-F351-Q2-CHILDREN: Q2 children table. Name, birthdate and who
+    # the child lives with come from the main case "Your children" answers
+    # (children section) when given, otherwise from the Form 35.1 children
+    # screen. Parents and relationship come from the Form 35.1 children
+    # screen (asked in combined cases too). Birthdate dd/mm/yyyy; age worked
+    # out from the birthdate on the day the PDF is made (Toronto date),
+    # else the age the user typed. Blank stays blank.
+    _f351_kids = _f351_children(d)
+    _q2_cols = (
+        ('name', 'Children in this case - full legal name - child %d'),
+        ('dob', 'Children in this case - Birthdate (d, m, y) - child %d'),
+        ('age', 'Children in this case - Age - child %d'),
+        ('parents', 'Children in this case - Full legal name(s) of parent(s) - child %d'),
+        ('lives_with', 'Children in this case - Name(s) of all people child lives with now (include address if child does not live with you) - child %d'),
+        ('relationship', 'Q2 relationship - child %d'),
+    )
+    for _i, _kid in enumerate(_f351_kids[:5], start=1):
+        for _col, _box in _q2_cols:
+            if _kid.get(_col):
+                fields[_box % _i] = _kid[_col]
     # FIX-F351-ONE-BOX: answers from the Form 35.1 screens that match one
     # box on the form. Printed as the user typed them (trimmed). Blank stays
     # blank. Yes/no questions tick only when answered.
@@ -4808,7 +4926,7 @@ def fill_form35_1(input_path, output_path, form_data_list):
     _f351_too_long = []
     _want = [k for k in _f351_big + _f351_line if str(fields.get(k) or '').strip()]
     if _want:
-        _sz = _box_sizes(input_path, set(_want))
+        _sz = _box_sizes(_tpl, set(_want))
         for _k in _want:
             if _k not in _sz:
                 sys.stderr.write(f'[fill_form35_1] box not found: {_k[:60]}\n')
@@ -4830,7 +4948,46 @@ def fill_form35_1(input_path, output_path, form_data_list):
                 _f351_too_long.append((_k, fields[_k]))
                 fields[_k] = 'See attached continuation page, paragraph %s.' % _F351_PARA[_k][0]
                 _f351_font[_k] = 9.0
-    n = _write_pdf(input_path, output_path, fields, checkboxes, font_pt=_f351_font)
+    # FIX-F351-Q2-CHILDREN: size each Q2 table cell (one line, 10pt down
+    # to 7pt; the "lives with" cell is two lines tall). If any cell of a
+    # child's row does not fit, that cell says "See continuation page" and
+    # the child's full row is printed on the continuation page. Children
+    # after the 5th row go on the continuation page too.
+    _q2_more = []
+    _q2_boxes = [_box % _i for _i in range(1, min(5, len(_f351_kids)) + 1) for _c, _box in _q2_cols
+                 if str(fields.get(_box % _i) or '').strip()]
+    _q2_sz = _box_sizes(_tpl, set(_q2_boxes)) if _q2_boxes else {}
+    for _i, _kid in enumerate(_f351_kids, start=1):
+        _overflow = _i > 5
+        if not _overflow:
+            for _col, _box in _q2_cols:
+                _k = _box % _i
+                if not str(fields.get(_k) or '').strip() or _k not in _q2_sz:
+                    continue
+                _w, _h = _q2_sz[_k]
+                if _col in ('name', 'parents', 'lives_with', 'relationship'):
+                    _pt, _ok = _wrap_fit_pt(fields[_k], _w, _h)
+                else:
+                    _pt = 10.0
+                    while _pt > 7.0 and _wrapped_line_count(fields[_k], (_w - 4.0) * 0.95, _pt) > 1:
+                        _pt -= 0.5
+                    _ok = _wrapped_line_count(fields[_k], (_w - 4.0) * 0.95, _pt) == 1
+                if _ok:
+                    _f351_font[_k] = _pt
+                else:
+                    sys.stderr.write(f'[fill_form35_1] Q2 child {_i} {_col} too long, continued on attached page\n')
+                    fields[_k] = 'See continuation page'
+                    _f351_font[_k] = 7.0
+                    _overflow = True
+        if _overflow:
+            _q2_more.append((
+                'Paragraph 2. The child(ren) in this case: child %d' % _i,
+                '\n'.join('%s: %s' % (_lbl, _kid[_c]) for _lbl, _c in (
+                    ("Child's full legal name", 'name'), ('Birthdate (d, m, y)', 'dob'),
+                    ('Age', 'age'), ('Full legal name(s) of parent(s)', 'parents'),
+                    ('Name(s) of all people child lives with now', 'lives_with'),
+                    ('My relationship to the child', 'relationship')) if _kid.get(_c))))
+    n = _write_pdf(_tpl, output_path, fields, checkboxes, font_pt=_f351_font)
     # FIX-F351-ONE-BOX: the page 6 Q14 "Yes" / "No" boxes, unlike every
     # other tick box on this form, carry their own border/background and no
     # text style. Viewers that redraw filled forms then show a broken
@@ -4852,7 +5009,7 @@ def fill_form35_1(input_path, output_path, form_data_list):
             _wr.write(_fh)
     except Exception as _e:
         sys.stderr.write(f'[fill_form35_1] Q14 box style skipped: {_e}\n')
-    if _f351_too_long:
+    if _f351_too_long or _q2_more:
         try:
             _cfn = (d.get('court_file_number') or d.get('fileNumber') or '').strip()
             _np = _append_continuation(
@@ -4864,10 +5021,20 @@ def fill_form35_1(input_path, output_path, form_data_list):
                  ('Respondent(s):', (d.get('respondent_full_name') or '').strip()),
                  ('Affidavit of:', fields.get('Full legal name', ''))],
                 [('Paragraph %s. %s' % _F351_PARA[_k], _v) for _k, _v in
-                 sorted(_f351_too_long, key=lambda kv: _F351_ORDER.index(kv[0]))])
+                 sorted(_f351_too_long, key=lambda kv: _F351_ORDER.index(kv[0]))
+                 if _F351_PARA[_k][0] == '1']
+                + _q2_more
+                + [('Paragraph %s. %s' % _F351_PARA[_k], _v) for _k, _v in
+                   sorted(_f351_too_long, key=lambda kv: _F351_ORDER.index(kv[0]))
+                   if _F351_PARA[_k][0] != '1'])
             sys.stderr.write(f'[fill_form35_1] appended {_np} continuation page(s)\n')
         except Exception as _e:
             sys.stderr.write(f'[fill_form35_1] continuation page failed: {_e}\n')
+    if _tpl != input_path:
+        try:
+            os.unlink(_tpl)
+        except OSError:
+            pass
     sys.stderr.write(f'[fill_form35_1] Filled {n} fields\n')
     return n
 
