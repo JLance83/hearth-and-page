@@ -631,6 +631,27 @@ gap-fill in the filler; no filler change.
 
 ---
 
+### FIX-F15-NO-DUPES-1 — Form 15 step 1 identity questions removed (Nov 13 2026)
+
+**Problem:** Form 15 step 1 ("Your information") asked again for your
+full name, address, city, province, postal code, phone, email and birth
+date (5 of them required). The main case "About you" screen already asks
+all of these. Since FIX-F15-MAIN-FIRST (5358e41) the PDF prints the main
+case answer first, so editing the Form 15 copy did nothing and was
+misleading. Form 15 duplicates plan brick 2 (Josh approved D1).
+
+**Fix:** in `f15_requesting_party`, removed `fullName`, `address`, `city`,
+`province`, `postalCode`, `phone`, `email` and `dob`. Kept `hasLawyer`
+and the four lawyer questions (the main case never asks about your
+lawyer). The step is retitled "Your lawyer for this motion", and the
+intro says name, address, phone, email and birth date come from the case
+answers. Old saved answers under the removed keys still fill gaps in the
+filler. No filler change.
+
+**Sentinel:** `/*FIX-F15-NO-DUPES-1*/{key:"hasLawyer",type:"yesno"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

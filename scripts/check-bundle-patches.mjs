@@ -317,6 +317,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F23C-NO-DUPES*/{key:"relationshipStatus",type:"select"',
   },
+  {
+    commit: 'Nov 13 2026 (see FIX-F15-NO-DUPES-1)',
+    name: 'Form 15 step 1 identity questions removed, lawyer kept (FIX-F15-NO-DUPES-1)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F15-NO-DUPES-1*/{key:"hasLawyer",type:"yesno"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
