@@ -262,6 +262,25 @@ function requirePaidExport(req, res, next) {
   return res.status(403).json({ message: 'PDF download requires a subscription', code: 'PDF_LOCKED', upgradeUrl: '/pricing' });
 }
 
+// FIX-PLAN-BY-PRODUCT — decide Plus vs Standard by the Stripe *product*, not
+// only the exact price ID. Subscribers on an older Plus price (same Plus
+// product, earlier price ID) were being labelled 'standard'.
+let _hpPlusProductId = null;
+async function hpPlanForPrice(stripe, price) {
+  if (!price) return 'standard';
+  const plusPrice = process.env.STRIPE_PRICE_PLUS;
+  if (plusPrice && price.id === plusPrice) return 'plus';
+  try {
+    if (!_hpPlusProductId && plusPrice) {
+      const pp = await stripe.prices.retrieve(plusPrice);
+      _hpPlusProductId = typeof pp.product === 'string' ? pp.product : (pp.product && pp.product.id) || null;
+    }
+    const prod = typeof price.product === 'string' ? price.product : (price.product && price.product.id) || null;
+    if (_hpPlusProductId && prod && prod === _hpPlusProductId) return 'plus';
+  } catch (e) { console.error('[plan] plus product lookup failed:', e.message); }
+  return 'standard';
+}
+
 // requirePlus — gate for Plus-tier features (evidence upload/preview/edit,
 // AI-driven Extract). Standard users with pre-existing files still see the
 // file list (GET /documents), and any user can delete their own data
@@ -1387,8 +1406,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
     const obj = event.data.object;
     async function syncSubToUser(customerId, sub) {
       if (!customerId || !sub) return;
-      const priceId = sub.items?.data[0]?.price?.id;
-      const plan = priceId === process.env.STRIPE_PRICE_PLUS ? 'plus' : 'standard';
+      const plan = await hpPlanForPrice(stripe, sub.items?.data[0]?.price);
       const status = sub.status;
       const periodEnd = sub.current_period_end ? sub.current_period_end * 1000 : null;
       await dbUpdate('users', { stripe_customer_id: `eq.${customerId}` }, { plan: status === 'active' ? plan : 'free', subscriptionStatus: status, subscriptionCurrentPeriodEnd: periodEnd, stripeSubscriptionId: sub.id });
@@ -1409,8 +1427,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           try {
             const custRow = await dbGet('users', { stripe_customer_id: `eq.${obj.customer}` });
             if (custRow?.email) {
-              const priceId2 = sub.items?.data[0]?.price?.id;
-              const planName = priceId2 === process.env.STRIPE_PRICE_PLUS ? 'Plus' : 'Standard';
+              const planName = (await hpPlanForPrice(stripe, sub.items?.data[0]?.price)) === 'plus' ? 'Plus' : 'Standard';
               const amountCAD = (obj.amount_paid / 100).toFixed(2);
               const periodEndDate = new Date(sub.current_period_end * 1000).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
               await sendViaResend({
@@ -1591,8 +1608,7 @@ app.post('/api/stripe/sync', requireAuth, async (req, res) => {
     }
     if (subs.data.length > 0) {
       const sub = subs.data[0];
-      const priceId = sub.items.data[0]?.price?.id;
-      const plan = priceId === process.env.STRIPE_PRICE_PLUS ? 'plus' : 'standard';
+      const plan = await hpPlanForPrice(stripe, sub.items.data[0]?.price);
       await dbUpdate('users', { id: `eq.${req.user.id}` }, { plan, subscriptionStatus: sub.status, subscriptionCurrentPeriodEnd: sub.current_period_end * 1000, stripeSubscriptionId: sub.id });
     }
     const updated = await dbGet('users', { id: `eq.${req.user.id}` });
