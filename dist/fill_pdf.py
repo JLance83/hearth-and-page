@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.57'
+FILLER_VERSION = 'dist-2026-10-19.58'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2884,26 +2884,134 @@ def fill_form6b(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 # Form 10 — Answer
 # ─────────────────────────────────────────────────────────────────────────────
+_F10_FACTS = 'Facts that form the legal basis for my position in paragraph 2'
+
+
+def _f10_pick(d, label, f10_key, generic_keys, phone=False):
+    """FIX-F10-ANSWERS: one Form 10 answer. The Form 10 screens save under
+    f10_<section>_<key>; other forms in the same case may have saved the
+    same fact under the shared applicant_/respondent_ keys. Use whichever is
+    answered. If both are answered and differ, leave it blank and log it -
+    never guess."""
+    import re
+    def _v(k):
+        return str(d.get(k) or '').strip()
+    a = _v(f10_key)
+    g = next((_v(k) for k in generic_keys if _v(k)), '')
+    if a and g:
+        if phone:
+            same = re.sub(r'\D', '', a) == re.sub(r'\D', '', g)
+        else:
+            same = ' '.join(a.casefold().split()) == ' '.join(g.casefold().split())
+        if not same:
+            sys.stderr.write(f'[fill_form10] conflict, left blank: {label}\n')
+            return ''
+    return a or g
+
+
 def fill_form10(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
     fields = _header(d, pages=5)
     fields['Name of court'] = fields.pop('Name of court', '')  # form10 uses lower-case key
-    fields['Full legal name'] = d.get('respondent_full_name', '')
     fields['Address of added party'] = d.get('added_party_address', '')
     fields['Name - Applicant(s) Lawyer'] = d.get('applicant_lawyer_name', '')
     fields['Address - Applicant(s) Lawyer'] = d.get('applicant_lawyer_address', '')
     fields['Phone & fax - Applicant(s) Lawyer'] = d.get('applicant_lawyer_phone', '')
     fields['Email - Applicant(s) Lawyer'] = d.get('applicant_lawyer_email', '')
-    fields['Full legal name - Respondent(s)'] = d.get('respondent_full_name', '')
-    fields['Address - Respondent(s)'] = d.get('respondent_address', '')
-    fields['Phone & fax - Respondent(s)'] = format_phone(d.get('respondent_phone', ''))
-    fields['Email - Respondent(s)'] = d.get('respondent_email', '')
     fields['Name - Respondent(s) Lawyer'] = d.get('respondent_lawyer_name', '')
-    fields['I do not agree with the following claim(s) made by the applicant: (Refer to the numbers alongside the boxes on page 4 of the application form.)'] = d.get('disagree_claims', '')
+
+    # FIX-F10-ANSWERS: the parties' details from the Form 10 screens
+    # (f10_respondent = the person answering, f10_applicant = the person
+    # who started the case), falling back to the shared keys.
+    def _party(role):
+        P = 'f10_%s_' % role
+        name = _f10_pick(d, role + ' name', P + 'full_name', ['%s_full_name' % role, '%sFullName' % role])
+        street = _f10_pick(d, role + ' address', P + 'address', ['%s_address' % role, '%sAddress' % role])
+        city = _f10_pick(d, role + ' city', P + 'city', ['%s_city' % role, '%sCity' % role])
+        prov = _f10_pick(d, role + ' province', P + 'province', ['%s_province' % role, '%sProvince' % role])
+        postal = _f10_pick(d, role + ' postal code', P + 'postal_code', ['%s_postal_code' % role, '%sPostalCode' % role])
+        phone = _f10_pick(d, role + ' phone', P + 'phone', ['%s_phone' % role, '%sPhone' % role], phone=True)
+        email = _f10_pick(d, role + ' email', P + 'email', ['%s_email' % role, '%sEmail' % role])
+        place = ' '.join(x for x in [prov, postal] if x)
+        addr = ', '.join(x for x in [street, city, place] if x)
+        return name, addr, format_phone(phone) if phone else '', email
+    re_name, re_addr, re_ph, re_em = _party('respondent')
+    ap_name, ap_addr, ap_ph, ap_em = _party('applicant')
+    fields['Full legal name - Respondent(s)'] = re_name
+    fields['Address - Respondent(s)'] = re_addr
+    fields['Phone & fax - Respondent(s)'] = re_ph
+    fields['Email - Respondent(s)'] = re_em
+    fields['Full legal name - Applicant(s)'] = ap_name
+    fields['Address - Applicant(s)'] = ap_addr
+    fields['Phone & fax - Applicant(s)'] = ap_ph
+    fields['Email - Applicant(s)'] = ap_em
+    fields['Full legal name'] = re_name          # "My name is"
+
+    # Paragraphs 1, 2 and 6, and the Claim by Respondent details (page 4).
+    def _txt(k):
+        return str(d.get(k) or '').replace('\r\n', '\n').replace('\t', ' ').strip()
+    big = [
+        ('I agree with the following claim(s) made by the applicant',
+         _txt('f10_dispute_agreed_claims'), '1', 'Paragraph 1. I agree with the following claim(s) made by the applicant'),
+        (')', _txt('f10_dispute_disputed_claims') or _txt('disagree_claims'),
+         '2', 'Paragraph 2. I do not agree with the following claim(s) made by the applicant'),
+        (_F10_FACTS, _txt('f10_dispute_important_facts'),
+         '6', 'Paragraph 6. The important facts that form the legal basis for my position in paragraph 2'),
+        ('Details of the order that you want the court to make', _txt('f10_dispute_own_claims'),
+         'Claim by Respondent', 'Claim by Respondent. Details of the order that I want the court to make'),
+    ]
+    line = ['Full legal name - Respondent(s)', 'Address - Respondent(s)',
+            'Phone & fax - Respondent(s)', 'Email - Respondent(s)',
+            'Full legal name - Applicant(s)', 'Address - Applicant(s)',
+            'Phone & fax - Applicant(s)', 'Email - Applicant(s)', 'Full legal name']
+    for k, v, _p, _h in big:
+        if v:                     # empty answer: leave the box as the court printed it
+            fields[k] = v
+    tpl = input_path
+    font = {}
+    more = []
+    want = [k for k in line + [b[0] for b in big] if str(fields.get(k) or '').strip()]
+    sz = _box_sizes(tpl, set(want)) if want else {}
+    for k in want:
+        if k not in sz:
+            sys.stderr.write(f'[fill_form10] box not found: {k[:60]}\n')
+            continue
+        w_, h_ = sz[k]
+        if k in line:
+            pt = 10.0
+            while pt > 7.0 and _wrapped_line_count(fields[k], (w_ - 6.0) * 0.95, pt) > 1:
+                pt -= 0.5
+            font[k] = pt
+            if _wrapped_line_count(fields[k], (w_ - 6.0) * 0.95, pt) > 1:
+                sys.stderr.write(f'[fill_form10] tight fit at 7pt: {k[:60]}\n')
+            continue
+        pt, ok = _wrap_fit_pt(fields[k], w_, h_)
+        if ok:
+            font[k] = pt
+        else:
+            b = next(b for b in big if b[0] == k)
+            sys.stderr.write(f'[fill_form10] too long for its box, continued on attached page: {b[2]}\n')
+            more.append((b[3], fields[k]))
+            fields[k] = ('See attached continuation page, %s.' % b[2]) if b[2] == 'Claim by Respondent' \
+                else 'See attached continuation page, paragraph %s.' % b[2]
+            font[k] = 9.0
+
     checkboxes = {}
     if d.get('making_own_claim', '').lower() in ('yes', 'true', '1'):
         checkboxes['I am making a claim of my own'] = True
-    n = _write_pdf(input_path, output_path, fields, checkboxes)
+    n = _write_pdf(tpl, output_path, fields, checkboxes, font_pt=font)
+    if more:
+        try:
+            np_ = _append_continuation(
+                output_path,
+                ['Form 10: Answer', 'Continuation of answers that did not fit on the form'],
+                [('Court file number:', (d.get('court_file_number') or d.get('fileNumber') or '').strip()),
+                 ('Applicant(s):', ap_name),
+                 ('Respondent(s):', re_name)],
+                more)
+            sys.stderr.write(f'[fill_form10] appended {np_} continuation page(s)\n')
+        except Exception as e:
+            sys.stderr.write(f'[fill_form10] continuation page failed: {e}\n')
     sys.stderr.write(f'[fill_form10] Filled {n} fields\n')
     return n
 
