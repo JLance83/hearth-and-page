@@ -451,6 +451,11 @@ const PATCHES = [
     name: 'Form 10 page 4: claim types checkboxes (FIX-F10-CLAIM-PAGE)',
     file: 'index-CNjoTsGP.js',
     sentinel: '{key:"ownClaimTypes",type:"checkboxes",label:"If you are making a claim of your own: what are you asking the court for?',
+  },  {
+    commit: 'Nov 15 2026 (see FIX-F10-CLAIM-FACTS)',
+    name: 'Form 10 page 5: facts supporting my own claim(s) question (FIX-F10-CLAIM-FACTS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F10-CLAIM-FACTS*/{key:"ownClaimFacts",type:"textarea"',
   },
 ];
 

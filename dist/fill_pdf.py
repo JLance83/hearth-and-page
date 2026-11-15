@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.61'
+FILLER_VERSION = 'dist-2026-10-19.62'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2998,6 +2998,9 @@ def fill_form10(input_path, output_path, form_data_list):
          '6', 'Paragraph 6. The important facts that form the legal basis for my position in paragraph 2'),
         ('Details of the order that you want the court to make', _txt('f10_dispute_own_claims'),
          'Claim by Respondent', 'Claim by Respondent. Details of the order that I want the court to make'),
+        # FIX-F10-CLAIM-FACTS: page 5, facts supporting the respondent's own claim(s)
+        ('Facts that form the legal basis for your claim(s)', _txt('f10_dispute_own_claim_facts'),
+         'page 5', 'Page 5. Important facts supporting my claim(s)'),
     ]
     line = ['Full legal name - Respondent(s)', 'Address - Respondent(s)',
             'Phone & fax - Respondent(s)', 'Email - Respondent(s)',
@@ -3031,7 +3034,7 @@ def fill_form10(input_path, output_path, form_data_list):
             b = next(b for b in big if b[0] == k)
             sys.stderr.write(f'[fill_form10] too long for its box, continued on attached page: {b[2]}\n')
             more.append((b[3], fields[k]))
-            fields[k] = ('See attached continuation page, %s.' % b[2]) if b[2] == 'Claim by Respondent' \
+            fields[k] = ('See attached continuation page, %s.' % b[2]) if b[2] in ('Claim by Respondent', 'page 5') \
                 else 'See attached continuation page, paragraph %s.' % b[2]
             font[k] = 9.0
 

@@ -1091,6 +1091,24 @@ and `{key:"ownClaimTypes",type:"checkboxes",label:"If you are making a claim of 
 
 ---
 
+## FIX-F10-CLAIM-FACTS — Form 10 page 5 facts (Nov 15 2026)
+
+**Problem:** page 5 (Important facts supporting my claim(s)) was never
+filled; the app had no question for it.
+
+**Client:** `ownClaimFacts` (textarea, optional) added to the Form 10
+`f10_dispute` screen after the claim-type questions.
+
+**Filler side (FILLER_VERSION .62):** fills 'Facts that form the legal
+basis for your claim(s)' sized to fit; overflow goes to the continuation
+pages ("Page 5. Important facts supporting my claim(s)") and the box says
+"See attached continuation page, page 5." Blank answer = blank page 5
+(paragraph 6's facts are not copied; they answer a different question).
+
+**Sentinel:** `/*FIX-F10-CLAIM-FACTS*/{key:"ownClaimFacts",type:"textarea"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
