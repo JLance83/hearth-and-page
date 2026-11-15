@@ -429,6 +429,17 @@ const PATCHES = [
     name: 'Form 10: Court screen marker before f10_respondent (FIX-F10-COURT)',
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F10-COURT*/{id:"f10_respondent"',
+  },  {
+    commit: 'Nov 15 2026 (see FIX-F10-TICKS)',
+    name: 'Form 10 para 3: ask to dismiss with costs question (FIX-F10-TICKS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F10-TICKS*/{key:"askDismiss",type:"yesno"',
+  },
+  {
+    commit: 'Nov 15 2026 (see FIX-F10-TICKS)',
+    name: 'Form 10 para 5: family history correct / not correct + differences (FIX-F10-TICKS)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '{key:"familyHistory",type:"select",label:"Is the Family History in the Application correct?"',
   },
 ];
 

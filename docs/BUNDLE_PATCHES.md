@@ -1038,6 +1038,30 @@ and `/*FIX-F10-COURT*/{id:"f10_respondent"`
 
 ---
 
+## FIX-F10-TICKS — Form 10 page 2 tick boxes (Nov 15 2026)
+
+**Problem:** the page 2 tick boxes (paragraphs 3, 4, 5) were never ticked.
+Paragraphs 3 and 5 had no question in the app.
+
+**Client:** two questions added to the Form 10 "What you agree and
+disagree with" screen (`f10_dispute`):
+- `askDismiss` (yes/no, required): paragraph 3, dismiss with costs.
+- `familyHistory` (select, required): `correct` / `notCorrect`, paragraph 5.
+- `familyHistoryDifferences` (textarea, shown only for `notCorrect`, not
+  required so the progress count isn't blocked when hidden).
+Paragraph 4 needs no question: it is ticked when "Any claims you are
+making" has text.
+
+**Filler side (FILLER_VERSION .60):** `fill_form10` ticks para 3 on yes,
+para 4 when own claims has text (or legacy `making_own_claim`), para 5 plus
+"is correct" / "is not correct". The differences go on the continuation
+pages as paragraph 5 (before paragraph 6). No answer = no tick.
+
+**Sentinels:** `/*FIX-F10-TICKS*/{key:"askDismiss",type:"yesno"` and
+`{key:"familyHistory",type:"select",label:"Is the Family History in the Application correct?"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

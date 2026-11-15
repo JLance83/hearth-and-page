@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.59'
+FILLER_VERSION = 'dist-2026-10-19.60'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3001,9 +3001,34 @@ def fill_form10(input_path, output_path, form_data_list):
                 else 'See attached continuation page, paragraph %s.' % b[2]
             font[k] = 9.0
 
+    # FIX-F10-TICKS: page 2 tick boxes from the saved answers.
+    #   Para 3 (dismiss with costs)  <- f10_dispute_ask_dismiss = yes
+    #   Para 4 (claim of my own)     <- f10_dispute_own_claims has text
+    #                                   (or the legacy making_own_claim = yes)
+    #   Para 5 (family history)      <- f10_dispute_family_history
+    #                                   'correct' / 'notCorrect'
+    # No answer = no tick (never guessed).
     checkboxes = {}
-    if d.get('making_own_claim', '').lower() in ('yes', 'true', '1'):
+    if _is_yes(d.get('f10_dispute_ask_dismiss', '')):
+        checkboxes['I am asking that the applicant\u2019s claim (except for the parts with which I agree) be dismissed with costs'] = True
+    if _txt('f10_dispute_own_claims') or _is_yes(d.get('making_own_claim', '')):
         checkboxes['I am making a claim of my own'] = True
+    fh = str(d.get('f10_dispute_family_history') or '').strip()
+    if fh in ('correct', 'notCorrect'):
+        checkboxes['The FAMILY HISTORY, as set out in the application'] = True
+        checkboxes['is correct' if fh == 'correct' else 'is not correct'] = True
+    if fh == 'notCorrect':
+        diff = _txt('f10_dispute_family_history_differences')
+        if diff:
+            # The form says to attach your own Family History page; it goes on
+            # the continuation pages, in paragraph order (before para 6).
+            entry = ("Paragraph 5. Respondent's Family History: the parts of the "
+                     "applicant's Family History that are not correct, with the correct information", diff)
+            at = next((i for i, m in enumerate(more)
+                       if m[0].startswith('Paragraph 6') or m[0].startswith('Claim by Respondent')), len(more))
+            more.insert(at, entry)
+        else:
+            sys.stderr.write('[fill_form10] family history marked not correct but no details given\n')
     n = _write_pdf(tpl, output_path, fields, checkboxes, font_pt=font)
     if more:
         try:
