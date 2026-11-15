@@ -1062,6 +1062,35 @@ pages as paragraph 5 (before paragraph 6). No answer = no tick.
 
 ---
 
+## FIX-F10-CLAIM-PAGE — Form 10 page 4 claim boxes (Nov 15 2026)
+
+**Problem:** page 4 (Claim by Respondent) paragraphs 7 and 8 were never
+filled; the app had no questions for them.
+
+**Client:** added to the Form 10 `f10_dispute` screen, right after "Any
+claims you are making" (all optional, so the progress count isn't
+blocked for people with no claim of their own):
+- `ownClaimAgainst` (select): `applicant` / `addedParty`.
+- `ownClaimAddedParty` (text, shown for `addedParty`).
+- `ownClaimTypes` (checkboxes, 21 options matching the page 4 boxes,
+  except the child-protection column and the two wrongful-removal boxes).
+- `ownClaimOther` (text, shown when `other` is chosen).
+
+**Filler side (FILLER_VERSION .61):** only when paragraph 4 is ticked.
+Para 7: X in "the applicant" or "an added party" (+ name). With no answer
+and no added party anywhere in the case, the applicant is the only other
+party, so it is marked. Para 8: Divorce Act column only when the
+respondent claims a divorce; otherwise Family Law Act / CLRA column.
+Divorce and property claims at an Ontario Court of Justice are left
+unticked and logged (the form's own column notes). Paragraph 4 is also
+ticked when claim types are chosen. Boxes 06 and 50 get the same framed
+look as the rest of page 4 (`_f10_match_odd_boxes`).
+
+**Sentinels:** `/*FIX-F10-CLAIM-PAGE*/{key:"ownClaimAgainst",type:"select"`
+and `{key:"ownClaimTypes",type:"checkboxes",label:"If you are making a claim of your own: what are you asking the court for?`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

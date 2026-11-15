@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.60'
+FILLER_VERSION = 'dist-2026-10-19.61'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2890,6 +2890,7 @@ def fill_form6b(input_path, output_path, form_data_list):
 # Form 10 — Answer
 # ─────────────────────────────────────────────────────────────────────────────
 _F10_FACTS = 'Facts that form the legal basis for my position in paragraph 2'
+_F10_GUARD_NAMES = ["guardianship over child's property (claim must be served on the Children\u2019s Lawyer and the child must currently have property)"]
 
 
 def _f10_pick(d, label, f10_key, generic_keys, phone=False):
@@ -2912,6 +2913,39 @@ def _f10_pick(d, label, f10_key, generic_keys, phone=False):
             sys.stderr.write(f'[fill_form10] conflict, left blank: {label}\n')
             return ''
     return a or g
+
+
+def _f10_match_odd_boxes(path):
+    """FIX-F10-CLAIM-PAGE: two page 4 boxes in the court template (06 contact
+    with leave, and 50 Other) draw a tiny tick with no box outline when
+    ticked. Give them the same look as the other boxes on that page (a
+    framed square), keeping their own /Yes state name."""
+    import pypdf
+    import pypdf.generic as g
+    odd = {'contact with child(ren) (this requires court leave)', 'Other'}
+    r = pypdf.PdfReader(path)
+    w = pypdf.PdfWriter(clone_from=r)
+    page = w.pages[3]
+    model = None
+    targets = []
+    for ref in page.get('/Annots') or []:
+        a = ref.get_object()
+        t = a.get('/T')
+        if t == 'a divorce':
+            model = a
+        elif t in odd:
+            targets.append(a)
+    if model is None or not targets:
+        return
+    n = model['/AP']['/N']
+    on_ref = n.raw_get('/On')
+    off_ref = n.raw_get('/Off')
+    for a in targets:
+        a[g.NameObject('/AP')] = g.DictionaryObject({g.NameObject('/N'): g.DictionaryObject({
+            g.NameObject('/Yes'): on_ref, g.NameObject('/Off'): off_ref})})
+        a[g.NameObject('/MK')] = model['/MK']
+    with open(path, 'wb') as fh:
+        w.write(fh)
 
 
 def fill_form10(input_path, output_path, form_data_list):
@@ -3011,7 +3045,8 @@ def fill_form10(input_path, output_path, form_data_list):
     checkboxes = {}
     if _is_yes(d.get('f10_dispute_ask_dismiss', '')):
         checkboxes['I am asking that the applicant\u2019s claim (except for the parts with which I agree) be dismissed with costs'] = True
-    if _txt('f10_dispute_own_claims') or _is_yes(d.get('making_own_claim', '')):
+    _own_types = [t.strip() for t in str(d.get('f10_dispute_own_claim_types') or '').split(',') if t.strip()]
+    if _txt('f10_dispute_own_claims') or _own_types or _is_yes(d.get('making_own_claim', '')):
         checkboxes['I am making a claim of my own'] = True
     fh = str(d.get('f10_dispute_family_history') or '').strip()
     if fh in ('correct', 'notCorrect'):
@@ -3029,7 +3064,77 @@ def fill_form10(input_path, output_path, form_data_list):
             more.insert(at, entry)
         else:
             sys.stderr.write('[fill_form10] family history marked not correct but no details given\n')
+
+    # FIX-F10-CLAIM-PAGE: page 4 (Claim by Respondent) from the saved answers.
+    if checkboxes.get('I am making a claim of my own'):
+        # Para 7: who the claim is against. The two "boxes" are tiny text
+        # fields in the template, so they get an X.
+        against = str(d.get('f10_dispute_own_claim_against') or '').strip()
+        added = str(d.get('f10_dispute_own_claim_added_party') or '').strip()
+        if not against and not added and not str(d.get('added_party_address') or '').strip():
+            # No added party anywhere in the case: the only other party is
+            # the applicant, so this is not a guess.
+            against = 'applicant'
+        if against == 'applicant':
+            fields['the applicant'] = 'X'
+        elif against == 'addedParty':
+            fields['an added party'] = 'X'
+            fields['Full legal name - added party'] = added
+            if not added:
+                sys.stderr.write('[fill_form10] claim against an added party but no name given\n')
+        # Para 8: the claim boxes. Divorce and property claims are only for
+        # a Superior Court of Justice (the form's own column notes); at an
+        # Ontario Court of Justice they are left unticked and logged.
+        court = str(fields.get('Name of court') or '')
+        ocj = 'Ontario Court of Justice' in court
+        divorce = 'divorce' in _own_types and not ocj
+        sfx = '1' if divorce else '2'     # Divorce Act column only with a divorce claim
+        M = {
+            'divorce': 'a divorce',
+            'supportForMe': 'support for me ' + sfx,
+            'childSupportTable': 'support for child(ren) \u2013 table amount ' + sfx,
+            'childSupportOther': ('support for child(ren) - other than table amount 1' if divorce
+                                  else 'support for child(ren) \u2013 other than table amount 2'),
+            'decisionMaking': 'decision-making responsibility for child(ren) ' + sfx,
+            'parentingTime': 'parenting time with child(ren) ' + sfx,
+            'contactWithChildren': ('contact with child(ren) (this requires court leave)' if divorce
+                                    else 'contact with child(ren) (this does not require court leave)'),
+            'restrainingOrder': 'restraining/non-harassment order',
+            'spousalSupportIndexing': 'indexing spousal support',
+            'parentageDeclaration': 'declaration of parentage',
+            'guardianshipProperty': next((k for k in _F10_GUARD_NAMES), ''),
+            'equalization': 'equalization of net family properties',
+            'exclusivePossession': 'exclusive possession of matrimonial home',
+            'exclusiveContents': 'exclusive possession of contents of matrimonial home',
+            'freezingAssets': 'freezing assets',
+            'saleOfProperty': 'sale of family property',
+            'costs': 'costs',
+            'annulment': 'annulment of marriage',
+            'prejudgmentInterest': 'prejudgment interest',
+            'arbitration': 'claims relating to a family arbitration',
+            'other': 'Other',
+        }
+        scj_only = {'divorce', 'equalization', 'exclusivePossession', 'exclusiveContents',
+                    'freezingAssets', 'saleOfProperty'}
+        for t in _own_types:
+            if ocj and t in scj_only:
+                sys.stderr.write(f'[fill_form10] claim {t} is only for a Superior Court of Justice; left unticked\n')
+                continue
+            name = M.get(t)
+            if name:
+                checkboxes[name] = True
+            else:
+                sys.stderr.write(f'[fill_form10] unknown claim type: {t}\n')
+        if 'other' in _own_types:
+            other = _txt('f10_dispute_own_claim_other')
+            fields['Other - Specify'] = other
+            if other:
+                font['Other - Specify'] = 8.0
     n = _write_pdf(tpl, output_path, fields, checkboxes, font_pt=font)
+    try:
+        _f10_match_odd_boxes(output_path)
+    except Exception as e:
+        sys.stderr.write(f'[fill_form10] box style fix skipped: {e}\n')
     if more:
         try:
             np_ = _append_continuation(

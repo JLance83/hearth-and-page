@@ -440,6 +440,17 @@ const PATCHES = [
     name: 'Form 10 para 5: family history correct / not correct + differences (FIX-F10-TICKS)',
     file: 'index-CNjoTsGP.js',
     sentinel: '{key:"familyHistory",type:"select",label:"Is the Family History in the Application correct?"',
+  },  {
+    commit: 'Nov 15 2026 (see FIX-F10-CLAIM-PAGE)',
+    name: 'Form 10 page 4: claim against + claim types questions (FIX-F10-CLAIM-PAGE)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F10-CLAIM-PAGE*/{key:"ownClaimAgainst",type:"select"',
+  },
+  {
+    commit: 'Nov 15 2026 (see FIX-F10-CLAIM-PAGE)',
+    name: 'Form 10 page 4: claim types checkboxes (FIX-F10-CLAIM-PAGE)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '{key:"ownClaimTypes",type:"checkboxes",label:"If you are making a claim of your own: what are you asking the court for?',
   },
 ];
 
