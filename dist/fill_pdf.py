@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.63'
+FILLER_VERSION = 'dist-2026-10-19.64'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -5384,8 +5384,9 @@ def _f351_fill_needs(d, tpl, fields, checkboxes, font, more):
         boxes += ['Name of child %d' % i, 'Child %d - Description of needs' % i,
                   'Support or service child %d will be receiving' % i]
     sz = _box_sizes(tpl, set(boxes))
+    cap = 4 if len(rows) <= 4 else 3  # FIX-F351-MORE-ROWS
     for i, r in enumerate(rows, start=1):
-        overflow = i > 4
+        overflow = i > cap
         if not overflow:
             for c, k in (('child', 'Name of child %d' % i),
                          ('description', 'Child %d - Description of needs' % i),
@@ -5413,6 +5414,36 @@ def _f351_fill_needs(d, tpl, fields, checkboxes, font, more):
                      ('Support or service child will be receiving', r['support'])]
             more.append(('12(h)', 'Paragraph 12(h). %s: row %d' % (_F351_NEED_TITLE, i),
                          '\n'.join('%s: %s' % (l, v) for l, v in lines if v)))
+    if len(rows) > 4:
+        sys.stderr.write(f'[fill_form35_1] paragraph 12(h): rows 4-{len(rows)} continued on attached page\n')
+        _f351_more_note(fields, font, 'Name of child 4', 4, len(rows), sz)
+
+
+def _f351_more_note(fields, font, box, first, last, sz):
+    """FIX-F351-MORE-ROWS: when a table has more rows than the form prints,
+    the last printed row says where the rest are, so nobody reading the
+    form thinks the list ends there. Rows first..last are printed in full
+    on the continuation page. The note is sized to fit its box."""
+    note = ('Row %d continued on attached continuation page' % first if first == last
+            else 'Rows %d to %d continued on attached continuation page' % (first, last))
+    fields[box] = note
+    w, h = sz.get(box, (0.0, 0.0))
+    if not w:
+        font[box] = 7.0
+        return
+    if h < 20:
+        pt = 10.0
+        while pt > 7.0 and _wrapped_line_count(note, (w - 4.0) * 0.95, pt) > 1:
+            pt -= 0.5
+        if _wrapped_line_count(note, (w - 4.0) * 0.95, pt) > 1:
+            fields[box] = 'See continuation page'
+            pt = 7.0
+    else:
+        pt, ok = _wrap_fit_pt(note, w, h)
+        if not ok:
+            fields[box] = 'See continuation page'
+            pt = 7.0
+    font[box] = pt
 
 
 def _f351_rows(d, prefix, cols, limit=10):
@@ -5507,8 +5538,11 @@ def _f351_fill_one_table(d, tpl, fields, font, more, para, title, any_key,
                 row[c] = format_dob(row[c])
     boxes = [b % i for i in range(1, min(nrows, len(rows)) + 1) for _c, _l, b in cols]
     sz = _box_sizes(tpl, set(boxes))
+    # FIX-F351-MORE-ROWS: more rows than the form prints: the last printed
+    # row becomes the note and it and the rest go on the continuation page.
+    cap = nrows if len(rows) <= nrows else nrows - 1
     for i, row in enumerate(rows, start=1):
-        overflow = i > nrows
+        overflow = i > cap
         if not overflow:
             for c, _l, b in cols:
                 k = b % i
@@ -5536,6 +5570,9 @@ def _f351_fill_one_table(d, tpl, fields, font, more, para, title, any_key,
         if overflow:
             more.append((para, 'Paragraph %s. %s: row %d' % (para, title, i),
                          '\n'.join('%s: %s' % (l, row[c]) for c, l, _b in cols if row[c])))
+    if len(rows) > nrows:
+        sys.stderr.write(f'[fill_form35_1] paragraph {para}: rows {nrows}-{len(rows)} continued on attached page\n')
+        _f351_more_note(fields, font, cols[0][2] % nrows, nrows, len(rows), sz)
     return nrows if len(rows) > nrows else len(rows)
 
 
@@ -5746,11 +5783,19 @@ def fill_form35_1(input_path, output_path, form_data_list):
     # the child's full row is printed on the continuation page. Children
     # after the 5th row go on the continuation page too.
     _q2_more = []
+    # FIX-F351-MORE-ROWS: more than 5 children: row 5 becomes the note and
+    # children 5+ go on the continuation page.
+    _q2_cap = 5
+    if len(_f351_kids) > 5:
+        _q2_cap = 4
+        for _c, _box in _q2_cols:
+            fields.pop(_box % 5, None)
+        fields[_q2_cols[0][1] % 5] = 'x'
     _q2_boxes = [_box % _i for _i in range(1, min(5, len(_f351_kids)) + 1) for _c, _box in _q2_cols
                  if str(fields.get(_box % _i) or '').strip()]
     _q2_sz = _box_sizes(_tpl, set(_q2_boxes)) if _q2_boxes else {}
     for _i, _kid in enumerate(_f351_kids, start=1):
-        _overflow = _i > 5
+        _overflow = _i > _q2_cap
         if not _overflow:
             for _col, _box in _q2_cols:
                 _k = _box % _i
@@ -5779,6 +5824,9 @@ def fill_form35_1(input_path, output_path, form_data_list):
                     ('Age', 'age'), ('Full legal name(s) of parent(s)', 'parents'),
                     ('Name(s) of all people child lives with now', 'lives_with'),
                     ('My relationship to the child', 'relationship')) if _kid.get(_c))))
+    if len(_f351_kids) > 5:
+        sys.stderr.write(f'[fill_form35_1] Q2: children 5-{len(_f351_kids)} continued on attached page\n')
+        _f351_more_note(fields, _f351_font, _q2_cols[0][1] % 5, 5, len(_f351_kids), _q2_sz)
     # FIX-F351-Q4Q5-ROWS: paragraph 4 and 5 tables.
     _tbl_more = []
     _f351_fill_tables(d, _tpl, fields, _f351_font, _tbl_more)
