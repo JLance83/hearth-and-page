@@ -268,7 +268,8 @@ function requirePaidExport(req, res, next) {
 let _hpPlusProductId = null;
 async function hpPlanForPrice(stripe, price) {
   if (!price) return 'standard';
-  const plusPrice = process.env.STRIPE_PRICE_PLUS;
+  // FIX-PLAN-ENV-TRIM — ignore stray spaces/newlines pasted into the env value.
+  const plusPrice = (process.env.STRIPE_PRICE_PLUS || '').trim();
   if (plusPrice && price.id === plusPrice) return 'plus';
   try {
     if (!_hpPlusProductId && plusPrice) {
