@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.58'
+FILLER_VERSION = 'dist-2026-10-19.59'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -705,6 +705,11 @@ def _fe_flat(form_data_list):
         val = row.get('fieldValue', '')
         if key:
             flat[key] = val
+    # FIX-F10-COURT: the shared "Court information" screen saves fileNumber,
+    # which the server turns into 'file_number'. Every form reads
+    # 'court_file_number', so copy it across (never overwrite a real value).
+    if not str(flat.get('court_file_number') or '').strip() and str(flat.get('file_number') or '').strip():
+        flat['court_file_number'] = flat['file_number']
     return flat
 
 

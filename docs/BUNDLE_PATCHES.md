@@ -1014,6 +1014,30 @@ continuation page until rows are filled. Name boxes made row-height.
 
 ---
 
+## FIX-F10-COURT — Form 10 asks for the court (Nov 15 2026)
+
+**Problem:** Form 10 (Answer) had no court questions, so the courthouse,
+court office address and court file number were blank on every page.
+Also, the shared "Court information" screen saves `fileNumber`, which the
+server turns into `file_number`, but the filler reads `court_file_number`,
+so a typed file number never printed on any form.
+
+**Client:** a "Court information" screen is now step 1 of 5 in the Form 10
+questions (`const Ky`). It uses the shared `court` section and the same
+keys (`courthouse`, `fileNumber`) as the Form 8 court screen, so the
+answer is shared across the case's forms and never asked twice (the
+package builder skips a second `court` screen by id). Both fields are
+required; the respondent copies them from the Application they received.
+The other Form 10 steps are renumbered 2–4 of 5.
+
+**Filler side (FILLER_VERSION .59):** `_fe_flat` copies `file_number` into
+`court_file_number` when that is empty (never overwrites).
+
+**Sentinels:** `Form 10 — Step 1 of 5",intro:"Copy these from the top of the Application`
+and `/*FIX-F10-COURT*/{id:"f10_respondent"`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

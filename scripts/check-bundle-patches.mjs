@@ -418,6 +418,17 @@ const PATCHES = [
     name: 'Form 35.1 Q12h: per-child special needs rows (FIX-F351-Q12H-ROWS)',
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F351-Q12H-ROWS*/{key:"specialNeedsRows"',
+  },  {
+    commit: 'Nov 15 2026 (see FIX-F10-COURT)',
+    name: 'Form 10: Court information screen (courthouse + file number) first (FIX-F10-COURT)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'Form 10 — Step 1 of 5",intro:"Copy these from the top of the Application',
+  },
+  {
+    commit: 'Nov 15 2026 (see FIX-F10-COURT)',
+    name: 'Form 10: Court screen marker before f10_respondent (FIX-F10-COURT)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F10-COURT*/{id:"f10_respondent"',
   },
 ];
 
