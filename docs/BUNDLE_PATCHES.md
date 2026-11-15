@@ -1109,6 +1109,42 @@ pages ("Page 5. Important facts supporting my claim(s)") and the box says
 
 ---
 
+## FIX-F351-PARTB — Form 35.1 Part B, pages 7–8 (Nov 15 2026)
+
+**Problem:** Part B (for a non-parent asking for decision-making
+responsibility) was never filled. The app asked Q16, Q18 and Q19 as single
+free-text boxes (the form has tables), asked Q17 only as attached/requested
+(no date, no police force, no offences since the check), and the filler had
+no Part B code at all.
+
+**Client (`f351_partb` screen):** after `isNonParent` —
+`childCasesAny` (yes/no) + `childCaseRows` (rows: children, type, details,
+max 5); `policeCheck` (kept) + `policeCheckDate` (date, attached),
+`policeNewOffencesAny` (yes/no, attached) + `policeNewOffences` (textarea),
+`policeRequestDate` (date, requested), `policeForce` (text, requested);
+`addressRows` (rows: dates, place, max 10); `casSocietyRows` (rows: name,
+max 6). None are required (hidden required fields block the progress
+count). The old free-text keys are no longer asked.
+
+**Filler side (FILLER_VERSION .63):** everything in Part B prints only when
+"Part B applies to you" is Yes; otherwise pages 7–8 stay blank. Q16/Q18/Q19
+use the `_F351_TABLES` machinery (Q16 "No" = N/A; rows past the printed rows
+and too-long cells go on the continuation page; older free-text answers go
+on the continuation page or print N/A). Q17: one tick; the report date
+(attached) or request date + police force (requested) print only under their
+option, dates dd/mm/yyyy. The offences line has no box on the form, so a
+one-line box ('Q17 offences since police records check') is added to the
+fill's working copy only when there is an answer (offences, or N/A for No).
+Signatures, the commissioner block and the Q20 initials stay blank.
+
+**Not changed:** the old in-app jsPDF Form 35.1 preview still reads the old
+free-text keys (same as the earlier Form 35.1 row bricks).
+
+**Sentinels:** `/*FIX-F351-PARTB*/{key:"childCasesAny",type:"yesno"` and
+`{key:"addressRows",type:"rows",label:"Where you have lived since turning 18`
+
+---
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.62'
+FILLER_VERSION = 'dist-2026-10-19.63'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -4956,6 +4956,12 @@ _F351_PARA = {
         ('12(g)', 'My plan for the child(ren) to have contact with others, including other family members'),
     'Relatives, friends or community services supporting care of the child(ren)':
         ('12(i)', 'I will have support from the following relatives, friends or community services'),
+    # FIX-F351-PARTB
+    'Name of local police force': ('17', 'I sent a request for a police records check to'),
+    'Date of report from local police force': ('17', 'My police records check is dated'),
+    'Date of request to local police force': ('17', 'I sent a request for a police records check on'),
+    'Q17 offences since police records check':
+        ('17', 'Since the date that the attached police records check was completed, I have been found guilty of or charged with the following offence(s)'),
 }
 _F351_ORDER = list(_F351_PARA)
 # FIX-F351-Q1-NAMES: the form says "Write N/A if any of the paragraphs do
@@ -5021,7 +5027,7 @@ def _f351_children(d):
     return kids
 
 
-def _f351_prep_template(input_path):
+def _f351_prep_template(input_path, q17_box=False):
     """FIX-F351-Q2-CHILDREN: a working copy of the Form 35.1 template for
     this fill only (the template file is never changed).
     - The page 1 Q2 "My relationship to the child" boxes are named
@@ -5109,6 +5115,29 @@ def _f351_prep_template(input_path):
                     x1, x2 = float(o['/Rect'][0]), float(o['/Rect'][2])
                     o[_N('/Rect')] = _A([_F(x1), _F(y1), _F(x2), _F(y2)])
                     o[_N('/Ff')] = _Num(int(o.get('/Ff') or 0) | 4096)  # multiline
+        # FIX-F351-PARTB: Q17 offences line (page 7) has no box. Only when
+        # there is an answer to print, a one-line box is added in the blank
+        # space under "...charged with the following offence(s):".
+        if q17_box and len(w.pages) >= 7:
+            from pypdf.generic import DictionaryObject as _D
+            _p7 = w.pages[6]
+            _bx = _D({
+                _N('/Type'): _N('/Annot'), _N('/Subtype'): _N('/Widget'),
+                _N('/FT'): _N('/Tx'), _N('/F'): _Num(4),
+                _N('/T'): _S(_F351_Q17_BOX), _N('/TU'): _S(_F351_Q17_BOX),
+                _N('/Rect'): _A([_F(80), _F(116), _F(575), _F(133)]),
+                _N('/DA'): _S('/Helv 10 Tf 0 g'), _N('/P'): _p7.indirect_reference,
+            })
+            _ref = w._add_object(_bx)
+            if '/Annots' in _p7:
+                _p7['/Annots'].append(_ref)
+            else:
+                _p7[_N('/Annots')] = _A([_ref])
+            _af = w._root_object.get('/AcroForm')
+            if _af is not None:
+                _af = _af.get_object()
+                if '/Fields' in _af:
+                    _af['/Fields'].append(_ref)
         fd, path = tempfile.mkstemp(suffix='.pdf', prefix='f351tpl_')
         with os.fdopen(fd, 'wb') as fh:
             w.write(fh)
@@ -5191,7 +5220,35 @@ _F351_TABLES = (
          ('crim', 'Has this person been found guilty of a criminal offence (no pardon) or is he/she currently facing criminal charges?',
           'Has this person been found guilty of a criminal offence (for which he/she has not received a pardon) or is he/she currently facing criminal charges? (if yes, give details) %d'),
      )),
+    # FIX-F351-PARTB: Part B (pages 7-8), only for a non-parent (the
+    # "Part B applies to you" answer is Yes). Paragraph 18 has no yes/no
+    # (everyone has lived somewhere); neither does 19.
+    ('16', 'To the best of my knowledge, the child(ren) in this case has/have been involved in the following decision-making, parenting time, or contact cases',
+     'f351_partb_child_cases_any', 'f351_partb_child_involvement_cases',
+     'f351_partb_child_case_rows', 5, (
+         ('children', 'Child(ren)\u2019s name(s)', 'Child(ren)\u2019s name(s) %d'),
+         ('type', 'Type of case', 'Type of Case %d'),
+         ('details', 'Details of case', 'Details of Case %d'),
+     )),
+    ('18', 'Since I turned 18 years old or became a parent, whichever was earlier, I have lived in the following places',
+     None, 'f351_partb_address_history',
+     'f351_partb_address_rows', 7, (
+         ('dates', 'Approximate dates (month/year to month/year)', 'Approximate dates (month/year to month/year) %d'),
+         ('place', 'City, town or municipality where I lived',
+          'City, town or municipality where you lived (if outside of Ontario, give name of province, state or country) %d'),
+     )),
+    ('19', 'I have provided a signed consent form to the court, which authorizes each of the children\u2019s aid societies listed below to send a report to me and to the court',
+     None, 'f351_partb_cas_consent_societies',
+     'f351_partb_cas_society_rows', 6, (
+         ('name', 'Name of children\u2019s aid society', 'Name of children\u2019s aid society %d'),
+     )),
 )
+# FIX-F351-PARTB: Part B tables are filled only for a non-parent.
+_F351_PART_B = {'16', '18', '19'}
+# FIX-F351-PARTB: Q17 "offences since the police records check" has a
+# printed line on page 7 but no box. When the user lists offences (or says
+# none), a one-line box is added to this fill's working copy in that space.
+_F351_Q17_BOX = 'Q17 offences since police records check'
 # FIX-F351-Q6Q7-ROWS: date-picker answers (yyyy-mm-dd) print dd/mm/yyyy.
 _F351_DATE_COLS = {('3', 'dob'), ('7', 'next_date')}
 # Columns kept to one line even when their box is made row-height (so the
@@ -5209,7 +5266,8 @@ _F351_TABLE_EXTRA = {
 # Order of paragraphs on the continuation page.
 _F351_PARA_SEQ = ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11',
                   '12(a)', '12(b)', '12(c)', '12(d)', '12(e)', '12(f)',
-                  '12(g)', '12(h)', '12(i)', '13', '14', '15', '16')
+                  '12(g)', '12(h)', '12(i)', '13', '14', '15', '16',
+                  '17', '18', '19')
 
 
 def _f351_para_pos(para):
@@ -5379,7 +5437,10 @@ def _f351_fill_tables(d, tpl, fields, font, more):
       (saved before the rows questions): none-type words print N/A, other
       text is printed in full on the continuation page.
     more: list of (paragraph, title, text) for the continuation page."""
+    _np = str(d.get('f351_partb_is_non_parent') or '').strip().lower() in ('yes', 'true', '1')
     for para, title, any_key, old_key, prefix, nrows, cols in _F351_TABLES:
+        if para in _F351_PART_B and not _np:
+            continue
         used = _f351_fill_one_table(d, tpl, fields, font, more, para, title, any_key,
                                     old_key, prefix, nrows, cols)
         if para in _F351_TABLE_EXTRA:
@@ -5480,7 +5541,18 @@ def _f351_fill_one_table(d, tpl, fields, font, more, para, title, any_key,
 
 def fill_form35_1(input_path, output_path, form_data_list):
     d = _fe_flat(form_data_list)
-    _tpl = _f351_prep_template(input_path)
+    # FIX-F351-PARTB: Part B (pages 7-8) only for a non-parent.
+    _np = str(d.get('f351_partb_is_non_parent') or '').strip().lower() in ('yes', 'true', '1')
+    _pc17 = str(d.get('f351_partb_police_check') or '').strip().lower() if _np else ''
+    _off_yn = str(d.get('f351_partb_police_new_offences_any') or '').strip().lower()
+    _off_yn = 'yes' if _off_yn in ('yes', 'true', '1') else ('no' if _off_yn in ('no', 'false', '0') else '')
+    _off = ''
+    if _pc17 == 'attached':
+        if _off_yn == 'no':
+            _off = 'N/A'
+        elif _off_yn == 'yes':
+            _off = str(d.get('f351_partb_police_new_offences') or '').strip()
+    _tpl = _f351_prep_template(input_path, q17_box=bool(_off))
     # FIX-F351-PAGE1: the form has 8 pages, so the court file number goes on
     # pages 1-8 (was 1-5). Name, birthdate and "I live in" read the Form 35.1
     # identity answers first (asked when Form 35.1 is on its own), then the
@@ -5583,6 +5655,19 @@ def fill_form35_1(input_path, output_path, form_data_list):
     elif _who == 'other':
         fields['Names of person(s) making decisions for the child(ren)'] = _f351('f351_plan_decision_others')
     fields['Decisions for the child(ren) - further details'] = _f351('f351_plan_decision_making_plan')
+    # FIX-F351-PARTB: Q17 police records check. One tick from the choice;
+    # the date and police force print only under the option they belong to.
+    # Date-picker answers print dd/mm/yyyy.
+    def _f351_date(v):
+        v = str(v or '').strip()
+        return format_dob(v) if _re_amt.match(r'^\d{4}-\d{2}-\d{2}$', v) else v
+    if _pc17 == 'attached':
+        fields['Date of report from local police force'] = _f351_date(d.get('f351_partb_police_check_date'))
+    elif _pc17 == 'requested':
+        fields['Date of request to local police force'] = _f351_date(d.get('f351_partb_police_request_date'))
+        fields['Name of local police force'] = _f351('f351_partb_police_force')
+    if _off:
+        fields[_F351_Q17_BOX] = _off
     _sn = _f351_yn('f351_plan_special_needs')
     _cas = _f351_yn('f351_care_history_cas_involved')
     checkboxes = {
@@ -5605,6 +5690,9 @@ def fill_form35_1(input_path, output_path, form_data_list):
         'attend school full time': 'school' in _ws and _st == 'full',
         'attend school part time': 'school' in _ws and _st == 'part',
         'I anticipate that my plans for work and/or school may change as follows': _pc == 'yes',
+        # FIX-F351-PARTB: Q17 (one tick)
+        'I have attached to this affidavit a copy of my police records check': _pc17 == 'attached',
+        'On (date), I sent a request to': _pc17 == 'requested',
     }
     # FIX-F351-ONE-BOX: size each filled answer box so its wrapped text
     # fits (10pt down to 7pt, real Helvetica widths, same as Forms 15/23C).
@@ -5621,7 +5709,9 @@ def fill_form35_1(input_path, output_path, form_data_list):
         'Decisions for the child(ren) - further details',
         'Changes to plans for work and/or school',
     )
-    _f351_line = ('Names you have been known by', 'address', 'Name of your place of work or school',
+    _f351_line = (_F351_Q17_BOX, 'Name of local police force',
+                  'Date of report from local police force', 'Date of request to local police force',
+                  'Names you have been known by', 'address', 'Name of your place of work or school',
                   'Names of person(s) making decisions for the child(ren) jointly with me',
                   'Names of person(s) making decisions for the child(ren)')
     _f351_font = {}

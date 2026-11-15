@@ -457,6 +457,18 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F10-CLAIM-FACTS*/{key:"ownClaimFacts",type:"textarea"',
   },
+  {
+    commit: 'Nov 15 2026 (see FIX-F351-PARTB)',
+    name: 'Form 35.1 Part B: Q16 cases rows, Q17 police check details, Q18 places rows, Q19 CAS rows (FIX-F351-PARTB)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351-PARTB*/{key:"childCasesAny",type:"yesno"',
+  },
+  {
+    commit: 'Nov 15 2026 (see FIX-F351-PARTB)',
+    name: 'Form 35.1 Part B: Q18 places rows (FIX-F351-PARTB)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '{key:"addressRows",type:"rows",label:"Where you have lived since turning 18',
+  },
 ];
 
 function resolveFile(prefixOrName) {
