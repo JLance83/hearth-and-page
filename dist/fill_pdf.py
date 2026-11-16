@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.65'
+FILLER_VERSION = 'dist-2026-10-19.66'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1486,6 +1486,16 @@ def fill_form13(input_path, output_path, form_data_list):
     # by the checkboxes above), so it is NOT written here - doing so put
     # the user's list under a declaration they never made. The wizard has
     # no Indian Act question, so this field and its box stay blank.
+    # FIX-F131-B1 (Nov 16 2026): item 5 now has its own question on the Form
+    # 13 employment screen (taxDocs, shared with Form 13.1). 'attaching' ticks
+    # the tax-returns box; 'indian_act' ticks the Indian Act box and prints
+    # that option's own document list. No answer: both stay blank.
+    _tax = val('f13_employment_tax_docs').lower()
+    if _tax == 'attaching':
+        checkboxes['I am attaching all of the following required documents to this financial statement as proof of my income over the past three years, if they have not already been provided'] = True
+    elif _tax == 'indian_act':
+        checkboxes['I am an Indian within the meaning of the Indian Act (Canada) and I have chosen not to file income tax returns for the past three years. I am attaching the following proof of income for the last three years'] = True
+        fields['List doucments provided'] = val('f13_employment_indian_act_docs')
 
     # ── Part 1: Last-year gross (Q4) ─────────────────────────────────────
     # FIX-F13-LAST-YEAR: read the wizard's real key
@@ -2100,52 +2110,136 @@ def fill_form13_1(input_path, output_path, form_data_list):
     fields = {}
     checkboxes = {}
 
-    # ── Court header ──────────────────────────────────────────────────────
-    file_number     = d.get('court_file_number', d.get('fileNumber', ''))
-    courthouse      = d.get('courthouse', d.get('court_name', ''))
+    # FIX-F131-B1 (Nov 16 2026, Form 13.1 plan brick 1): pages 1-2 top.
+    # Pages 1-4 of Form 13.1 ask exactly what Form 13 asks, so they read
+    # Form 13's answers (f13_employment_*), with the old Form 13.1 screen
+    # keys (f13_1_employment_*) only filling a gap. Main-case answers give
+    # the court, file number and both parties. Blank answers stay blank.
+    def _v(*keys):
+        for k in keys:
+            s = str(d.get(k, '') or '').strip()
+            if s and s.upper() != 'N/A':
+                return s
+        return ''
+
+    def _m(*keys):
+        s = _v(*keys)
+        if not s:
+            return ''
+        raw = s.replace('$', '').replace(',', '').strip()
+        try:
+            return f'{float(raw):.2f}'
+        except (ValueError, TypeError):
+            return raw
+
+    # ── Court header (every page) ─────────────────────────────────────────
+    file_number     = _v('court_file_number', 'fileNumber')
+    courthouse      = _v('courthouse', 'court_courthouse', 'court_name')
     courthouse_name = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
     courthouse_addr = COURTHOUSE_ADDRESSES_FE.get(courthouse,
                       COURTHOUSE_ADDRESSES_FE.get(courthouse_name, ''))
-
     fields['Court File Number']    = file_number
+    for _pg in range(2, 10):
+        fields[f'Court file number - Page {_pg}'] = file_number
     fields['Name of court']        = courthouse_name
     fields['Court office address'] = courthouse_addr
 
-    # ── Deponent ──────────────────────────────────────────────────────────
-    filer_name = d.get('filer_full_name', d.get('applicant_full_name', d.get('applicantFullName', '')))
-    # FIX-F131-LIVE-IN: wizard saves applicant_city / applicant_province, not
-    # city / province, so "I live in" printed "Ontario" and dropped the city.
-    # ON is written out as Ontario. A blank city does not leave a leading comma.
-    city = (d.get('applicant_city') or d.get('applicantCity') or d.get('city') or '').strip()
-    province = (d.get('applicant_province') or d.get('applicantProvince') or d.get('province') or 'Ontario').strip()
-    if province.upper() in ('ON', 'ONT', 'ONT.'):
-        province = 'Ontario'
-    live_in = ', '.join(x for x in (city, province) if x)
+    # ── Parties (main case) ───────────────────────────────────────────────
+    def _party(side):
+        addr = _fmt_addr(_v(f'{side}_address'), _v(f'{side}_unit'), _v(f'{side}_city'),
+                         _v(f'{side}_province'), _v(f'{side}_postal_code'))
+        return {
+            'name':  _v(f'{side}_full_name', f'{side}FullName'),
+            'addr':  addr,
+            'phone': format_phone(_v(f'{side}_phone')),
+            'email': _v(f'{side}_email'),
+            'city':  _v(f'{side}_city'),
+            'prov':  _v(f'{side}_province'),
+        }
+    _ap, _re = _party('applicant'), _party('respondent')
+    for _who, _box in ((_ap, 'Applicant(s)'), (_re, 'Respondent(s)')):
+        fields[f'{_box} — Full legal name'] = _who['name']
+        fields[f'{_box} — Address']         = _who['addr']
+        fields[f'{_box} — Phone & fax']     = _who['phone']
+        fields[f'{_box} — Email']           = _who['email']
+    # Lawyer boxes only when that party has a lawyer and a name was given.
+    if _is_yes(_v('respondent_has_lawyer')) and _v('respondent_lawyer_name'):
+        fields['Respondent(s) — Lawyer Full legal name'] = _v('respondent_lawyer_name')
+        fields['Respondent(s) — Lawyer Address']         = _v('respondent_lawyer_firm', 'respondent_lawyer_address')
+        fields['Respondent(s) — Lawyer Phone & fax']     = format_phone(_v('respondent_lawyer_phone'))
+        fields['Respondent(s) — Lawyer Email']           = _v('respondent_lawyer_email')
+    if _v('applicant_lawyer_name'):
+        fields['Applicant(s) — Lawyer Full legal name'] = _v('applicant_lawyer_name')
+        fields['Applicant(s) — Lawyer Address']         = _v('applicant_lawyer_firm', 'applicant_lawyer_address')
+        fields['Applicant(s) — Lawyer Phone & fax']     = format_phone(_v('applicant_lawyer_phone'))
+        fields['Applicant(s) — Lawyer Email']           = _v('applicant_lawyer_email')
 
-    fields['full legal name']        = filer_name
-    fields['municipality & province']= live_in
-    fields['municipality']           = city
-    fields['date sworn/affirmed']    = d.get('date_sworn', '')
-    fields['date']                   = d.get('date_sworn', '')
+    # ── Filed by + para 1 (who swears it) ─────────────────────────────────
+    # The case-role answer says which side the user is. With no role answer
+    # the filer is the applicant (same rule as Form 13), and only when an
+    # applicant name exists. The filed-by box is ticked to match.
+    _role = _v('case_role_case_role', 'case_role').lower()
+    if _role == 'respondent':
+        _filer, _side = _re, 'respondent'
+    elif _role in ('applicant', 'agreement') or _ap['name']:
+        _filer, _side = _ap, 'applicant'
+    else:
+        _filer, _side = {'name': '', 'city': '', 'prov': ''}, ''
+    if _filer['name'] and _side:
+        checkboxes[f'This form is filed by the {_side}'] = True
+    fields['full legal name'] = _filer['name']
+    _city = _filer['city'] or _v('f13_1_identity_city')
+    _prov = _filer['prov'] or _v('f13_1_identity_province')
+    if _prov.upper() in ('ON', 'ONT', 'ONT.'):
+        _prov = 'Ontario'
+    fields['municipality & province'] = _fmt_muni(_city, _prov)
+    # 'date sworn/affirmed' (page 1) and the page 9 sworn block are filled in
+    # by hand when the statement is sworn; they stay blank.
 
-    # Employment status
-    emp_type = d.get('employment_type', d.get('employmentType', '')).lower()
+    # ── Para 2: employment ────────────────────────────────────────────────
+    emp_type = _v('f13_employment_employment_status', 'f13_1_employment_employment_status').lower()
     if emp_type in ('employed', 'employee'):
         checkboxes['employed by (name and address of employer)'] = True
-        fields['name and address of employer'] = d.get('employer_name', '')
+        fields['name and address of employer'] = _v('f13_employment_employer_name', 'f13_1_employment_employer_name')
     elif emp_type in ('self-employed', 'self_employed', 'selfemployed'):
         checkboxes['self-employed, carrying on business under the name of (name and address of business)'] = True
-        fields['name and address of business'] = d.get('business_name', '')
-    elif emp_type in ('unemployed',):
+        fields['name and address of business'] = _v('f13_employment_business_name', 'f13_1_employment_business_name')
+    elif emp_type == 'unemployed':
         checkboxes['unemployed since (date when last employed)'] = True
-        fields['date when last employed'] = d.get('last_employed_date', '')
+        fields['date when last employed'] = _v('f13_employment_unemployed_since')
 
-    # FIX-F131-NO-ZERO: a missing answer is blank, not 0.00. The writer can
-    # now reach these boxes, so the old default would print a zero the user
-    # never entered. A real 0 still prints.
-    _gross = d.get('gross_income_last_year', '')
-    if str(_gross).strip():
-        fields['gross income from all sources (0.00)'] = str(_gross)
+    # ── Para 3: proof of year-to-date income ──────────────────────────────
+    # Ticked from the proof-of-income list the user typed. T4s and notices
+    # of assessment are past-year documents (para 5), not year-to-date
+    # proof, so they don't tick "other".
+    proof = _v('f13_employment_proof_documents').lower()
+    if any(w in proof for w in ('pay stub', 'paystub', 'pay cheque', 'pay check')):
+        checkboxes['pay cheque stub'] = True
+    if any(w in proof for w in ('social assistance', 'ontario works', 'odsp')):
+        checkboxes['social assistance stub'] = True
+    if 'pension' in proof:
+        checkboxes['pension stub'] = True
+    if any(w in proof for w in ('worker', 'wsib')):
+        checkboxes["workers' compensation stub"] = True
+    if 'record of employment' in proof or 'employment insurance' in proof:
+        checkboxes['employment insurance stub and last Record of Employment'] = True
+    if 'income and expenses' in proof or 'professional activities' in proof:
+        checkboxes['statement of income and expenses/ professional activities (for self-employed individuals)'] = True
+    if 'letter from' in proof:
+        checkboxes['other (e.g. a letter from your employer confirming all income received to date this year)'] = True
+
+    # ── Para 4: last year's gross income ──────────────────────────────────
+    fields['gross income from all sources (0.00)'] = _m(
+        'f13_employment_last_year_gross_income', 'f13_1_employment_last_year_gross_income')
+
+    # ── Para 5: tax documents for the past three years ────────────────────
+    # New Form 13 question (taxDocs). No answer: both boxes stay blank.
+    _tax = _v('f13_employment_tax_docs').lower()
+    if _tax == 'attaching':
+        checkboxes['I am attaching all of the following required documents to this financial statement as proof of my income over the past three years, if they have not already been provided'] = True
+    elif _tax == 'indian_act':
+        checkboxes['I am an Indian within the meaning of the Indian Act Canada and I have chosen not to file income tax returnsfor the past three years. I am attaching the following proof of income for the last three years'] = True
+        fields['list documents you have provided'] = _v('f13_employment_indian_act_docs')
 
     # ── Monthly Income ────────────────────────────────────────────────────
     def _money(key, *fallbacks):
@@ -2200,47 +2294,9 @@ def fill_form13_1(input_path, output_path, form_data_list):
     fields['Medicine and drugs - Monthly Amount (0.00)']            = _money('exp_medicine')
     fields['Eye care - Monthly Amount (0.00)']                      = _money('exp_eye_care')
 
-    # ── Assets at valuation date (date of separation) ─────────────────────
-    # Items 1-8 map to real property, vehicles, bank accounts, investments etc.
-    asset_labels = [
-        d.get('asset_real_property_1', ''),
-        d.get('asset_vehicle_1', ''),
-        d.get('asset_bank_1_name', ''),
-        d.get('asset_investment_1', ''),
-        d.get('asset_savings_1_type', ''),
-        d.get('asset_rrsp_1', ''),
-        d.get('asset_business_1', ''),
-        d.get('asset_other_1', ''),
-    ]
-    asset_vals = [
-        _money('asset_real_property_1_value'),
-        _money('asset_vehicle_1_value'),
-        _money('asset_bank_1_value'),
-        _money('asset_investment_1_value'),
-        _money('asset_savings_1_value'),
-        _money('asset_rrsp_1_value'),
-        _money('asset_business_1_value'),
-        _money('asset_other_1_value'),
-    ]
-    for i, (lbl, val) in enumerate(zip(asset_labels, asset_vals), start=1):
-        if i <= 4:
-            fields[f'Other non-cash benefits - Item {i}']    = lbl
-            fields[f'Other non-cash benefits - Yearly Market Value {i}'] = val
-
-    # ── Debts at valuation date ────────────────────────────────────────────
-    # Form 13.1 uses generic rows; map first 6
-    for i in range(1, 7):
-        fields[f'Other non-cash benefits - Details {i}'] = d.get(f'debt_detail_{i}', '')
-
-    # ── Property at date of marriage ──────────────────────────────────────
-    fields['Yearly Market Value 1 [0.00]'] = _money('prop_marriage_value_1')
-    fields['Yearly Market Value 2 [0.00]'] = _money('prop_marriage_value_2')
-    fields['Yearly Market Value 3 [0.00]'] = _money('prop_marriage_value_3')
-
-    # ── Net Family Property ───────────────────────────────────────────────
-    fields['CPP contributions [0.00]']    = _money('nfp_cpp')
-    fields['EI premiums [0.00]']          = _money('nfp_ei')
-    fields['Income taxes [0.00]']         = _money('nfp_tax')
+    # FIX-F131-B1: the old asset, debt, date-of-marriage and net-family-
+    # property lines wrote into the wrong boxes ("Other non-cash benefits",
+    # "CPP contributions"). They are removed; Parts 4-9 come in later bricks.
 
     # ── Write PDF ─────────────────────────────────────────────────────────
     import pypdf.generic as g

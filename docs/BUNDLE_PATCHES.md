@@ -1158,6 +1158,18 @@ free-text keys (same as the earlier Form 35.1 row bricks).
 
 The old generator functions are still in the bundle (Form 13.1 uses one) but nothing else calls them.
 
+## FIX-F131-B1 (Nov 16 2026)
+
+**Problem.** Item 5 of Forms 13 and 13.1 is a sworn statement. The person either attaches their tax returns and notices of assessment for the past three years, or says they are an Indian under the Indian Act who chose not to file and lists other proof. The app never asked about it, so both boxes always stayed blank.
+
+**Fix.** Two new questions on Form 13's employment screen (`f13_employment`), which Form 13.1 will share (Form 13.1 plan, brick 1):
+- `taxDocs` (select): `attaching` or `indian_act`. Optional.
+- `indianActDocs` (textarea), shown only when `taxDocs` is `indian_act`.
+
+The filler (`fill_form13`, `fill_form13_1`) ticks the matching item 5 box. For `indian_act` it also prints the document list. No answer leaves both boxes blank.
+
+**Sentinel.** `/*FIX-F131-B1*/{key:"taxDocs",type:"select"`
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

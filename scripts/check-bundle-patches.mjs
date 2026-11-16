@@ -475,6 +475,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-EXPORT-LEGACY-PDF*/r?.plan==="free"?s.jsx(Zt,{href:"/subscription"',
   },
+  {
+    commit: 'Nov 16 2026 (see FIX-F131-B1)',
+    name: 'Form 13 employment screen: para 5 tax documents question (taxDocs + indianActDocs), shared with Form 13.1 (FIX-F131-B1)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F131-B1*/{key:"taxDocs",type:"select"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
