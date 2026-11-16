@@ -1145,6 +1145,19 @@ free-text keys (same as the earlier Form 35.1 row bricks).
 
 ---
 
+## FIX-EXPORT-LEGACY-PDF (Nov 16 2026)
+
+**Problem.** Each form card on the Export page (`/case/:id/export`) had a second button that built a home-made copy of the form in the browser with jsPDF (the old in-app generators: `ZI`/`XI` for Form 35.1, `tO`, `nO`, `aO`, `sO`, `cO`, `dO`, `hO`, `mO`, `gO`, `bO`, `wO`, and `QI` as the default). Paid plans saw it as "Preview PDF" next to "Official Court PDF"; free plans saw it as "Download PDF". These old generators read retired answer keys (for Form 35.1, 14 keys no longer asked), so new answers showed as blank or "(not provided)". The copies were not the official court forms and had no "not for filing" mark. Free users could also download them, even though the app says a Standard plan is needed to download PDFs.
+
+**Fix.** In the card button array, the old button is now behind a check:
+- `r?.plan === "free"` shows a link to `/subscription` with the button "Upgrade to download" (testid `button-upgrade-${key}`). This is the same pattern the Review page already uses (`button-upgrade-to-download`).
+- Paid plan and the form has an official PDF (`xt[key]`): no second button, only "Official Court PDF".
+- Paid plan and no official PDF (currently only `form13_1`): the old "Download PDF" button stays.
+
+**Sentinel.** `/*FIX-EXPORT-LEGACY-PDF*/r?.plan==="free"?s.jsx(Zt,{href:"/subscription"`
+
+The old generator functions are still in the bundle (Form 13.1 uses one) but nothing else calls them.
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

@@ -469,6 +469,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '{key:"addressRows",type:"rows",label:"Where you have lived since turning 18',
   },
+  {
+    commit: 'Nov 16 2026 (see FIX-EXPORT-LEGACY-PDF)',
+    name: 'Export page: free plan gets "Upgrade to download"; paid plans no longer see the old in-app Preview PDF when an official PDF exists (FIX-EXPORT-LEGACY-PDF)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-EXPORT-LEGACY-PDF*/r?.plan==="free"?s.jsx(Zt,{href:"/subscription"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
