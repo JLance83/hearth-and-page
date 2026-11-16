@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.67'
+FILLER_VERSION = 'dist-2026-10-19.68'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1292,6 +1292,111 @@ def fill_form8(input_path, output_path, form_data_list):
 # FormEngine-aware fill for Form 13 (Financial Statement — Support Claims)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _fe_part2_expenses(money, val, to_float):
+    """FIX-F131-B3: Part 2 (monthly expenses) shared by Forms 13 and 13.1.
+
+    Both forms ask the same 54 expense lines in the same 9 groups, so one
+    function works out every line, every group subtotal and the totals.
+    Returns {'lines': {...}, 'subtotals': {...}, 'education_desc',
+    'other_desc', 'total_monthly', 'total_yearly'}. Blank stays blank.
+
+    Rules (from FIX-F13-AUTO-DEDUCTIONS / -COMBINED / -TOTALS):
+    - Automatic deductions: per-line answers if given, otherwise the
+      wizard's one monthly total goes in the subtotal only. Pay-stub
+      amounts are per pay period and are never used here.
+    - Combined wizard answers (utilities, transportation, health,
+      personal) belong to the group subtotal, not to any single line.
+    - Totals are always the sum of the printed subtotals; saved wizard
+      totals are not used, because a sworn form must add up.
+    """
+    L = {}
+    L['cpp']        = money('f13_expenses_exp_auto_cpp', 'exp_auto_cpp', 'cpp_contributions')
+    L['ei']         = money('f13_expenses_exp_auto_ei', 'exp_auto_ei', 'ei_premiums')
+    L['income_tax'] = money('f13_expenses_exp_auto_incometax', 'exp_auto_incometax', 'income_taxes')
+    L['pension']    = money('f13_expenses_exp_auto_pension', 'exp_auto_pension',
+                            'employee_pension_contributions')
+    L['union_dues'] = money('f13_expenses_exp_auto_uniondues', 'exp_auto_uniondues', 'union_dues')
+    L['rent_mortgage']      = money('f13_expenses_exp_rent_mortgage', 'exp_rent_mortgage')
+    L['property_tax']       = money('f13_expenses_exp_property_tax', 'exp_property_tax')
+    L['property_insurance'] = money('f13_expenses_exp_property_insurance', 'exp_property_insurance')
+    L['condo']              = money('f13_expenses_exp_condo_fees', 'exp_condo_fees')
+    L['home_repairs']       = money('f13_expenses_exp_home_repairs', 'exp_home_repairs')
+    L['water']       = money('f13_expenses_exp_water', 'exp_water')
+    L['heat']        = money('f13_expenses_exp_heat', 'exp_heat')
+    L['electricity'] = money('f13_expenses_exp_electricity', 'exp_electricity')
+    L['telephone']   = money('f13_expenses_exp_telephone', 'exp_telephone')
+    L['cell']        = money('f13_expenses_exp_cell_phone', 'exp_cell_phone', 'exp_cellphone')
+    L['cable']       = money('f13_expenses_exp_cable', 'exp_cable')
+    L['internet']    = money('f13_expenses_exp_internet', 'exp_internet')
+    L['groceries']          = money('f13_expenses_exp_groceries', 'exp_groceries')
+    L['household_supplies'] = money('f13_expenses_exp_household_supplies', 'exp_household_supplies')
+    L['meals_out']          = money('f13_expenses_exp_meals_out', 'exp_meals_out')
+    L['pet_care']           = money('f13_expenses_exp_pet_care', 'exp_pet_care')
+    L['laundry']            = money('f13_expenses_exp_laundry', 'exp_laundry')
+    L['daycare']     = money('f13_expenses_exp_childcare', 'exp_childcare', 'daycare_expense')
+    L['babysitting'] = money('f13_expenses_exp_babysitting', 'exp_babysitting')
+    L['transit']       = money('public_transit')
+    L['gas_oil']       = money('f13_expenses_exp_gas_oil', 'exp_gas_oil')
+    L['car_insurance'] = money('f13_expenses_exp_car_insurance', 'exp_car_insurance')
+    L['car_repairs']   = money('f13_expenses_exp_car_repairs', 'exp_car_repairs')
+    L['parking']       = money('f13_expenses_exp_parking', 'exp_parking')
+    L['car_loan']      = money('f13_expenses_exp_car_loan', 'exp_car_loan',
+                               'debt_car_loans')  # debts-side value as fallback
+    L['health_insurance'] = money('f13_expenses_exp_health_insurance', 'exp_health_insurance',
+                                  'exp_health')
+    L['dental']   = money('f13_expenses_exp_dental', 'exp_dental')
+    L['medicine'] = money('f13_expenses_exp_medicine', 'exp_medicine')
+    L['eye_care'] = money('f13_expenses_exp_eye_care', 'exp_eye_care')
+    L['clothing']      = money('f13_expenses_exp_clothing', 'exp_clothing')
+    L['hair_beauty']   = money('f13_expenses_exp_hair_beauty', 'exp_hair_beauty', 'exp_personal_care')
+    L['alcohol']       = money('f13_expenses_exp_alcohol', 'exp_alcohol')
+    L['education']     = money('f13_expenses_exp_education', 'exp_education')
+    L['entertainment'] = money('exp_entertainment')
+    L['gifts']         = money('f13_expenses_exp_gifts', 'exp_gifts')
+    L['life_insurance']      = money('f13_expenses_exp_life_insurance', 'exp_life_insurance')
+    L['rrsp']                = money('f13_expenses_exp_rrsp', 'exp_rrsp')
+    L['vacations']           = money('f13_expenses_exp_vacations', 'exp_vacations')
+    L['school_fees']         = money('f13_expenses_exp_school_fees', 'exp_school_fees')
+    L['children_clothing']   = money('f13_expenses_exp_children_clothing', 'exp_children_clothing')
+    L['children_activities'] = money('f13_expenses_exp_children_activities', 'exp_children_activities')
+    L['summer_camp']         = money('f13_expenses_exp_summer_camp', 'exp_summer_camp')
+    L['debt_payments']       = money('f13_expenses_exp_debt_payments', 'exp_debt_payments')
+    L['other_support']       = money('f13_expenses_exp_other_support', 'exp_other_support')
+    L['other']               = money('f13_expenses_exp_other', 'exp_other')
+
+    def _sum(*ks):
+        return sum(to_float(L[k]) for k in ks)
+
+    S = {}
+    S['auto'] = _sum('cpp', 'ei', 'income_tax', 'pension', 'union_dues')
+    if not S['auto']:
+        S['auto'] = to_float(money('f13_expenses_exp_auto_deductions', 'exp_auto_deductions'))
+    S['housing'] = _sum('rent_mortgage', 'property_tax', 'property_insurance', 'condo', 'home_repairs')
+    S['utilities'] = (_sum('water', 'heat', 'electricity', 'telephone', 'cell', 'cable', 'internet')
+                      + to_float(money('f13_expenses_exp_utilities', 'exp_utilities')))
+    S['household'] = _sum('groceries', 'household_supplies', 'meals_out', 'pet_care', 'laundry')
+    S['childcare'] = _sum('daycare', 'babysitting')
+    S['transport'] = (_sum('transit', 'gas_oil', 'car_insurance', 'car_repairs', 'parking', 'car_loan')
+                      + to_float(money('f13_expenses_exp_transit', 'exp_transit')))
+    S['health'] = (_sum('health_insurance', 'dental', 'medicine', 'eye_care')
+                   + to_float(money('f13_expenses_exp_health', 'exp_health')))
+    S['personal'] = (_sum('clothing', 'hair_beauty', 'alcohol', 'education', 'entertainment', 'gifts')
+                     + to_float(money('f13_expenses_exp_personal', 'exp_personal')))
+    S['other'] = _sum('life_insurance', 'rrsp', 'vacations', 'school_fees', 'children_clothing',
+                      'children_activities', 'summer_camp', 'debt_payments', 'other_support', 'other')
+    total = (S['auto'] + S['housing'] + S['utilities'] + S['household'] + S['childcare']
+             + S['transport'] + S['health'] + S['personal'] + S['other'])
+    total_m = f'{total:.2f}' if total else ''
+    return {
+        'lines': L,
+        'subtotals': S,
+        'education_desc': val('f13_expenses_exp_education_desc', 'exp_education_desc'),
+        'other_desc': val('f13_expenses_exp_other_desc', 'exp_other_desc'),
+        'total_monthly': total_m,
+        'total_yearly': f'{to_float(total_m) * 12:.2f}' if total_m else '',
+    }
+
+
 def fill_form13(input_path, output_path, form_data_list):
     """Fill Form 13 — Financial Statement (Support Claims).
 
@@ -1585,197 +1690,86 @@ def fill_form13(input_path, output_path, form_data_list):
         fields['Details 1'] = benefits_note
 
     # ── Part 2: Monthly expenses (page 3-4) ───────────────────────────────
-    # AUTOMATIC DEDUCTIONS
-    # FIX-F13-AUTO-DEDUCTIONS (option A, Oct 19 2026): the wizard asks for
-    # ONE monthly total (exp_auto_deductions). Per-line CPP/EI/tax are used
-    # only if the user gave them as monthly expense answers. We no longer
-    # copy the pay-stub amounts (f13_employment_*_deducted): those are
-    # PER PAY PERIOD, not monthly, so printing them here overstated the
-    # monthly lines and made the subtotals disagree with the total.
-    cpp = money('f13_expenses_exp_auto_cpp',   'exp_auto_cpp',   'cpp_contributions')
-    ei_prem = money('f13_expenses_exp_auto_ei', 'exp_auto_ei', 'ei_premiums')
-    inc_tax = money('f13_expenses_exp_auto_incometax', 'exp_auto_incometax',
-                    'income_taxes')
-    emp_pension = money('f13_expenses_exp_auto_pension', 'exp_auto_pension',
-                         'employee_pension_contributions')
-    union_dues = money('f13_expenses_exp_auto_uniondues', 'exp_auto_uniondues',
-                        'union_dues')
-    fields['CPP contributions [0.00]']            = cpp
-    fields['EI premiums [0.00]']                  = ei_prem
-    fields['Income taxes [0.00]']                 = inc_tax
-    fields['Employee pension contributions [0.00]']= emp_pension
-    fields['Union dues [0.00]']                   = union_dues
-
-    # Automatic Deductions subtotal — Subtotal 1
-    sub_auto = to_float(cpp) + to_float(ei_prem) + to_float(inc_tax) \
-               + to_float(emp_pension) + to_float(union_dues)
-    if not sub_auto:
-        # Option A: no per-line answers -> the wizard's monthly total.
-        sub_auto = to_float(money('f13_expenses_exp_auto_deductions', 'exp_auto_deductions'))
+    # FIX-F131-B3: the Part 2 math lives in _fe_part2_expenses(), shared with
+    # Form 13.1 so both sworn statements always print the same numbers.
+    # Notes kept from the earlier fixes:
+    # FIX-F13-AUTO-DEDUCTIONS (option A): one monthly total, never pay-stub
+    #   per-period amounts. FIX-F13-COMBINED: combined wizard answers go to
+    #   the group subtotal, not a single line. FIX-F13-TOTALS: printed totals
+    #   are always the sum of printed lines and subtotals.
     # FIX-F13-SUBTOTAL-BOXES: the PDF's subtotal numbering does not follow
     # the printed order. Verified by position (box vs group heading):
     #   Subtotal 1 Automatic deductions  2 Housing   3 Transportation
     #   4 Health   5 Utilities   6 Household   7 Childcare   8 Personal   9 Other
-    fields['Subtotal 1 [0.00]'] = f'{sub_auto:.2f}' if sub_auto else ''
-
-    # HOUSING
-    rent_mtg = money('f13_expenses_exp_rent_mortgage', 'exp_rent_mortgage')
-    prop_tax = money('f13_expenses_exp_property_tax', 'exp_property_tax')
-    prop_ins = money('f13_expenses_exp_property_insurance', 'exp_property_insurance')
-    condo    = money('f13_expenses_exp_condo_fees', 'exp_condo_fees')
-    home_rep = money('f13_expenses_exp_home_repairs', 'exp_home_repairs')
-    fields['Rent or mortgage [0.00]']        = rent_mtg
-    fields['Property taxes [0.00]']          = prop_tax
-    fields['Property insurance [0.00]']      = prop_ins
-    fields['Condominium fees [0.00]']        = condo
-    fields['Repairs and maintenance [0.00]'] = home_rep
-    sub_housing = sum(to_float(x) for x in (rent_mtg, prop_tax, prop_ins, condo, home_rep))
-    fields['Subtotal 2 [0.00]'] = f'{sub_housing:.2f}' if sub_housing else ''
-
-    # UTILITIES
-    water    = money('f13_expenses_exp_water', 'exp_water')
-    heat     = money('f13_expenses_exp_heat',  'exp_heat')
-    electric = money('f13_expenses_exp_electricity', 'exp_electricity')
-    telephone= money('f13_expenses_exp_telephone', 'exp_telephone')
-    cell     = money('f13_expenses_exp_cell_phone', 'exp_cell_phone', 'exp_cellphone')
-    cable    = money('f13_expenses_exp_cable', 'exp_cable')
-    internet = money('f13_expenses_exp_internet', 'exp_internet')
-    fields['Water [0.00]']       = water
-    fields['Heat [0.00]']        = heat
-    fields['Electricity [0.00]'] = electric
-    fields['Telephone [0.00]']   = telephone
-    fields['Cell phone [0.00]']  = cell
-    fields['Cable [0.00]']       = cable
-    fields['Internet [0.00]']    = internet
-    sub_util = sum(to_float(x) for x in (water, heat, electric, telephone, cell, cable, internet))
-    # FIX-F13-COMBINED: the wizard asks one combined Utilities answer;
-    # it belongs to the group subtotal, not to any single line.
-    sub_util += to_float(money('f13_expenses_exp_utilities', 'exp_utilities'))
-    fields['Subtotal 5 [0.00]'] = f'{sub_util:.2f}' if sub_util else ''      # Utilities box
-
-    # HOUSEHOLD
-    groceries  = money('f13_expenses_exp_groceries', 'exp_groceries')
-    hh_supplies= money('f13_expenses_exp_household_supplies', 'exp_household_supplies')
-    meals_out  = money('f13_expenses_exp_meals_out', 'exp_meals_out')
-    pet_care   = money('f13_expenses_exp_pet_care', 'exp_pet_care')
-    laundry    = money('f13_expenses_exp_laundry', 'exp_laundry')
-    fields['Groceries [0.00]']         = groceries
-    fields['Household supplies [0.00]']= hh_supplies
-    fields['Meals outside the home [0.00]'] = meals_out
-    fields['Pet care [0.00]']          = pet_care
-    fields['Laundry and Dry Cleaning'] = laundry  # note: PDF has no [0.00] suffix on this one
-    sub_household = sum(to_float(x) for x in (groceries, hh_supplies, meals_out, pet_care, laundry))
-    fields['Subtotal 6 [0.00]'] = f'{sub_household:.2f}' if sub_household else ''  # Household box
-
-    # CHILDCARE
-    daycare    = money('f13_expenses_exp_childcare', 'exp_childcare', 'daycare_expense')
-    babysit    = money('f13_expenses_exp_babysitting', 'exp_babysitting')
-    fields['Daycare expense [0.00]']   = daycare
-    fields['Babysitting costs [0.00]'] = babysit
-    sub_childcare = to_float(daycare) + to_float(babysit)
-    fields['Subtotal 7 [0.00]'] = f'{sub_childcare:.2f}' if sub_childcare else ''  # Childcare box
-
-    # TRANSPORTATION
-    # FIX-F13-COMBINED: wizard exp_transit is "Transportation (transit, gas,
-    # insurance, parking, car loan)" - a combined answer, added to the
-    # Subtotal 6 below instead of being claimed as public transit.
-    transit    = money('public_transit')
-    gas_oil    = money('f13_expenses_exp_gas_oil', 'exp_gas_oil')
-    car_ins    = money('f13_expenses_exp_car_insurance', 'exp_car_insurance')
-    car_rep    = money('f13_expenses_exp_car_repairs', 'exp_car_repairs')
-    parking    = money('f13_expenses_exp_parking', 'exp_parking')
-    car_loan   = money('f13_expenses_exp_car_loan', 'exp_car_loan',
-                       'debt_car_loans')  # accept debts-side value as fallback
-    fields['Public transit, taxis [0.00]'] = transit
-    fields['Gas and oil [0.00]']           = gas_oil
-    fields['Car insurance and license [0.00]'] = car_ins
+    _p2 = _fe_part2_expenses(money, val, to_float)
+    _L, _S = _p2['lines'], _p2['subtotals']
+    def _st(x):
+        return f'{x:.2f}' if x else ''
+    fields['CPP contributions [0.00]']            = _L['cpp']
+    fields['EI premiums [0.00]']                  = _L['ei']
+    fields['Income taxes [0.00]']                 = _L['income_tax']
+    fields['Employee pension contributions [0.00]']= _L['pension']
+    fields['Union dues [0.00]']                   = _L['union_dues']
+    fields['Subtotal 1 [0.00]'] = _st(_S['auto'])
+    fields['Rent or mortgage [0.00]']        = _L['rent_mortgage']
+    fields['Property taxes [0.00]']          = _L['property_tax']
+    fields['Property insurance [0.00]']      = _L['property_insurance']
+    fields['Condominium fees [0.00]']        = _L['condo']
+    fields['Repairs and maintenance [0.00]'] = _L['home_repairs']
+    fields['Subtotal 2 [0.00]'] = _st(_S['housing'])
+    fields['Water [0.00]']       = _L['water']
+    fields['Heat [0.00]']        = _L['heat']
+    fields['Electricity [0.00]'] = _L['electricity']
+    fields['Telephone [0.00]']   = _L['telephone']
+    fields['Cell phone [0.00]']  = _L['cell']
+    fields['Cable [0.00]']       = _L['cable']
+    fields['Internet [0.00]']    = _L['internet']
+    fields['Subtotal 5 [0.00]'] = _st(_S['utilities'])      # Utilities box
+    fields['Groceries [0.00]']         = _L['groceries']
+    fields['Household supplies [0.00]']= _L['household_supplies']
+    fields['Meals outside the home [0.00]'] = _L['meals_out']
+    fields['Pet care [0.00]']          = _L['pet_care']
+    fields['Laundry and Dry Cleaning'] = _L['laundry']  # note: PDF has no [0.00] suffix on this one
+    fields['Subtotal 6 [0.00]'] = _st(_S['household'])  # Household box
+    fields['Daycare expense [0.00]']   = _L['daycare']
+    fields['Babysitting costs [0.00]'] = _L['babysitting']
+    fields['Subtotal 7 [0.00]'] = _st(_S['childcare'])  # Childcare box
+    fields['Public transit, taxis [0.00]'] = _L['transit']
+    fields['Gas and oil [0.00]']           = _L['gas_oil']
+    fields['Car insurance and license [0.00]'] = _L['car_insurance']
     # "Repairs and maintenance" appears TWICE in the PDF (Housing + Transport)
-    # but only one leaf widget carries the name — the second is a child kid
-    # named separately. Leave transport-repair unfilled if we have no distinct
-    # source; case-17 doesn't have one.
-    fields['Parking [0.00]'] = parking
-    fields['Car Loan or Lease Payments [0.00]'] = car_loan
-    sub_transport = sum(to_float(x) for x in (transit, gas_oil, car_ins, car_rep, parking, car_loan))
-    sub_transport += to_float(money('f13_expenses_exp_transit', 'exp_transit'))
-    fields['Subtotal 3 [0.00]'] = f'{sub_transport:.2f}' if sub_transport else ''  # Transportation box
-
-    # HEALTH
-    health_ins = money('f13_expenses_exp_health_insurance', 'exp_health_insurance',
-                       'exp_health')
-    dental     = money('f13_expenses_exp_dental', 'exp_dental')
-    meds       = money('f13_expenses_exp_medicine', 'exp_medicine')
-    eye_care   = money('f13_expenses_exp_eye_care', 'exp_eye_care')
-    fields['Health insurance premiums [0.00]'] = health_ins
-    fields['Dental expenses [0.00]']  = dental
-    fields['Medicine and drugs [0.00]'] = meds
-    fields['Eye care [0.00]']         = eye_care
-    sub_health = sum(to_float(x) for x in (health_ins, dental, meds, eye_care))
-    # FIX-F13-COMBINED: wizard exp_health is a combined Health answer.
-    sub_health += to_float(money('f13_expenses_exp_health', 'exp_health'))
-    fields['Subtotal 4 [0.00]'] = f'{sub_health:.2f}' if sub_health else ''      # Health box
-
-    # PERSONAL
-    clothing   = money('f13_expenses_exp_clothing', 'exp_clothing')
-    hair_beauty= money('f13_expenses_exp_hair_beauty', 'exp_hair_beauty', 'exp_personal_care')
-    alcohol    = money('f13_expenses_exp_alcohol', 'exp_alcohol')
-    education  = money('f13_expenses_exp_education', 'exp_education')
-    education_desc = val('f13_expenses_exp_education_desc', 'exp_education_desc')
-    # FIX-F13-COMBINED: wizard exp_personal is "Personal (hair, entertainment,
-    # gifts, alcohol, tobacco)" - combined, added to Subtotal 8 below.
-    entertain  = money('exp_entertainment')
-    gifts      = money('f13_expenses_exp_gifts', 'exp_gifts')
-    fields['Clothing [0.00]']              = clothing
-    fields['Hair care and beauty [0.00]']  = hair_beauty
-    fields['Alcohol and tobacco [0.00]']   = alcohol
-    fields['Education (specify)']          = education_desc
-    fields['Education [0.00]']             = education
-    fields['Entertainment/recreation [0.00]'] = entertain
-    fields['Gifts [0.00]']                 = gifts
-    # Subtotal 8 covers Personal (Clothing/Hair/Alcohol/Education/Entertain/Gifts). No [0.00] suffix on it in the PDF.
-    sub_personal = sum(to_float(x) for x in (clothing, hair_beauty, alcohol, education, entertain, gifts))
-    sub_personal += to_float(money('f13_expenses_exp_personal', 'exp_personal'))
-    fields['Subtotal 8'] = f'{sub_personal:.2f}' if sub_personal else ''
-
-    # OTHER EXPENSES (Subtotal 9)
-    life_ins     = money('f13_expenses_exp_life_insurance', 'exp_life_insurance')
-    rrsp_resp    = money('f13_expenses_exp_rrsp', 'exp_rrsp')
-    vacations    = money('f13_expenses_exp_vacations', 'exp_vacations')
-    school_fees  = money('f13_expenses_exp_school_fees', 'exp_school_fees')
-    child_cloth  = money('f13_expenses_exp_children_clothing', 'exp_children_clothing')
-    child_acts   = money('f13_expenses_exp_children_activities', 'exp_children_activities')
-    summer_camp  = money('f13_expenses_exp_summer_camp', 'exp_summer_camp')
-    debt_pay     = money('f13_expenses_exp_debt_payments', 'exp_debt_payments')
-    other_support= money('f13_expenses_exp_other_support', 'exp_other_support')
-    exp_other    = money('f13_expenses_exp_other', 'exp_other')
-    exp_other_desc = val('f13_expenses_exp_other_desc', 'exp_other_desc')
-
-    fields['Life Insurance premiums [0.00]']    = life_ins
-    fields['RRSP/RESP withdrawals [0.00]']      = rrsp_resp
-    fields['Vacations [0.00]']                  = vacations
-    fields['School fees and supplies [0.00]']   = school_fees
-    fields['Clothing for children [0.00]']      = child_cloth
-    fields['Children\u2019s activities [0.00]'] = child_acts
-    fields['Summer camp expenses [0.00]']       = summer_camp
-    fields['Debt payments [0.00]']              = debt_pay
-    fields['Support paid for other children [0.00]'] = other_support
-    fields['Other expenses [0.00]']             = exp_other
-    fields['Other expenses (specify)']          = exp_other_desc
-
-    sub_other = sum(to_float(x) for x in (life_ins, rrsp_resp, vacations, school_fees,
-                                          child_cloth, child_acts, summer_camp,
-                                          debt_pay, other_support, exp_other))
-    fields['Subtotal 9 [0.00]'] = f'{sub_other:.2f}' if sub_other else ''
-
-    # TOTAL MONTHLY / YEARLY EXPENSES
-    total_monthly_exp = (sub_auto + sub_housing + sub_util + sub_household
-                         + sub_childcare + sub_transport + sub_health
-                         + sub_personal + sub_other)
-    # FIX-F13-TOTALS: printed totals always equal the sum of the printed
-    # lines/subtotals. Saved wizard totals are NOT used: they can drift from
-    # the individual answers, and a sworn form must add up.
-    total_month_str = f'{total_monthly_exp:.2f}' if total_monthly_exp else ''
-    fields['Total Amount of Monthly Expenses [0.00]'] = total_month_str
-    fields['Total Amount of Yearly Expenses [0.00]']  = annualize(total_month_str)
+    # but only one leaf widget carries the name, so transport repairs are
+    # counted in Subtotal 3 but not printed on their own line here.
+    fields['Parking [0.00]'] = _L['parking']
+    fields['Car Loan or Lease Payments [0.00]'] = _L['car_loan']
+    fields['Subtotal 3 [0.00]'] = _st(_S['transport'])  # Transportation box
+    fields['Health insurance premiums [0.00]'] = _L['health_insurance']
+    fields['Dental expenses [0.00]']  = _L['dental']
+    fields['Medicine and drugs [0.00]'] = _L['medicine']
+    fields['Eye care [0.00]']         = _L['eye_care']
+    fields['Subtotal 4 [0.00]'] = _st(_S['health'])      # Health box
+    fields['Clothing [0.00]']              = _L['clothing']
+    fields['Hair care and beauty [0.00]']  = _L['hair_beauty']
+    fields['Alcohol and tobacco [0.00]']   = _L['alcohol']
+    fields['Education (specify)']          = _p2['education_desc']
+    fields['Education [0.00]']             = _L['education']
+    fields['Entertainment/recreation [0.00]'] = _L['entertainment']
+    fields['Gifts [0.00]']                 = _L['gifts']
+    fields['Subtotal 8'] = _st(_S['personal'])  # no [0.00] suffix in the PDF
+    fields['Life Insurance premiums [0.00]']    = _L['life_insurance']
+    fields['RRSP/RESP withdrawals [0.00]']      = _L['rrsp']
+    fields['Vacations [0.00]']                  = _L['vacations']
+    fields['School fees and supplies [0.00]']   = _L['school_fees']
+    fields['Clothing for children [0.00]']      = _L['children_clothing']
+    fields['Children\u2019s activities [0.00]'] = _L['children_activities']
+    fields['Summer camp expenses [0.00]']       = _L['summer_camp']
+    fields['Debt payments [0.00]']              = _L['debt_payments']
+    fields['Support paid for other children [0.00]'] = _L['other_support']
+    fields['Other expenses [0.00]']             = _L['other']
+    fields['Other expenses (specify)']          = _p2['other_desc']
+    fields['Subtotal 9 [0.00]'] = _st(_S['other'])
+    fields['Total Amount of Monthly Expenses [0.00]'] = _p2['total_monthly']
+    fields['Total Amount of Yearly Expenses [0.00]']  = _p2['total_yearly']
 
     # ── Part 3: Assets ───────────────────────────────────────────────────
     # FIX-F13-ASSET-ROWS (Oct 19 2026): value boxes verified by pairing each
@@ -2309,36 +2303,83 @@ def fill_form13_1(input_path, output_path, form_data_list):
     else:
         fields['Other non-cash benefits - Details 1'] = _v('f13_income_inc_other_benefits')
 
-    def _money(key, *fallbacks):   # old Part 2 lines below; replaced in brick 3
-        for k in (key,) + fallbacks:
-            v = d.get(k, '')
-            if str(v).strip(): return str(v)
-        return ''
+    # ── Part 2: Expenses (pages 3-4) ──────────────────────────────────────
+    # FIX-F131-B3 (Form 13.1 plan brick 3): same math as Form 13 via the
+    # shared _fe_part2_expenses(), so the two sworn statements always agree.
+    # Form 13's answers (f13_expenses_*) come first; the old Form 13.1 screen
+    # (f13_1_expenses_*) only fills a gap. Unlike Form 13, Form 13.1 has its
+    # own Transportation "Repairs and maintenance" box, so that line prints.
+    def _m131(*keys):
+        alt = tuple(k.replace('f13_expenses_', 'f13_1_expenses_', 1)
+                    for k in keys if k.startswith('f13_expenses_'))
+        return _m(*(keys + alt))
 
-    # ── Deductions ────────────────────────────────────────────────────────
-    fields['CPP contributions - Monthly Amount (0.00)']             = _money('exp_cpp')
-    fields['EI premiums - Monthly Amount (0.00)']                   = _money('exp_ei')
-    fields['Income taxes - Monthly Amount (0.00)']                  = _money('exp_income_tax')
-    fields['Employee pension contributions - Monthly Amount (0.00)']= _money('exp_pension')
-    fields['Union dues - Monthly Amount (0.00)']                    = _money('exp_union_dues')
+    def _v131(*keys):
+        alt = tuple(k.replace('f13_expenses_', 'f13_1_expenses_', 1)
+                    for k in keys if k.startswith('f13_expenses_'))
+        return _v(*(keys + alt))
 
-    # ── Monthly Expenses ──────────────────────────────────────────────────
-    fields['Rent or mortgage - Monthly Amount (0.00)']              = _money('exp_rent_mortgage')
-    fields['Property taxes - Monthly Amount (0.00)']                = _money('exp_property_taxes')
-    fields['Property insurance - Monthly Amount (0.00)']            = _money('exp_property_insurance')
-    fields['Condominium fees - Monthly Amount (0.00)']              = _money('exp_condo_fees')
-    fields['Water - Monthly Amount (0.00)']                         = _money('exp_water')
-    fields['Heat - Monthly Amount (0.00)']                          = _money('exp_heat')
-    fields['Electricity - Monthly Amount (0.00)']                   = _money('exp_electricity')
-    fields['Public transit, taxis - Monthly Amount (0.00)']         = _money('exp_transit')
-    fields['Gas and oil - Monthly Amount (0.00)']                   = _money('exp_gas_oil')
-    fields['Car insurance and license - Monthly Amount (0.00)']     = _money('exp_car_insurance')
-    fields['Parking - Monthly Amount (0.00)']                       = _money('exp_parking')
-    fields['Car Loan or Lease Payments - Monthly Amount (0.00)']    = _money('exp_car_loan')
-    fields['Health insurance premiums - Monthly Amount (0.00)']     = _money('exp_health_insurance')
-    fields['Dental expenses - Monthly Amount (0.00)']               = _money('exp_dental')
-    fields['Medicine and drugs - Monthly Amount (0.00)']            = _money('exp_medicine')
-    fields['Eye care - Monthly Amount (0.00)']                      = _money('exp_eye_care')
+    def _f(x):
+        try:
+            return float(str(x).replace('$', '').replace(',', '').strip())
+        except Exception:
+            return 0.0
+
+    _p2 = _fe_part2_expenses(_m131, _v131, _f)
+    _L, _S = _p2['lines'], _p2['subtotals']
+
+    def _st(x):
+        return f'{x:.2f}' if x else ''
+
+    _MA = ' - Monthly Amount (0.00)'
+    for _label, _key in (
+        ('CPP contributions', 'cpp'), ('EI premiums', 'ei'),
+        ('Income taxes', 'income_tax'), ('Employee pension contributions', 'pension'),
+        ('Union dues', 'union_dues'),
+        ('Rent or mortgage', 'rent_mortgage'), ('Property taxes', 'property_tax'),
+        ('Property insurance', 'property_insurance'), ('Condominium fees', 'condo'),
+        ('Housing Repairs and maintenance', 'home_repairs'),
+        ('Water', 'water'), ('Heat', 'heat'), ('Electricity', 'electricity'),
+        ('Telephone', 'telephone'), ('Cell phone', 'cell'), ('Cable', 'cable'),
+        ('Internet', 'internet'),
+        ('Groceries', 'groceries'), ('Household supplies', 'household_supplies'),
+        ('Meals outside the home', 'meals_out'), ('Pet care', 'pet_care'),
+        ('Laundry and Dry Cleaning', 'laundry'),
+        ('Daycare expense', 'daycare'), ('Babysitting costs', 'babysitting'),
+        ('Public transit, taxis', 'transit'), ('Gas and oil', 'gas_oil'),
+        ('Car insurance and license', 'car_insurance'),
+        ('Transportation Repairs and maintenance', 'car_repairs'),
+        ('Parking', 'parking'), ('Car Loan or Lease Payments', 'car_loan'),
+        ('Health insurance premiums', 'health_insurance'), ('Dental expenses', 'dental'),
+        ('Medicine and drugs', 'medicine'), ('Eye care', 'eye_care'),
+        ('Clothing', 'clothing'), ('Hair care and beauty', 'hair_beauty'),
+        ('Alcohol and tobacco', 'alcohol'), ('Education', 'education'),
+        ('Entertainment/recreation (including children)', 'entertainment'),
+        ('Gifts', 'gifts'),
+        ('Life Insurance premiums', 'life_insurance'), ('RRSP/RESP withdrawals', 'rrsp'),
+        ('Vacations', 'vacations'), ('School fees and supplies', 'school_fees'),
+        ('Clothing for children', 'children_clothing'),
+        ('Children\u2019s activities', 'children_activities'),
+        ('Summer camp expenses', 'summer_camp'), ('Debt payments', 'debt_payments'),
+        ('Support paid for other children', 'other_support'),
+        ('Other expenses not shown above', 'other'),
+    ):
+        fields[_label + _MA] = _L[_key]
+    fields['specify education expenses'] = _p2['education_desc']
+    fields['specify other expenses']     = _p2['other_desc']
+    # Subtotal boxes, named by group (verified by position on the PDF; the
+    # Household subtotal box is the one named "Household Expenses").
+    fields['Automatic Deductions Subtotal' + _MA] = _st(_S['auto'])
+    fields['Housing Subtotal' + _MA]              = _st(_S['housing'])
+    fields['Utilities Subtotal' + _MA]            = _st(_S['utilities'])
+    fields['Household Expenses' + _MA]            = _st(_S['household'])
+    fields['Childcare Costs Subtotal' + _MA]      = _st(_S['childcare'])
+    fields['Transportation Subtotal- Monthly Amount (0.00)'] = _st(_S['transport'])  # PDF name has no space before '-'
+    fields['Health Subtotal' + _MA]               = _st(_S['health'])
+    fields['Personal Expenses Subtotal- Monthly Amount (0.00)'] = _st(_S['personal'])  # same
+    fields['Other Expenses Subtotal' + _MA]       = _st(_S['other'])
+    fields['Total Amount of Monthly Expenses (0.00)'] = _p2['total_monthly']
+    fields['Total Amount of Yearly Expenses (0.00)']  = _p2['total_yearly']
 
     # FIX-F131-B1: the old asset, debt, date-of-marriage and net-family-
     # property lines wrote into the wrong boxes ("Other non-cash benefits",
