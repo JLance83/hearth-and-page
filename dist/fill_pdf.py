@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.66'
+FILLER_VERSION = 'dist-2026-10-19.67'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1567,7 +1567,19 @@ def fill_form13(input_path, output_path, form_data_list):
     # ── Part 1: Non-cash benefits table (Q14 — 4 rows) ───────────────────
     # Case-17 has no data for these; the schema exposes only inc_other_benefits
     # as free text. Route it into Details 1 with a stubbed Item label.
-    benefits_note = val('f13_income_inc_other_benefits', 'inc_other_benefits')
+    # FIX-F131-B2 (Nov 16 2026): the income screen now asks line 14 as up
+    # to 4 rows (otherBenefitRows: item / details / yearly value). Rows win;
+    # the old free-text answer below is only used when there are no rows.
+    _ben_rows = []
+    for _i in range(4):
+        _r = tuple(val(f'f13_income_other_benefit_rows_{_i}_{c}') for c in ('item', 'details', 'value'))
+        if any(_r):
+            _ben_rows.append(_r)
+    for _n, (_it, _de, _va) in enumerate(_ben_rows, start=1):
+        fields[f'Item {_n}'] = _it
+        fields[f'Details {_n}'] = _de
+        fields['Yearly Market Value 4' if _n == 4 else f'Yearly Market Value {_n} [0.00]'] = money(f'f13_income_other_benefit_rows_{_n - 1}_value')
+    benefits_note = '' if _ben_rows else val('f13_income_inc_other_benefits', 'inc_other_benefits')
     if benefits_note:
         fields['Item 1']    = 'Non-cash benefits'
         fields['Details 1'] = benefits_note
@@ -2241,33 +2253,67 @@ def fill_form13_1(input_path, output_path, form_data_list):
         checkboxes['I am an Indian within the meaning of the Indian Act Canada and I have chosen not to file income tax returnsfor the past three years. I am attaching the following proof of income for the last three years'] = True
         fields['list documents you have provided'] = _v('f13_employment_indian_act_docs')
 
-    # ── Monthly Income ────────────────────────────────────────────────────
-    def _money(key, *fallbacks):
+    # ── Part 1 income table, lines 1-14 ───────────────────────────────────
+    # FIX-F131-B2 (Nov 16 2026, Form 13.1 plan brick 2): lines 1-11 read
+    # Form 13's income answers (f13_income_*), old Form 13.1 keys only as a
+    # fallback. Line 12 is the sum of the lines printed above and line 13 is
+    # line 12 x 12; both stay blank when no line has an amount. The saved
+    # "total" answer is not used (it can disagree with the lines).
+    def _inc(key):
+        return _m(f'f13_income_{key}', f'f13_1_income_{key}')
+    _INC = (
+        ('Employment income (before deductions) - Amount Received/Month (0.00)', 'inc_employment'),
+        ('Commissions, tips and bonuses - Amount Received/Month (0.00)', 'inc_commissions'),
+        ('Self-employment income (Monthly amount before expenses) - Amount Received/Month (0.00)', 'inc_selfemployment'),
+        ('Employment Insurance benefits - Amount Received/Month (0.00)', 'inc_ei'),
+        ("Workers' compensation benefits - Amount Received/Month (0.00)", 'inc_wcb'),
+        ('Social assistance income (including ODSP payments) - Amount Received/Month (0.00)', 'inc_socialassistance'),
+        ('Interest and investment income - Amount Received/Month (0.00)', 'inc_investment'),
+        ('Pension income (including CPP and OAS) - Amount Received/Month (0.00)', 'inc_pension'),
+        ('Spousal support received from a former spouse/partner - Amount Received/Month (0.00)', 'inc_spousalsupport'),
+        ('Child Tax Benefits or Tax Rebates (e.g. GST) - Amount Received/Month (0.00)', 'inc_childtaxbenefit'),
+        ('Other sources of income (e.g. RRSP withdrawals, capital gains) - Amount Received/Month (0.00)', 'inc_other'),
+    )
+    def _f(s):
+        try:
+            return float(str(s).replace('$', '').replace(',', '').strip())
+        except (ValueError, TypeError):
+            return None
+    _inc_sum, _inc_any = 0.0, False
+    for _box, _key in _INC:
+        _val = _inc(_key)
+        fields[_box] = _val
+        if _f(_val) is not None:
+            _inc_sum += _f(_val)
+            _inc_any = True
+    if _inc_any:
+        fields['Total monthly income from all sources (0.00)'] = f'{_inc_sum:.2f}'
+        fields['Total monthly income times 12 = Total annual income (0.00)'] = f'{_inc_sum * 12:.2f}'
+    # Line 3 bracket: self-employment income before expenses (new Form 13
+    # question). Blank when not answered.
+    fields['Monthly amount before expenses (0.00)'] = _m('f13_income_inc_selfemployment_gross')
+
+    # Line 14 other (non-cash) benefits: up to 4 rows (Form 13 income screen,
+    # otherBenefitRows: item / details / yearly value). With no rows, an old
+    # free-text answer goes in the first Details box.
+    _ben = []
+    for _i in range(4):
+        _r = tuple(_v(f'f13_income_other_benefit_rows_{_i}_{c}') for c in ('item', 'details', 'value'))
+        if any(_r):
+            _ben.append(_r)
+    if _ben:
+        for _n, (_it, _de, _va) in enumerate(_ben, start=1):
+            fields[f'Other non-cash benefits - Item {_n}'] = _it
+            fields[f'Other non-cash benefits - Details {_n}'] = _de
+            fields[f'Other non-cash benefits - Yearly Market Value {_n}'] = _m(f'f13_income_other_benefit_rows_{_n - 1}_value')
+    else:
+        fields['Other non-cash benefits - Details 1'] = _v('f13_income_inc_other_benefits')
+
+    def _money(key, *fallbacks):   # old Part 2 lines below; replaced in brick 3
         for k in (key,) + fallbacks:
             v = d.get(k, '')
             if str(v).strip(): return str(v)
         return ''
-
-    fields['Employment income (before deductions) - Amount Received/Month (0.00)'] = _money('inc_employment')
-    fields['Commissions, tips and bonuses - Amount Received/Month (0.00)']         = _money('inc_commissions')
-    fields['Self-employment income (Monthly amount before expenses) - Amount Received/Month (0.00)'] = _money('inc_self_employment')
-    fields['Employment Insurance benefits - Amount Received/Month (0.00)']         = _money('inc_ei')
-    fields["Workers' compensation benefits - Amount Received/Month (0.00)"]        = _money('inc_wsib')
-    fields['Social assistance income (including ODSP payments) - Amount Received/Month (0.00)'] = _money('inc_social_assistance')
-    fields['Interest and investment income - Amount Received/Month (0.00)']        = _money('inc_investment')
-    fields['Pension income (including CPP and OAS) - Amount Received/Month (0.00)'] = _money('inc_pension')
-    fields['Spousal support received from a former spouse/partner - Amount Received/Month (0.00)'] = _money('inc_spousal_support')
-    fields['Child Tax Benefits or Tax Rebates (e.g. GST) - Amount Received/Month (0.00)'] = _money('inc_ctb')
-    fields['Other sources of income (e.g. RRSP withdrawals, capital gains) - Amount Received/Month (0.00)'] = _money('inc_other')
-
-    inc_keys = ['inc_employment','inc_commissions','inc_self_employment','inc_ei',
-                'inc_wsib','inc_social_assistance','inc_investment','inc_pension',
-                'inc_spousal_support','inc_ctb','inc_other']
-    _inc_entered = [d.get(k) for k in inc_keys if str(d.get(k, '')).strip()]
-    if _inc_entered:
-        inc_total = sum(float(v or 0) for v in _inc_entered)
-        fields['Total monthly income from all sources (0.00)'] = f'{inc_total:.2f}'
-    fields['Monthly amount before expenses (0.00)']        = _money('inc_self_employment')
 
     # ── Deductions ────────────────────────────────────────────────────────
     fields['CPP contributions - Monthly Amount (0.00)']             = _money('exp_cpp')

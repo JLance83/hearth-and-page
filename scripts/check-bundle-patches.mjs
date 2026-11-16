@@ -481,6 +481,18 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F131-B1*/{key:"taxDocs",type:"select"',
   },
+  {
+    commit: 'Nov 16 2026 (see FIX-F131-B2)',
+    name: 'Form 13 income screen: line 3 self-employment gross + line 14 non-cash benefit rows, shared with Form 13.1 (FIX-F131-B2)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F131-B2*/{key:"inc_selfemployment_gross"',
+  },
+  {
+    commit: 'Nov 16 2026 (see FIX-F131-B2)',
+    name: 'Form 13 income screen: otherBenefitRows rows question (FIX-F131-B2)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '{key:"otherBenefitRows",type:"rows"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

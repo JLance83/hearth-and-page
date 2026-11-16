@@ -1170,6 +1170,18 @@ The filler (`fill_form13`, `fill_form13_1`) ticks the matching item 5 box. For `
 
 **Sentinel.** `/*FIX-F131-B1*/{key:"taxDocs",type:"select"`
 
+## FIX-F131-B2 (Nov 16 2026)
+
+**Problem.** The Form 13.1 income table (lines 1–14) was filled by old code that read the unused `f13_1_*` screens and put some answers in the wrong boxes. Line 3's "monthly amount before expenses" bracket was never asked. Line 14 (non-cash benefits) is a 4-row table of Item / Details / Yearly Market Value, but the app only had one free-text box.
+
+**Fix.** Two changes to Form 13's income screen (`f13_income`), which Form 13.1 will share (Form 13.1 plan, brick 2):
+- New `inc_selfemployment_gross` (text): self-employment monthly amount before expenses. Prints in the line 3 bracket on Form 13.1.
+- `inc_other_benefits` (textarea) replaced by `otherBenefitRows` (rows, max 4; columns item, details, value).
+
+The filler (`fill_form13_1`) now reads `f13_income_*` (falling back to `f13_1_income_*`) for lines 1–11, works out line 12 (sum of printed lines) and line 13 (×12) itself, and leaves both blank when there are no amounts. `fill_form13` and `fill_form13_1` print benefit rows into the line 14 table. Old saved free text still prints in Details row 1, with no invented Item.
+
+**Sentinels.** `/*FIX-F131-B2*/{key:"inc_selfemployment_gross"` and `{key:"otherBenefitRows",type:"rows"`
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
