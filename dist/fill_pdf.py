@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.64'
+FILLER_VERSION = 'dist-2026-10-19.65'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -563,6 +563,11 @@ COURTHOUSE_ADDRESSES_FE.update({
 # entry pointing to 393 University Ave — actually the "toronto-361" address).
 # This block overrides and completes the lookup so PDFs render the correct
 # courthouse name and address for every picker option.
+# FIX-UFC-COURT-NAME: the 25 Family Court Branch sites (Unified Family
+# Court) print the court's name as it appears on court documents there,
+# "Superior Court of Justice Family Court" (was "Family Court Branch –
+# <street>", which is not the court's name; the street is already in the
+# court address box).
 COURTHOUSE_NAMES_FE.update({
     'toronto-university': 'Ontario Court of Justice – 311 Jarvis',
     'toronto-361': 'Superior Court of Justice – 361 University Ave',
@@ -570,22 +575,22 @@ COURTHOUSE_NAMES_FE.update({
     'toronto-47-sheppard': 'Ontario Court of Justice – 47 Sheppard Ave E',
     'toronto-finch': 'Ontario Court of Justice – 2201 Finch Ave W',
     'toronto-jarvis': 'Ontario Court of Justice – 10 Armoury Street',
-    'barrie': 'Family Court Branch – 75 Mulcaster Street',
-    'bracebridge': 'Family Court Branch – 3A Dominion Street',
-    'cobourg': 'Family Court Branch – 860 William Street',
-    'durham-oshawa': 'Family Court Branch – 150 Bond Street East',
-    'lindsay': 'Family Court Branch – 440 Kent Street West',
-    'newmarket': 'Family Court Branch – 50 Eagle Street West',
-    'peterborough': 'Family Court Branch – 470 Water Street',
+    'barrie': 'Superior Court of Justice Family Court',
+    'bracebridge': 'Superior Court of Justice Family Court',
+    'cobourg': 'Superior Court of Justice Family Court',
+    'durham-oshawa': 'Superior Court of Justice Family Court',
+    'lindsay': 'Superior Court of Justice Family Court',
+    'newmarket': 'Superior Court of Justice Family Court',
+    'peterborough': 'Superior Court of Justice Family Court',
     'markham': 'Ontario Court of Justice – 8500 Leslie Street',
     'richmond-hill': 'Superior Court of Justice – 855 Major Mackenzie Drive E',
     'brantford': 'Superior Court of Justice – 44 Queen Street',
-    'cayuga': 'Family Court Branch – 55 Munsee Street N',
-    'hamilton': 'Family Court Branch – 55 Main Street W',
-    'kitchener': 'Family Court Branch – 85 Frederick Street',
-    'simcoe': 'Family Court Branch – 50 Frederick Hobson VC Drive',
-    'st-catharines': 'Family Court Branch – 59 Church Street',
-    'welland': 'Family Court Branch – 102 East Main Street',
+    'cayuga': 'Superior Court of Justice Family Court',
+    'hamilton': 'Superior Court of Justice Family Court',
+    'kitchener': 'Superior Court of Justice Family Court',
+    'simcoe': 'Superior Court of Justice Family Court',
+    'st-catharines': 'Superior Court of Justice Family Court',
+    'welland': 'Superior Court of Justice Family Court',
     'brampton': 'Ontario Court of Justice – 7755 Hurontario Street',
     'brampton-scj': 'Superior Court of Justice – 7765 Hurontario Street',
     'burlington': 'Ontario Court of Justice – 2021 Plains Road E',
@@ -594,16 +599,16 @@ COURTHOUSE_NAMES_FE.update({
     'orangeville': 'Superior Court of Justice – 10 Louisa Street',
     'owen-sound': 'Superior Court of Justice – 611 9th Avenue E',
     'walkerton': 'Superior Court of Justice – 207 Cayley Street',
-    'belleville': 'Family Court Branch – 15 Bridge Street West',
-    'brockville': 'Family Court Branch – 41 Court House Square',
-    'cornwall': 'Family Court Branch – 29 Second Street W',
-    'kingston': 'Family Court Branch – 469 Montreal Street',
-    'lorignal': 'Family Court Branch – 59 Court Street',
-    'napanee': 'Family Court Branch – 41 Dundas Street W',
-    'ottawa': 'Family Court Branch – 161 Elgin Street',
-    'pembroke': 'Family Court Branch – 297 Pembroke Street E',
-    'perth': 'Family Court Branch – 43 Drummond Street E',
-    'picton': 'Family Court Branch – 44 Union Street',
+    'belleville': 'Superior Court of Justice Family Court',
+    'brockville': 'Superior Court of Justice Family Court',
+    'cornwall': 'Superior Court of Justice Family Court',
+    'kingston': 'Superior Court of Justice Family Court',
+    'lorignal': 'Superior Court of Justice Family Court',
+    'napanee': 'Superior Court of Justice Family Court',
+    'ottawa': 'Superior Court of Justice Family Court',
+    'pembroke': 'Superior Court of Justice Family Court',
+    'perth': 'Superior Court of Justice Family Court',
+    'picton': 'Superior Court of Justice Family Court',
     'north-bay': 'Superior Court of Justice – 360 Plouffe Street',
     'parry-sound': 'Superior Court of Justice – 89 James Street',
     'sault-ste-marie': 'Superior Court of Justice – 426 Queen Street E',
@@ -621,9 +626,9 @@ COURTHOUSE_NAMES_FE.update({
     'sioux-lookout': 'Ontario Court of Justice – 18 4th Avenue S',
     'chatham': 'Superior Court of Justice – 425 Grand Ave W',
     'goderich': 'Superior Court of Justice – 1 Courthouse Square',
-    'london': 'Family Court Branch – 80 Dundas Street',
+    'london': 'Superior Court of Justice Family Court',
     'sarnia': 'Superior Court of Justice – 700 N. Christina Street',
-    'st-thomas': 'Family Court Branch – 4 Wellington Street',
+    'st-thomas': 'Superior Court of Justice Family Court',
     'stratford': 'Superior Court of Justice – 1 Huron Street',
     'windsor': 'Superior Court of Justice – 245 Windsor Avenue',
     'woodstock': 'Superior Court of Justice – 415 Hunter Street',
@@ -4705,7 +4710,7 @@ def fill_form23c(input_path, output_path, form_data_list):
     # name is a drop-down with three choices; pick the one that matches.
     fields['court office address'] = fields.get('Court office address', '')
     cn = str(fields.get('Name of court', ''))
-    if 'Family Court Branch' in cn:
+    if 'Family Court Branch' in cn or cn.startswith('Superior Court of Justice Family Court'):  # FIX-UFC-COURT-NAME
         court_choice = 'Superior Court of Justice, Family Branch'
     elif cn.startswith('Superior Court of Justice'):
         court_choice = 'Superior Court of Justice'
