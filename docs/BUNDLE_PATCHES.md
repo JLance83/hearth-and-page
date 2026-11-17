@@ -1261,6 +1261,23 @@ The marriage date isn't asked again. It comes from "Your situation".
 
 **Check.** Full, no-land, conflicting-dates and skipped scenarios, a page render, a browser run of the screen (show/hide, rows, number warning, saved keys), and the row-count case. Regression: no changes across 25 templates x 2 cases.
 
+## FIX-F131-B6 (Nov 17 2026)
+
+**Problem.** Form 13.1 Part 4(b) has four fixed lines (household goods and furniture; cars, boats, vehicles; jewellery, art, electronics, tools, sports and hobby equipment; other special items). Each has a description, an "Indicate if NOT in your possession" box and the value of your interest on three dates, then total 16. None of it was filled, and the app had no structured questions for it.
+
+**Fix (bundle).** A new Form 13.1 screen, `f131_household` ("Property: household items and vehicles"), right after `f131_land`. For each line (`goods`, `vehicles`, `valuables`, `other`):
+- `<line>Any` (yes/no). The rest shows only if Yes.
+- `<line>Desc` (textarea, fit note), `<line>ValueMarriage`, `<line>ValueValuation`, `<line>ValueToday` (numbers only)
+- `<line>NotHeld` (yes/no) and, only if Yes, `<line>NotHeldDetail` (which items, who has them)
+
+**Fix (filler, fill_form13_1, FILLER_VERSION .74).**
+- An explicit No prints "NONE" in that line's description. A skipped line stays blank, and leftover answers behind a No never print.
+- "Indicate if NOT in your possession" prints the user's note, or "Not in my possession" if they answered Yes without details. Blank means in their possession.
+- Values print as 0.00. A non-number is left blank and logged.
+- Total 16 adds the valuation-date values of the Yes lines, and stays blank if none was entered.
+
+**Check.** Full, all-No, skipped, bad-number and leftover-answer scenarios, a page render (including a long description), and a browser run of the screen. Regression: no changes across 25 templates x 2 cases.
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

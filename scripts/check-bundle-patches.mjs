@@ -559,6 +559,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F131-B5*/{id:"f131_land",title:"Property: key dates and land"',
   },
+  {
+    commit: 'Nov 17 2026 (see FIX-F131-B6)',
+    name: 'Form 13.1 screen: Part 4(b) household items and vehicles (FIX-F131-B6)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F131-B6*/{id:"f131_household",title:"Property: household items and vehicles"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

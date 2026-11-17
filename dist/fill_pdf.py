@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.73'
+FILLER_VERSION = 'dist-2026-10-19.74'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2623,6 +2623,41 @@ def fill_form13_1(input_path, output_path, form_data_list):
         fields['TOTAL VALUE OF LAND on valuation date (0.00)'] = f'{sum(_tv):.2f}' if _tv else ''
     elif _land_any == 'no':
         fields['Nature & Type of Ownership (Give your percentage interest where relevant.)'] = 'NONE'
+
+    # ── Part 4(b): household items and vehicles (FIX-F131-B6) ─────────────
+    # Four fixed lines. Each has its own yes/no: an explicit No prints "NONE"
+    # in the description, a skipped line stays blank. "Indicate if NOT in
+    # your possession" prints the user's note, or "Not in my possession" if
+    # they said Yes without details. Total 16 adds the valuation-date values
+    # and stays blank when none was entered.
+    _HB = ' - Estimated Market Value of YOUR Interest on '
+    _hh = (('goods', 'Household goods & furniture', 'Household goods & furniture'),
+           ('vehicles', 'Cars, boats, vehicles', 'Cars, boats, vehicles '),
+           ('valuables', 'Jewellery, art, electronics, tools, sports & hobby equipment',
+            'Jewellery, art, electronics, tools, sports & hobby equipment'),
+           ('other', 'Other special items', 'Other special items'))
+    _hv = []
+    for _k, _nm, _mnm in _hh:
+        _pre = f'f131_household_{_k}_'
+        _any = _v(_pre + 'any').lower()
+        if _any == 'no':
+            fields['Description of ' + _nm] = 'NONE'
+            continue
+        if _any != 'yes':
+            continue
+        fields['Description of ' + _nm] = _v(_pre + 'desc')
+        if _v(_pre + 'not_held').lower() == 'yes':
+            fields['Indicate if NOT in your possession - ' + _nm] = (
+                _v(_pre + 'not_held_detail') or 'Not in my possession')
+        for _c, _box in (('value_marriage', _mnm + _HB + 'date of marriage (0.00)'),
+                         ('value_valuation', _nm + _HB + 'valuation date (0.00)'),
+                         ('value_today', _nm + ' - Estimated Market Value of YOUR Interest today (0.00)')):
+            _x = _num131(_pre + _c)
+            fields[_box] = '' if _x is None else f'{_x:.2f}'
+            if _c == 'value_valuation' and _x is not None:
+                _hv.append(_x)
+    fields['TOTAL VALUE OF GENERAL HOUSEHOLD ITEMS AND VEHICLES on valuation date (0.00)'] = (
+        f'{sum(_hv):.2f}' if _hv else '')
 
     # FIX-F131-B1: the old asset, debt, date-of-marriage and net-family-
     # property lines wrote into the wrong boxes ("Other non-cash benefits",
