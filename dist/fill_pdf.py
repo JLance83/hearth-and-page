@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.74'
+FILLER_VERSION = 'dist-2026-10-19.75'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -715,7 +715,38 @@ def _fe_flat(form_data_list):
     # 'court_file_number', so copy it across (never overwrite a real value).
     if not str(flat.get('court_file_number') or '').strip() and str(flat.get('file_number') or '').strip():
         flat['court_file_number'] = flat['file_number']
+    # FIX-RESP-PARTIES: a respondent's case (Form 10) saves both parties on
+    # the Form 10 screens (f10_applicant_*, f10_respondent_*), not on the
+    # main applicant/respondent screens every other form reads. Use them to
+    # fill a gap only: an existing main answer always wins, and a
+    # disagreement is logged (Form 10 itself still blanks it, see _f10_pick).
+    for _side in ('applicant', 'respondent'):
+        for _sub in ('full_name', 'address', 'unit', 'city', 'province',
+                     'postal_code', 'phone', 'email', 'dob'):
+            _m, _a = f'{_side}_{_sub}', f'f10_{_side}_{_sub}'
+            _mv = str(flat.get(_m) or '').strip()
+            _av = str(flat.get(_a) or '').strip()
+            if not _av or _av.upper() == 'N/A':
+                continue
+            if not _mv:
+                flat[_m] = _av
+            elif ' '.join(_mv.casefold().split()) != ' '.join(_av.casefold().split()):
+                sys.stderr.write(f'[_fe_flat] {_m}: main answer kept, Form 10 answer differs\n')
     return flat
+
+
+def _fe_filer_side(d):
+    """FIX-RESP-PARTIES: which side of the case the user is on.
+    1. The case-role answer (Form 15's first screen), if given.
+    2. Otherwise, a case with Form 10 answers is a respondent's case (only a
+       respondent files an Answer).
+    3. Otherwise '' - each form keeps its own default (the applicant)."""
+    r = str(d.get('case_role_case_role') or d.get('case_role') or '').strip().lower()
+    if r in ('applicant', 'respondent'):
+        return r
+    if any(str(k).startswith('f10_') and str(v or '').strip() for k, v in d.items()):
+        return 'respondent'
+    return ''
 
 
 def _is_yes(val):
@@ -1650,16 +1681,27 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Phone & fax - Respondent(s)']     = re_phone
     fields['Email - Respondent(s)']           = re_email
 
-    # Deponent (assumed = applicant unless overridden)
-    filer_name = val('filer_full_name') or ap_name
-    city       = val('applicant_city', 'city', 'applicantCity')
-    province   = val('applicant_province', 'province', 'applicantProvince') or 'Ontario'
+    # Deponent: the applicant unless the case says the user is the
+    # respondent (FIX-RESP-PARTIES, shared _fe_filer_side).
+    _side = _fe_filer_side(d)
+    if _side == 'respondent':
+        filer_name = val('filer_full_name') or re_name
+        city       = val('respondent_city')
+        province   = val('respondent_province')
+        if province.upper() in ('ON', 'ONT', 'ONT.'):
+            province = 'Ontario'
+    else:
+        filer_name = val('filer_full_name') or ap_name
+        city       = val('applicant_city', 'city', 'applicantCity')
+        province   = val('applicant_province', 'province', 'applicantProvince') or 'Ontario'
     # FIX-F13-FILED-BY: "This form is filed by: [ ] applicant [ ] respondent".
     # In this PDF the applicant box is a tiny TEXT field named 'Applicant'
     # (the respondent box is a real checkbox), so writing the filer's full
     # name there showed nothing. Mark it with "X". The app's filer is the
     # applicant on every form (Form 8 etc.), matching the deponent rule below.
-    fields['Applicant']                    = 'X' if filer_name else ''
+    fields['Applicant']                    = 'X' if filer_name and _side != 'respondent' else ''
+    if filer_name and _side == 'respondent':
+        checkboxes['Respondent'] = True
     fields['Full legal name']              = filer_name
     fields['Municipality & province']      = _fmt_muni(city, province)
     fields['Municipality']                 = city
@@ -3255,15 +3297,29 @@ def fill_form6b(input_path, output_path, form_data_list):
     ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
     fnum = d.get('court_file_number', d.get('fileNumber', ''))
     ap   = d.get('applicant_full_name', d.get('applicantFullName', ''))
-    ap_a = d.get('applicant_address', '')
     re_n = d.get('respondent_full_name', d.get('respondentFullName', ''))
-    re_a = d.get('respondent_address', '')
+    # FIX-RESP-PARTIES: the party box's second line is the address for
+    # service: street, then city, province and postal code (it was the
+    # street only, so a party with just a city printed no address).
+    def _6b_addr(side):
+        st = _fmt_addr(d.get(f'{side}_address', ''), d.get(f'{side}_unit', ''), '', '', '')
+        pl = ', '.join(x for x in [str(d.get(f'{side}_city') or '').strip(),
+                                   ' '.join(y for y in [str(d.get(f'{side}_province') or '').strip(),
+                                                        str(d.get(f'{side}_postal_code') or '').strip()] if y)] if x)
+        return ', '.join(x for x in (st, pl) if x)
+    ap_a = _6b_addr('applicant')
+    re_a = _6b_addr('respondent')
     ap_law = d.get('applicant_lawyer_name', '')
     ap_law_a = d.get('applicant_lawyer_address', '')
     re_law = d.get('respondent_lawyer_name', '')
     re_law_a = d.get('respondent_lawyer_address', '')
-    server = d.get('serverFullName', d.get('server_full_name', ''))
-    server_a = d.get('serverAddress', d.get('server_address', ''))
+    # FIX-RESP-PARTIES: the 6B screen saves f6b_service_server_name and
+    # f6b_service_server_municipality ("My name is" / "I live in"). The
+    # server can be someone other than the user, so nothing is assumed.
+    server = (d.get('f6b_service_server_name') or d.get('serverFullName')
+              or d.get('server_full_name') or '')
+    server_a = (d.get('f6b_service_server_municipality') or d.get('serverAddress')
+                or d.get('server_address') or '')
     person_served = d.get('personServed', d.get('person_served', ''))
     svc_date = d.get('serviceDate', d.get('service_date', ''))
     svc_method = d.get('serviceMethod', d.get('service_method', ''))
@@ -6022,18 +6078,20 @@ def fill_form35_1(input_path, output_path, form_data_list):
     # main case answers (combined cases hide the identity screen). The old
     # names filer_dob / filer_city are never saved by any screen.
     fields = _header(d, pages=8)
+    # FIX-RESP-PARTIES: the fallback is the user's own side of the case.
+    _me = 'respondent' if _fe_filer_side(d) == 'respondent' else 'applicant'
     fields['Full legal name'] = (
         d.get('f351_identity_full_name') or d.get('filer_full_name')
-        or d.get('applicant_full_name') or '').strip()
+        or d.get(f'{_me}_full_name') or '').strip()
     fields['Date of birth (d, m, y)'] = format_dob(
         (d.get('f351_identity_dob') or d.get('filer_dob')
-         or d.get('applicant_dob') or '').strip())
+         or d.get(f'{_me}_dob') or '').strip())
     _f351_city = (d.get('f351_identity_city') or '').strip()
     if not _f351_city:
         # Main case: city + province. ON is written out as Ontario. No
         # province is printed if none was given (never assumed).
-        _c = (d.get('applicant_city') or '').strip()
-        _p = (d.get('applicant_province') or '').strip()
+        _c = (d.get(f'{_me}_city') or '').strip()
+        _p = (d.get(f'{_me}_province') or '').strip()
         if _p.upper() in ('ON', 'ONT', 'ONT.'):
             _p = 'Ontario'
         _f351_city = ', '.join(x for x in (_c, _p) if x)
