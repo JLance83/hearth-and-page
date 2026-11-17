@@ -1182,6 +1182,14 @@ The filler (`fill_form13_1`) now reads `f13_income_*` (falling back to `f13_1_in
 
 **Sentinels.** `/*FIX-F131-B2*/{key:"inc_selfemployment_gross"` and `{key:"otherBenefitRows",type:"rows"`
 
+## FIX-F13-NO-CLIENT-PATCH (Nov 17 2026)
+
+**Problem.** After the server returned a filled Form 13, an old browser patcher in `hp-patches.js` (`__patchForm13PDF_real`) ran on every download and email from the checkbox review dialog. It rewrote Part 2 with the raw wizard answers: the one automatic-deductions total on the CPP line, the combined utilities total on "Water", transportation on "Gas and oil", health on "Health insurance premiums", personal on "Entertainment/recreation", and the saved wizard total over the filler's total. That undid FIX-F13-AUTO-DEDUCTIONS, FIX-F13-COMBINED and FIX-F13-TOTALS, and it would also overwrite the per-line answers planned next.
+
+**Fix.** The patcher returns `null` ("no change") right away, the same way FIX-F351-NO-CLIENT-PATCH turned off the Form 35.1 patcher. Callers already keep the server PDF when they get `null`. Cache token `hp-patches.js?v=20261117f13np`.
+
+**Sentinel.** `// FIX-F13-NO-CLIENT-PATCH (Nov 17 2026)`
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

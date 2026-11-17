@@ -81,6 +81,16 @@ window.__patchForm35PDF_real = async function(pdfBlob, caseId) {
 
 // ─── Form 13 PDF patcher ──────────────────────────────────────────────────────
 window.__patchForm13PDF_real = async function(pdfBlob, caseId) {
+  // FIX-F13-NO-CLIENT-PATCH (Nov 17 2026): the server filler fills every
+  // Form 13 Part 2 box itself (FIX-F13-AUTO-DEDUCTIONS / -COMBINED /
+  // -TOTALS, shared with Form 13.1 since FIX-F131-B3). This old browser
+  // patcher then rewrote the downloaded and emailed PDF: it put the one
+  // automatic-deductions total on the CPP line, the combined utilities
+  // total on "Water", transportation on "Gas and oil", health on "Health
+  // insurance premiums", personal on "Entertainment", and replaced the
+  // filler's total with the saved wizard total. Turned off: the PDF stays
+  // exactly as the server filled it. Callers already handle null.
+  return null;
   try {
     if (!window.PDFLib) return null;
     var resp = await fetch('/api/cases/' + caseId + '/form-data', {headers: __authHdr()});

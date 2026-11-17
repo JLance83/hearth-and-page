@@ -493,6 +493,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '{key:"otherBenefitRows",type:"rows"',
   },
+  {
+    commit: 'Nov 17 2026 (see FIX-F13-NO-CLIENT-PATCH)',
+    name: 'Form 13 browser PDF patcher turned off (FIX-F13-NO-CLIENT-PATCH)',
+    file: 'hp-patches.js',
+    sentinel: '// FIX-F13-NO-CLIENT-PATCH (Nov 17 2026)',
+  },
 ];
 
 function resolveFile(prefixOrName) {
