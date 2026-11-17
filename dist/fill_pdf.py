@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.71'
+FILLER_VERSION = 'dist-2026-10-19.72'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1456,6 +1456,89 @@ def _fe_part2_expenses(money, val, to_float):
     }
 
 
+def _fe_sched_b(d):
+    """FIX-F131-B4 (Nov 17 2026): 'Other income earners in the home'.
+
+    Form 13 Schedule B and Form 13.1 Part 3 ask the same 7 lines, so both
+    read the same answers from the Form 13 Schedules screen (f13_schedules
+    section, sb_* keys). The form says to complete this part only for a
+    spousal support or undue hardship claim, so nothing prints unless the
+    user answered Yes to sb_needed. Follow-up answers are read only when
+    the question that shows them was answered the same way (a hidden
+    leftover answer never prints). Money must be a plain number, and the
+    "per" period is never defaulted.
+    """
+    def v(k):
+        for key in ('f13_schedules_' + k, k):
+            x = d.get(key, '')
+            if x in (None, ''):
+                continue
+            x = str(x).strip()
+            if x and x.upper() != 'N/A':
+                return x
+        return ''
+
+    def yes(k):
+        return v(k).lower() in ('yes', 'true', '1')
+
+    def no(k):
+        return v(k).lower() in ('no', 'false', '0')
+
+    def amt(k):
+        x = v(k)
+        if not x:
+            return ''
+        try:
+            return f"{float(x.replace('$', '').replace(',', '').strip()):.2f}"
+        except ValueError:
+            sys.stderr.write(f'[sched_b] {k}: "{x}" is not a number; left blank\n')
+            return ''
+
+    out = {'live_alone': False, 'partner': False, 'partner_name': '',
+           'adults': False, 'adults_names': '', 'children': '',
+           'works': '', 'workplace': '', 'earns': '', 'earnings': '',
+           'earn_period': '', 'contrib': False, 'contribution': '',
+           'contribution_period': ''}
+    if not yes('sb_needed'):
+        return out
+    if yes('sb_live_alone'):
+        out['live_alone'] = True
+        return out
+    if not no('sb_live_alone'):
+        return out
+    if yes('sb_partner_any'):
+        out['partner'] = True
+        out['partner_name'] = v('sb_partner_name')
+        w = v('sb_partner_works').lower()
+        if w in ('works', 'no_work'):
+            out['works'] = w
+            if w == 'works':
+                out['workplace'] = v('sb_partner_workplace')
+        e = v('sb_partner_earns').lower()
+        if e in ('earns', 'none'):
+            out['earns'] = e
+            if e == 'earns':
+                out['earnings'] = amt('sb_partner_earnings')
+                out['earn_period'] = v('sb_partner_earn_period')
+    if yes('sb_adults_any'):
+        out['adults'] = True
+        out['adults_names'] = v('sb_adults_names')
+    c = v('sb_children_count')
+    if c:
+        try:
+            n = float(c.replace(',', ''))
+            if n != int(n) or n < 0:
+                raise ValueError
+            out['children'] = str(int(n)) if n > 0 else ''
+        except ValueError:
+            sys.stderr.write(f'[sched_b] sb_children_count: "{c}" is not a whole number; left blank\n')
+    if yes('sb_contrib_any'):
+        out['contrib'] = True
+        out['contribution'] = amt('sb_contribution')
+        out['contribution_period'] = v('sb_contribution_period')
+    return out
+
+
 def fill_form13(input_path, output_path, form_data_list):
     """Fill Form 13 — Financial Statement (Support Claims).
 
@@ -1984,71 +2067,37 @@ def fill_form13(input_path, output_path, form_data_list):
         sys.stderr.write('[fill_form13] Schedule A free text has no box on the form; not printed\n')
 
     # ── Schedule B: Other income earners in the home ─────────────────────
-    live_arrangement = val('f13_scheduleB_living_arrangement', 'sched_b_living',
-                           'schedule_b_living').lower()
-    spouse_name    = val('f13_scheduleB_partner_name', 'sched_b_partner_name',
-                         'schedule_b_partner_name')
-    other_adults   = val('f13_scheduleB_other_adults', 'sched_b_other_adults')
-    # FIX-F13-CHILDREN-AT-HOME: Schedule B asks how many children live in
-    # YOUR home - not how many children you have. Use an explicit Schedule B
-    # answer if one exists; otherwise count only children whose "lives with"
-    # answer says they live with the filer (with me / shared / equal time).
-    # Children with the other parent, a grandparent, or unrecognised text are
-    # not counted (never guess on a sworn form).
-    children_count = val('f13_scheduleB_children_count', 'sched_b_children_count')
-    if not children_count:
-        try:
-            _n_kids = int(float(str(d.get('children_count', '0') or '0')))
-        except ValueError:
-            _n_kids = 0
-        _home = 0
-        for _i in range(1, min(_n_kids, 10) + 1):
-            _lw = str(d.get(f'child_{_i}_lives_with',
-                            d.get(f'child_{_i}_residence', '')) or '').strip().lower()
-            if not _lw or any(x in _lw for x in ('other parent', 'respondent', 'grandparent', 'father', 'mother')):
-                continue
-            if _lw in ('me', 'applicant', 'both', 'both_equal') or any(
-                    x in _lw for x in ('with me', 'shared', 'equal', '50/50', 'both parents', 'with the applicant')):
-                _home += 1
-        children_count = str(_home) if _home else ''
-    spouse_workplace = val('f13_scheduleB_partner_workplace', 'sched_b_partner_workplace')
-    spouse_earnings  = money('f13_scheduleB_partner_earnings', 'sched_b_partner_earnings')
-    spouse_earn_period = val('f13_scheduleB_partner_earn_period', 'sched_b_partner_earn_period')
-    contribution     = money('f13_scheduleB_contribution', 'sched_b_contribution')
-    contribution_period = val('f13_scheduleB_contribution_period', 'sched_b_contribution_period')
-
-    if live_arrangement in ('alone', 'live_alone', 'live alone'):
+    # FIX-F131-B4: shared with Form 13.1 Part 3 (see _fe_sched_b). The old
+    # f13_scheduleB_* keys were never asked by the wizard (none saved), and
+    # the old children count was worked out from "lives with" answers, which
+    # can't see children from other relationships; it is asked directly now.
+    _sb = _fe_sched_b(d)
+    if _sb['live_alone']:
         checkboxes['I live alone'] = True
-    if spouse_name:
+    if _sb['partner']:
         checkboxes['I am living with'] = True
-        fields['Full legal name of person you are married to or cohabiting with'] = spouse_name
-    if other_adults:
+        fields['Full legal name of person you are married to or cohabiting with'] = _sb['partner_name']
+    if _sb['adults']:
         checkboxes['I/we live with'] = True
-        fields['Name(s) - Adult(s) living with'] = other_adults
-    if children_count:
+        fields['Name(s) - Adult(s) living with'] = _sb['adults_names']
+    if _sb['children']:
         checkboxes['I/we have children living at home'] = True
-        fields['Number of child(ren) living at home'] = children_count
-
-    if spouse_workplace:
+        fields['Number of child(ren) living at home'] = _sb['children']
+    if _sb['works'] == 'works':
         checkboxes['My spouse/partner works at'] = True
-        fields['Place of work or business'] = spouse_workplace
-    elif live_arrangement:
-        # If we know partner status but no workplace, don't check "does not work"
-        # blindly — only when explicitly indicated.
-        if val('f13_scheduleB_partner_no_work', 'sched_b_partner_no_work') in ('true', 'yes', '1'):
-            checkboxes['My spouse/partner does not work outside the home'] = True
-
-    if spouse_earnings:
+        fields['Place of work or business'] = _sb['workplace']
+    elif _sb['works'] == 'no_work':
+        checkboxes['My spouse/partner does not work outside the home'] = True
+    if _sb['earns'] == 'earns':
         checkboxes['My spouse/partner earns'] = True
-        fields['Amount (0.00) - spouse/partner earnings'] = spouse_earnings
-        fields['Time period (e.g. week, month, year)'] = spouse_earn_period or 'month'
-    elif val('f13_scheduleB_partner_no_income', 'sched_b_partner_no_income') in ('true', 'yes', '1'):
+        fields['Amount (0.00) - spouse/partner earnings'] = _sb['earnings']
+        fields['Time period (e.g. week, month, year)'] = _sb['earn_period']
+    elif _sb['earns'] == 'none':
         checkboxes['My spouse/partner does not earn any income'] = True
-
-    if contribution:
+    if _sb['contrib']:
         checkboxes['My spouse/partner or other adult residing in the home contributes about'] = True
-        fields['Contributions to household (0.00)'] = contribution
-        fields['Time period (e.g. week, month, year) 2'] = contribution_period or 'month'
+        fields['Contributions to household (0.00)'] = _sb['contribution']
+        fields['Time period (e.g. week, month, year) 2'] = _sb['contribution_period']
 
     # FIX-F13-SCHED-TEXT (Nov 17 2026): 'Details 3' is row 3 of the page 3
     # non-cash benefits table, not Schedule B. Free-text Schedule B answers
@@ -2448,6 +2497,36 @@ def fill_form13_1(input_path, output_path, form_data_list):
     fields['Other Expenses Subtotal' + _MA]       = _st(_S['other'])
     fields['Total Amount of Monthly Expenses (0.00)'] = _p2['total_monthly']
     fields['Total Amount of Yearly Expenses (0.00)']  = _p2['total_yearly']
+
+    # ── Part 3: Other income earners in the home (FIX-F131-B4) ───────────
+    # Same answers as Form 13 Schedule B (shared _fe_sched_b). Line 7 has
+    # no checkbox on Form 13.1, only the amount and "per" boxes.
+    _sb = _fe_sched_b(d)
+    if _sb['live_alone']:
+        checkboxes['I live alone'] = True
+    if _sb['partner']:
+        checkboxes['I am living with (full legal name of person you are married to or cohabiting with)'] = True
+        fields['full legal name of person you are married to or cohabiting with'] = _sb['partner_name']
+    if _sb['adults']:
+        checkboxes['I/we live with the following other adult(s)'] = True
+        fields['full legal name(s) of other adult(s) you are cohabiting with'] = _sb['adults_names']
+    if _sb['children']:
+        checkboxes['I/we have (give number) child(ren) who live(s) in the home'] = True
+        fields['number of children'] = _sb['children']
+    if _sb['works'] == 'works':
+        checkboxes['works at (place of work or business)'] = True
+        fields['place of work or business'] = _sb['workplace']
+    elif _sb['works'] == 'no_work':
+        checkboxes['does not work outside the home'] = True
+    if _sb['earns'] == 'earns':
+        checkboxes['earns (give amount) of income'] = True
+        fields['amount earned (0.00)'] = _sb['earnings']
+        fields['frequency'] = _sb['earn_period']
+    elif _sb['earns'] == 'none':
+        checkboxes['does not earn any income'] = True
+    if _sb['contrib']:
+        fields['amount contributed (0.00)'] = _sb['contribution']
+        fields['frequency_2'] = _sb['contribution_period']
 
     # FIX-F131-B1: the old asset, debt, date-of-marriage and net-family-
     # property lines wrote into the wrong boxes ("Other non-cash benefits",

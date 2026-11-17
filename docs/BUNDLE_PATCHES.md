@@ -1215,6 +1215,31 @@ The filler (`fill_form13_1`) now reads `f13_income_*` (falling back to `f13_1_in
 
 **Check.** Case 39 ("360 Child Care"): Form 13 and 13.1 now print Other 360.00, specify "Child Care", Other subtotal 360.00, monthly total 4117.63, which matches the app's saved total.
 
+## FIX-F131-B4 (Nov 17 2026)
+
+**Problem.** Form 13 Schedule B and Form 13.1 Part 3 ("Other income earners in the home") ask the same 7 lines of checkboxes and boxes. The wizard only had one free-text "Schedule B" box. The filler read structured `f13_scheduleB_*` answers that nothing ever asked for, so the checkboxes never filled. Form 13.1 Part 3 had no mapping at all.
+
+**Fix (bundle, index-CNjoTsGP.js, Form 13 "Schedules & Summary" screen).** The old textarea is replaced with these questions:
+- `sb_needed`: is this a spousal support or undue hardship claim? This is the form's own "complete only if" rule.
+- `sb_live_alone`
+- `sb_partner_any` and `sb_partner_name`
+- `sb_adults_any` and `sb_adults_names`
+- `sb_children_count`
+- `sb_partner_works` (works / no_work) and `sb_partner_workplace`
+- `sb_partner_earns` (earns / none), `sb_partner_earnings` and `sb_partner_earn_period`
+- `sb_contrib_any`, `sb_contribution` and `sb_contribution_period`
+
+Each follow-up shows only after the answer that leads to it. Name and workplace questions have box-fit checks (Form 13.1 box widths), and the money and number questions use the FIX-F13-NUM-ONLY warning. `numMsg` lets a field set its own warning text. The old `schedule_b` textarea is shown only if it already has an answer, labelled "(earlier answer)".
+
+**Fix (filler, `_fe_sched_b(d)`, FILLER_VERSION .72).** Both `fill_form13` (Schedule B, page 7) and `fill_form13_1` (Part 3, page 4) read the same answers:
+- Nothing prints unless `sb_needed` is Yes.
+- "Lives alone" ticks line 1 only. Leftover answers to hidden questions never print.
+- The "per" period is never defaulted. The old default was "month".
+- The children count is asked directly. The old count was worked out from "lives with" answers and missed children from other relationships.
+- Form 13.1 line 7 has no checkbox, only the amount and "per" boxes.
+
+**Check.** Full, lives-alone, gate-No, does-not-work and bad-number scenarios were checked on both forms. Page renders were checked visually. No changes to existing output across 25 templates x 2 cases (neither case printed anything in Schedule B before).
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

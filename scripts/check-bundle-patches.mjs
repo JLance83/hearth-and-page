@@ -535,6 +535,24 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: 'function __hpExpNum(v,k){',
   },
+  {
+    commit: 'Nov 17 2026 (see FIX-F131-B4)',
+    name: 'Form 13 Schedules screen: structured Schedule B questions, shared with Form 13.1 Part 3 (FIX-F131-B4)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F131-B4*/{key:"sb_needed",type:"yesno"',
+  },
+  {
+    commit: 'Nov 17 2026 (see FIX-F131-B4)',
+    name: 'Old free-text Schedule B answer shown only when already answered (FIX-F131-B4)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '{key:"schedule_b",type:"textarea",label:"Schedule B — Other income earners in the home (earlier answer)"',
+  },
+  {
+    commit: 'Nov 17 2026 (see FIX-F131-B4)',
+    name: 'Number warning can carry its own message (numMsg) (FIX-F131-B4)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'if(t.numMsg)return t.numMsg;',
+  },
 ];
 
 function resolveFile(prefixOrName) {
