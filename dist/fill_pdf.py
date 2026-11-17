@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.70'
+FILLER_VERSION = 'dist-2026-10-19.71'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1977,8 +1977,11 @@ def fill_form13(input_path, output_path, form_data_list):
     fields['Additional Sources of Income - Subtotal'] = f'{sched_a_total:.2f}' if sched_a_total else ''
 
     # Schedule A free-text detail (backwards-compat with the old textarea path)
-    if val('schedule_a'):
-        fields['Details 2'] = d.get('schedule_a', '') or d.get('f13_schedules_schedule_a', '')
+    # FIX-F13-SCHED-TEXT (Nov 17 2026): 'Details 2' is row 2 of the page 3
+    # non-cash benefits table, not Schedule A. Free-text Schedule A answers
+    # have no box on the form, so they are logged, not printed in the wrong place.
+    if val('schedule_a', 'f13_schedules_schedule_a'):
+        sys.stderr.write('[fill_form13] Schedule A free text has no box on the form; not printed\n')
 
     # ── Schedule B: Other income earners in the home ─────────────────────
     live_arrangement = val('f13_scheduleB_living_arrangement', 'sched_b_living',
@@ -2047,8 +2050,11 @@ def fill_form13(input_path, output_path, form_data_list):
         fields['Contributions to household (0.00)'] = contribution
         fields['Time period (e.g. week, month, year) 2'] = contribution_period or 'month'
 
-    if val('schedule_b'):
-        fields['Details 3'] = d.get('schedule_b', '') or d.get('f13_schedules_schedule_b', '')
+    # FIX-F13-SCHED-TEXT (Nov 17 2026): 'Details 3' is row 3 of the page 3
+    # non-cash benefits table, not Schedule B. Free-text Schedule B answers
+    # have no box on the form, so they are logged, not printed in the wrong place.
+    if val('schedule_b', 'f13_schedules_schedule_b'):
+        sys.stderr.write('[fill_form13] Schedule B free text has no box on the form; not printed\n')
 
     # ── Schedule C: Special/Extraordinary expenses (10 slots) ────────────
     for i in range(1, 11):
@@ -2075,8 +2081,11 @@ def fill_form13(input_path, output_path, form_data_list):
             'f13_scheduleC_own_earnings', 'sched_c_own_earnings',
         ) or annualize(inc_total)
 
-    if val('schedule_c'):
-        fields['Details 4'] = d.get('schedule_c', '') or d.get('f13_schedules_schedule_c', '')
+    # FIX-F13-SCHED-TEXT (Nov 17 2026): 'Details 4' is row 4 of the page 3
+    # non-cash benefits table, not Schedule C. Free-text Schedule C answers
+    # have no box on the form, so they are logged, not printed in the wrong place.
+    if val('schedule_c', 'f13_schedules_schedule_c'):
+        sys.stderr.write('[fill_form13] Schedule C free text has no box on the form; not printed\n')
 
     # ── Write PDF ─────────────────────────────────────────────────────────
     from pypdf import PdfReader, PdfWriter
