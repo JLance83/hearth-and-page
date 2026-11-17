@@ -499,6 +499,24 @@ const PATCHES = [
     file: 'hp-patches.js',
     sentinel: '// FIX-F13-NO-CLIENT-PATCH (Nov 17 2026)',
   },
+  {
+    commit: 'Nov 17 2026 (see FIX-F13-EXP-LINES)',
+    name: 'Form 13 expense screen: one question per PDF line, earlier combined totals shown only when already answered (FIX-F13-EXP-LINES)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F13-EXP-LINES*/{key:"exp_auto_cpp"',
+  },
+  {
+    commit: 'Nov 17 2026 (see FIX-F13-EXP-LINES)',
+    name: 'Form 13 in-app expense total uses the same group rule as the filler (FIX-F13-EXP-LINES)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'Re=__hpF13ExpTotal(u.f13_expenses||{})',
+  },
+  {
+    commit: 'Nov 17 2026 (see FIX-F13-EXP-LINES)',
+    name: 'showIf {key, set:1}: show a field only while it has an answer (FIX-F13-EXP-LINES)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F13-EXP-LINES*/if(f.showIf.set)',
+  },
 ];
 
 function resolveFile(prefixOrName) {

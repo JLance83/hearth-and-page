@@ -1190,6 +1190,17 @@ The filler (`fill_form13_1`) now reads `f13_income_*` (falling back to `f13_1_in
 
 **Sentinel.** `// FIX-F13-NO-CLIENT-PATCH (Nov 17 2026)`
 
+## FIX-F13-EXP-LINES (Nov 17 2026)
+
+**Problem.** Forms 13 and 13.1 have one box per expense line, but the Form 13 expense screen asked some groups as one combined number (automatic deductions, utilities, transportation, health, personal). That number could only go in the group subtotal, so lines like Water, Heat, CPP and Gas stayed blank, even though the screen tells users the court expects every line filled. Some lines (household supplies, pet care, laundry, babysitting, transport repairs, school fees, children's clothing, summer camp and more) were never asked at all.
+
+**Fix.**
+- `f13_expenses` now asks one question per PDF line, in the form's order, each label starting with its group ("Utilities: Water $/month"). New keys include `exp_auto_cpp`, `exp_water`, `exp_public_transit`, `exp_entertainment`, `exp_education_desc` and others the filler already read. `exp_groceries`, `exp_childcare`, `exp_clothing` and `exp_children_activities` keep their keys with narrower labels.
+- The earlier combined questions (`exp_auto_deductions`, `exp_utilities`, `exp_transit`, `exp_health`, `exp_personal`) stay on the screen only while they hold an answer, relabelled "(earlier answer)", so older cases can still see and clear them. This uses a new `showIf:{key,set:1}` form in `__hpShowOk`.
+- Group rule, the same in the filler (`_fe_part2_expenses`) and in the in-app total (`__hpF13ExpTotal`): an earlier combined total counts only while none of the lines it covered has an answer. Personal's earlier total never covered clothing or education.
+
+**Sentinels.** `/*FIX-F13-EXP-LINES*/{key:"exp_auto_cpp"`, `Re=__hpF13ExpTotal(u.f13_expenses||{})`, `/*FIX-F13-EXP-LINES*/if(f.showIf.set)`
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

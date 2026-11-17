@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.68'
+FILLER_VERSION = 'dist-2026-10-19.69'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1335,7 +1335,7 @@ def _fe_part2_expenses(money, val, to_float):
     L['laundry']            = money('f13_expenses_exp_laundry', 'exp_laundry')
     L['daycare']     = money('f13_expenses_exp_childcare', 'exp_childcare', 'daycare_expense')
     L['babysitting'] = money('f13_expenses_exp_babysitting', 'exp_babysitting')
-    L['transit']       = money('public_transit')
+    L['transit']       = money('f13_expenses_exp_public_transit', 'exp_public_transit', 'public_transit')
     L['gas_oil']       = money('f13_expenses_exp_gas_oil', 'exp_gas_oil')
     L['car_insurance'] = money('f13_expenses_exp_car_insurance', 'exp_car_insurance')
     L['car_repairs']   = money('f13_expenses_exp_car_repairs', 'exp_car_repairs')
@@ -1351,7 +1351,7 @@ def _fe_part2_expenses(money, val, to_float):
     L['hair_beauty']   = money('f13_expenses_exp_hair_beauty', 'exp_hair_beauty', 'exp_personal_care')
     L['alcohol']       = money('f13_expenses_exp_alcohol', 'exp_alcohol')
     L['education']     = money('f13_expenses_exp_education', 'exp_education')
-    L['entertainment'] = money('exp_entertainment')
+    L['entertainment'] = money('f13_expenses_exp_entertainment', 'exp_entertainment')
     L['gifts']         = money('f13_expenses_exp_gifts', 'exp_gifts')
     L['life_insurance']      = money('f13_expenses_exp_life_insurance', 'exp_life_insurance')
     L['rrsp']                = money('f13_expenses_exp_rrsp', 'exp_rrsp')
@@ -1367,21 +1367,37 @@ def _fe_part2_expenses(money, val, to_float):
     def _sum(*ks):
         return sum(to_float(L[k]) for k in ks)
 
+    # FIX-F13-EXP-LINES (Nov 17 2026): the wizard now asks every line.
+    # Older cases may still have a one-number group total from the earlier
+    # combined questions. That total counts only while none of the group's
+    # lines has an answer; once any line is answered, the lines win and the
+    # old total is ignored (and logged), so nothing is counted twice.
+    def _group(name, keys, legacy_keys):
+        answered = any(L[k] not in (None, '') for k in keys)
+        legacy = money(*legacy_keys) if legacy_keys else ''
+        if answered:
+            if legacy:
+                sys.stderr.write(f'[part2] {name}: line answers used; earlier group total {legacy} ignored\n')
+            return _sum(*keys)
+        return to_float(legacy)
+
     S = {}
-    S['auto'] = _sum('cpp', 'ei', 'income_tax', 'pension', 'union_dues')
-    if not S['auto']:
-        S['auto'] = to_float(money('f13_expenses_exp_auto_deductions', 'exp_auto_deductions'))
+    S['auto'] = _group('auto', ('cpp', 'ei', 'income_tax', 'pension', 'union_dues'),
+                       ('f13_expenses_exp_auto_deductions', 'exp_auto_deductions'))
     S['housing'] = _sum('rent_mortgage', 'property_tax', 'property_insurance', 'condo', 'home_repairs')
-    S['utilities'] = (_sum('water', 'heat', 'electricity', 'telephone', 'cell', 'cable', 'internet')
-                      + to_float(money('f13_expenses_exp_utilities', 'exp_utilities')))
+    S['utilities'] = _group('utilities', ('water', 'heat', 'electricity', 'telephone', 'cell', 'cable', 'internet'),
+                            ('f13_expenses_exp_utilities', 'exp_utilities'))
     S['household'] = _sum('groceries', 'household_supplies', 'meals_out', 'pet_care', 'laundry')
     S['childcare'] = _sum('daycare', 'babysitting')
-    S['transport'] = (_sum('transit', 'gas_oil', 'car_insurance', 'car_repairs', 'parking', 'car_loan')
-                      + to_float(money('f13_expenses_exp_transit', 'exp_transit')))
-    S['health'] = (_sum('health_insurance', 'dental', 'medicine', 'eye_care')
-                   + to_float(money('f13_expenses_exp_health', 'exp_health')))
-    S['personal'] = (_sum('clothing', 'hair_beauty', 'alcohol', 'education', 'entertainment', 'gifts')
-                     + to_float(money('f13_expenses_exp_personal', 'exp_personal')))
+    S['transport'] = _group('transport', ('transit', 'gas_oil', 'car_insurance', 'car_repairs', 'parking', 'car_loan'),
+                            ('f13_expenses_exp_transit', 'exp_transit'))
+    S['health'] = _group('health', ('health_insurance', 'dental', 'medicine', 'eye_care'),
+                         ('f13_expenses_exp_health', 'exp_health'))
+    # The earlier "Personal (hair, entertainment, gifts, alcohol, tobacco)"
+    # total never covered clothing or education, which were asked apart.
+    S['personal'] = (_sum('clothing', 'education')
+                     + _group('personal', ('hair_beauty', 'alcohol', 'entertainment', 'gifts'),
+                              ('f13_expenses_exp_personal', 'exp_personal')))
     S['other'] = _sum('life_insurance', 'rrsp', 'vacations', 'school_fees', 'children_clothing',
                       'children_activities', 'summer_camp', 'debt_payments', 'other_support', 'other')
     total = (S['auto'] + S['housing'] + S['utilities'] + S['household'] + S['childcare']
