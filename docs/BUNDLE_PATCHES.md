@@ -1201,6 +1201,20 @@ The filler (`fill_form13_1`) now reads `f13_income_*` (falling back to `f13_1_in
 
 **Sentinels.** `/*FIX-F13-EXP-LINES*/{key:"exp_auto_cpp"`, `Re=__hpF13ExpTotal(u.f13_expenses||{})`, `/*FIX-F13-EXP-LINES*/if(f.showIf.set)`
 
+## FIX-F13-NUM-ONLY (Nov 17 2026)
+
+**Problem.** Every Part 2 expense box on Forms 13 and 13.1 is a dollar amount that feeds the subtotals. "Other expenses" was a free-text box ("e.g. Pet care $80/month") and its helper told users to type "360 Child Care". The app total counted the 360, but the PDF printed "360 Child Care" in the $ box and didn't add it, so the form's totals disagreed with the app.
+
+**Fix (bundle, index-CNjoTsGP.js).**
+- `exp_other` is now a one-line amount question ("Other: Other expenses not shown above $/month"). A new `exp_other_desc` question ("what the other expenses are (specify)") appears once an amount is entered, with a box-fit check for the 135pt specify box. `exp_education_desc` got a fit check for its 87pt box.
+- All Form 13 expense and income money questions carry `num:1`. `__hpNumMsg`/`__hpNumNote` show an amber "Numbers only…" note (testid `num-warn-<key>`) under the input when the answer isn't a plain number. Those inputs also open the decimal keypad on phones (`inputMode`).
+- `__hpExpNum(v,k)` counts only plain numbers. An old multi-line `exp_other` answer counts only when every line starts with an amount.
+- The total's helper text now reads "Worked out from the amounts above."
+
+**Fix (filler, dist/fill_pdf.py `_fe_part2_expenses`, FILLER_VERSION .70).** A money box that isn't a number is left blank and logged, and isn't counted. It still counts as "answered" for the group rule, the same as the app. For an old `exp_other` answer where every line starts with an amount, the amounts are added up and the remaining words become the specify text, unless `exp_other_desc` is filled in.
+
+**Check.** Case 39 ("360 Child Care"): Form 13 and 13.1 now print Other 360.00, specify "Child Care", Other subtotal 360.00, monthly total 4117.63, which matches the app's saved total.
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

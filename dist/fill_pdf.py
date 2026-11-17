@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.69'
+FILLER_VERSION = 'dist-2026-10-19.70'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1364,6 +1364,49 @@ def _fe_part2_expenses(money, val, to_float):
     L['other_support']       = money('f13_expenses_exp_other_support', 'exp_other_support')
     L['other']               = money('f13_expenses_exp_other', 'exp_other')
 
+    # FIX-F13-NUM-ONLY (Nov 17 2026): every Part 2 box is a dollar amount
+    # that feeds the subtotals. Words in a money box can't be added up, so
+    # they are never printed there (logged instead) and the wizard warns the
+    # user. The answer still counts as "answered" for the group rule below.
+    # One exception: the old "Other expenses" free-text box told users to
+    # write one expense per line starting with the amount ("360 Child
+    # Care"), and the app's own total already added those amounts. When
+    # every line follows that format, the amounts are added up and the
+    # words become the "specify" text (unless a description was given).
+    import re
+    answered = set(k for k in L if L[k] not in (None, ''))
+    other_desc = val('f13_expenses_exp_other_desc', 'exp_other_desc')
+
+    def _is_num(x):
+        try:
+            float(str(x).replace('$', '').replace(',', '').strip())
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    for k in list(L):
+        if L[k] in (None, '') or _is_num(L[k]):
+            continue
+        if k == 'other':
+            raw = val('f13_expenses_exp_other', 'exp_other')
+            lines = [ln.strip() for ln in re.split(r'[\r\n]+', raw) if ln.strip()]
+            amts, descs = [], []
+            for ln in lines:
+                m = re.match(r'^\$?\s*(\d[\d,]*(?:\.\d+)?)(?:\s+(.*))?$', ln)
+                if not m:
+                    amts = None
+                    break
+                amts.append(float(m.group(1).replace(',', '')))
+                if m.group(2):
+                    descs.append(m.group(2).strip())
+            if amts:
+                L[k] = f'{sum(amts):.2f}'
+                if not other_desc:
+                    other_desc = '; '.join(descs)
+                continue
+        sys.stderr.write(f'[part2] {k}: "{L[k]}" is not a number; left blank\n')
+        L[k] = ''
+
     def _sum(*ks):
         return sum(to_float(L[k]) for k in ks)
 
@@ -1373,9 +1416,9 @@ def _fe_part2_expenses(money, val, to_float):
     # lines has an answer; once any line is answered, the lines win and the
     # old total is ignored (and logged), so nothing is counted twice.
     def _group(name, keys, legacy_keys):
-        answered = any(L[k] not in (None, '') for k in keys)
+        answered_any = any(k in answered for k in keys)
         legacy = money(*legacy_keys) if legacy_keys else ''
-        if answered:
+        if answered_any:
             if legacy:
                 sys.stderr.write(f'[part2] {name}: line answers used; earlier group total {legacy} ignored\n')
             return _sum(*keys)
@@ -1407,7 +1450,7 @@ def _fe_part2_expenses(money, val, to_float):
         'lines': L,
         'subtotals': S,
         'education_desc': val('f13_expenses_exp_education_desc', 'exp_education_desc'),
-        'other_desc': val('f13_expenses_exp_other_desc', 'exp_other_desc'),
+        'other_desc': other_desc,
         'total_monthly': total_m,
         'total_yearly': f'{to_float(total_m) * 12:.2f}' if total_m else '',
     }

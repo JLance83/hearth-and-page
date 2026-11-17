@@ -267,7 +267,7 @@ const PATCHES = [
     commit: 'Nov 9 2026 (see FIX-FIT-WARN)',
     name: 'Fit note shown under one-line answers (FIX-FIT-WARN)',
     file: 'index-CNjoTsGP.js',
-    sentinel: '"data-testid":u,autoComplete:"off"}),/*FIX-FIT-WARN*/__hpFitNote(s,t,e)]})}',
+    sentinel: 'inputMode:t.num?"decimal":void 0}),/*FIX-FIT-WARN*/__hpFitNote(s,t,e),__hpNumNote(s,t,e)]})}', // updated by FIX-F13-NUM-ONLY
   },
   {
     commit: 'Nov 9 2026 (see FIX-FIT-WARN)',
@@ -516,6 +516,24 @@ const PATCHES = [
     name: 'showIf {key, set:1}: show a field only while it has an answer (FIX-F13-EXP-LINES)',
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F13-EXP-LINES*/if(f.showIf.set)',
+  },
+  {
+    commit: 'Nov 17 2026 (see FIX-F13-NUM-ONLY)',
+    name: 'Money questions warn when the answer is not a plain number (FIX-F13-NUM-ONLY)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F13-NUM-ONLY*/function __hpNumMsg(t,e)',
+  },
+  {
+    commit: 'Nov 17 2026 (see FIX-F13-NUM-ONLY)',
+    name: 'Form 13 "Other expenses" is an amount box plus a separate specify box (FIX-F13-NUM-ONLY)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '{key:"exp_other_desc",type:"text",label:"Other: what the other expenses are (specify)"',
+  },
+  {
+    commit: 'Nov 17 2026 (see FIX-F13-NUM-ONLY)',
+    name: 'In-app expense total counts only plain numbers, like the filler (FIX-F13-NUM-ONLY)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'function __hpExpNum(v,k){',
   },
 ];
 
