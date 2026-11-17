@@ -1240,6 +1240,27 @@ Each follow-up shows only after the answer that leads to it. Name and workplace 
 
 **Check.** Full, lives-alone, gate-No, does-not-work and bad-number scenarios were checked on both forms. Page renders were checked visually. No changes to existing output across 25 templates x 2 cases (neither case printed anything in Schedule B before).
 
+## FIX-F131-B5 (Nov 17 2026)
+
+**Problem.** Form 13.1 Part 4 starts with three dates (marriage, valuation, start of cohabitation if different), then 4(a) Land: ownership and %, address, the value of your interest on three dates, and total 15. None of it was filled. The app had no valuation-date or land questions for Form 13.1, only the old free-text property screens.
+
+**Fix (bundle).** A new Form 13.1 screen, `f131_land` ("Property: key dates and land", in the Form 13.1 step list before the old property screens), asks:
+- `valSameAsSep` (yes/no) and, only if No, `valuationDate`
+- `livedTogetherBefore` (yes/no) and `cohabitationDate`
+- `landAny` (yes/no) and `landRows` (rows, max 6): ownership, address, valueMarriage, valueValuation, valueToday (numbers only), and matrimonialHome (yes/no, used by Part 6 in brick 10)
+
+The marriage date isn't asked again. It comes from "Your situation".
+
+**Fix (filler, fill_form13_1, FILLER_VERSION .73).**
+- Marriage and separation dates come from `situation_*`. Form 13B, 8A or 36 answers only fill a gap, and answers that disagree leave the box blank (logged).
+- The valuation date is the separation date only when the user confirmed it. Otherwise it's their own answer.
+- The cohabitation date prints only when it differs from the marriage date. Dates use dd/mm/yyyy.
+- Land: the form has one row of value boxes, so property 1 prints there and the rest are logged for the continuation page (brick 12). Total 15 adds every property's valuation-date value, and stays blank if none was entered.
+- "NONE" prints only when the user answered No to land.
+- Rows are read up to `landRows_count`, so a removed row's leftover answers never print.
+
+**Check.** Full, no-land, conflicting-dates and skipped scenarios, a page render, a browser run of the screen (show/hide, rows, number warning, saved keys), and the row-count case. Regression: no changes across 25 templates x 2 cases.
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

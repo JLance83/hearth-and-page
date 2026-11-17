@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.72'
+FILLER_VERSION = 'dist-2026-10-19.73'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2527,6 +2527,102 @@ def fill_form13_1(input_path, output_path, form_data_list):
     if _sb['contrib']:
         fields['amount contributed (0.00)'] = _sb['contribution']
         fields['frequency_2'] = _sb['contribution_period']
+
+    # ── Part 4: dates (FIX-F131-B5) ───────────────────────────────────────
+    # Marriage and separation dates come from the main "Your situation"
+    # screen. Another form's answer only fills a gap, and if two answers
+    # disagree the box stays blank (logged). The valuation date is the
+    # separation date only when the user confirmed it (valSameAsSep = yes);
+    # otherwise it is their own valuation-date answer. The cohabitation date
+    # prints only when it differs from the marriage date, as the form says.
+    def _one131(label, *vals):
+        got = []
+        for x in vals:
+            x = str(x or '').strip()
+            if x and x.upper() != 'N/A' and x not in got:
+                got.append(x)
+        if len(got) > 1:
+            sys.stderr.write(f'[fill_form13_1] {label}: answers differ {got} - left blank\n')
+            return ''
+        return got[0] if got else ''
+
+    _married = _v('situation_were_married', 'situationWereMarried').lower()
+    _mdate = _one131('marriage date',
+                     _v('situation_marriage_date') if _married in ('yes', 'true', '1') else '',
+                     _v('f13b_identity_marriage_date'), _v('f8a_marriage_marriage_date'),
+                     _v('f36_marriage_marriage_date')) if _married not in ('no', 'false', '0') else ''
+    _sdate = _one131('separation date', _v('situation_separation_date'),
+                     _v('f13b_identity_separation_date'))
+    _vs = _v('f131_land_val_same_as_sep').lower()
+    if _vs == 'yes':
+        _vdate = _one131('valuation date', _sdate, _v('f13b_identity_valuation_date'))
+        if not _sdate:
+            sys.stderr.write('[fill_form13_1] valuation date = separation date, but no separation date saved - left blank\n')
+    elif _vs == 'no':
+        _vdate = _one131('valuation date', _v('f131_land_valuation_date'),
+                         _v('f13b_identity_valuation_date'))
+    else:
+        _vdate = _v('f13b_identity_valuation_date')
+    _lt = _v('f131_land_lived_together_before').lower()
+    _cdate = ''
+    if _lt == 'yes':
+        _cdate = _one131('cohabitation date', _v('f131_land_cohabitation_date'),
+                         _v('f36_marriage_cohabitation_start_date'))
+    elif not _lt:
+        _cdate = _v('f36_marriage_cohabitation_start_date')
+    if _cdate and _cdate == _mdate:
+        _cdate = ''
+    fields['marriage date'] = format_dob(_mdate)
+    fields['valuation date'] = format_dob(_vdate)
+    fields['commencement of cohabitation date (if different from date of marriage)'] = format_dob(_cdate)
+
+    # ── Part 4(a): Land (FIX-F131-B5) ────────────────────────────────────
+    # The form has one row of value boxes; property 1 prints in the row and
+    # any more go to the continuation page (Form 13.1 plan, brick 12).
+    # Total 15 adds the valuation-date value of every property and stays
+    # blank when none was entered. "NONE" prints only when the user said
+    # they had no land (a skipped question stays blank).
+    def _num131(k):
+        x = _v(k)
+        if not x:
+            return None
+        try:
+            return float(x.replace('$', '').replace(',', '').strip())
+        except ValueError:
+            sys.stderr.write(f'[fill_form13_1] {k}: "{x}" is not a number; left blank\n')
+            return None
+
+    _land_any = _v('f131_land_land_any').lower()
+    _land = []
+    if _land_any == 'yes':
+        # Only rows up to the saved row count (a removed row's old answers
+        # can stay in the database).
+        try:
+            _lc = int(float(_v('f131_land_land_rows_count') or 6))
+        except ValueError:
+            _lc = 6
+        for _i in range(max(0, min(_lc, 6))):
+            _pre = f'f131_land_land_rows_{_i}_'
+            _row = {'ownership': _v(_pre + 'ownership'), 'address': _v(_pre + 'address'),
+                    'm': _num131(_pre + 'value_marriage'), 'v': _num131(_pre + 'value_valuation'),
+                    't': _num131(_pre + 'value_today')}
+            if _row['ownership'] or _row['address'] or any(_row[c] is not None for c in 'mvt'):
+                _land.append(_row)
+    _LM = ' - Estimated Market Value of YOUR Interest on '
+    if _land:
+        _r1 = _land[0]
+        fields['Nature & Type of Ownership (Give your percentage interest where relevant.)'] = _r1['ownership']
+        fields['Address of Property'] = _r1['address']
+        for _c, _box in (('m', 'Land' + _LM + 'date of marriage (0.00)'),
+                         ('v', 'Land' + _LM + 'valuation date (0.00)'),
+                         ('t', 'Land - Estimated Market Value of YOUR Interest today (0.00)')):
+            fields[_box] = '' if _r1[_c] is None else f'{_r1[_c]:.2f}'
+        if len(_land) > 1:
+            sys.stderr.write(f'[fill_form13_1] land: {len(_land) - 1} more propert(ies) for the continuation page\n')
+        _tv = [r['v'] for r in _land if r['v'] is not None]
+        fields['TOTAL VALUE OF LAND on valuation date (0.00)'] = f'{sum(_tv):.2f}' if _tv else ''
+    elif _land_any == 'no':
+        fields['Nature & Type of Ownership (Give your percentage interest where relevant.)'] = 'NONE'
 
     # FIX-F131-B1: the old asset, debt, date-of-marriage and net-family-
     # property lines wrote into the wrong boxes ("Other non-cash benefits",

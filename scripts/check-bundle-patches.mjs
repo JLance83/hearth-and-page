@@ -553,6 +553,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: 'if(t.numMsg)return t.numMsg;',
   },
+  {
+    commit: 'Nov 17 2026 (see FIX-F131-B5)',
+    name: 'Form 13.1 screen: Part 4 key dates and 4(a) land rows (FIX-F131-B5)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F131-B5*/{id:"f131_land",title:"Property: key dates and land"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
