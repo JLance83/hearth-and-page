@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.75'
+FILLER_VERSION = 'dist-2026-10-19.76'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3291,79 +3291,249 @@ def fill_form4(input_path, output_path, form_data_list):
 # ─────────────────────────────────────────────────────────────────────────────
 # Form 6B — Affidavit of Service
 # ─────────────────────────────────────────────────────────────────────────────
+_F6B_P1 = 'form1[0].page1[0].body[0].'
+_F6B_P2 = 'form1[0].page2[0].body[0].'
+_F6B_P3 = 'form1[0].page3[0].body[0].six[0].'
+# FIX-F6B-FULL: paragraph 2 "I served the documents by" (one box only).
+_F6B_METHOD_BOX = {
+    'special_service':   _F6B_P1 + 'two[0].#subform[0].condition1[0]',
+    'mail':              _F6B_P1 + 'two[0].#subform[0].condition1[1]',
+    'courier_same_day':  _F6B_P1 + 'two[0].#subform[0].condition2[0]',
+    'courier_next_day':  _F6B_P1 + 'two[0].#subform[0].condition2[1]',
+    'document_exchange': _F6B_P1 + 'two[0].#subform[0].condition2[2]',
+    'electronic_exchange': _F6B_P1 + 'two[0].#subform[0].condition2[3]',
+    'fax':               _F6B_P1 + 'two[0].#subform[0].condition2[4]',
+    'email':             _F6B_P1 + 'two[0].#subform[0].condition2[5]',
+    'substituted':       _F6B_P1 + 'two[0].#subform[0].condition2[6]',
+}
+_F6B_SP = _F6B_P2 + 'five[0].#subform[0].'
+_F6B_DATE_TAIL = _re_amt.compile(
+    r'^(.*?)[,;]?\s*(?:(?:signed|issued|sworn|affirmed|dated)\s+(?:on\s+)?)?'
+    r'((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}'
+    r'|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4})\s*$', _re_amt.I)
+
+
+def _f6b_doc_rows(text):
+    """FIX-F6B-FULL: split the 'Documents served' answer into table rows.
+
+    One document per line, as the screen asks ("name, author, date").
+    Only a date at the END of a line is moved to the date column; then the
+    text before the last comma is the name and after it the author. A line
+    with no date at the end stays whole in the name column, so nothing is
+    split on a guess. More than 7 lines: lines 7+ share row 7 (logged).
+    """
+    lines = [l.strip(' \t-•*') for l in str(text or '').splitlines()]
+    lines = [l for l in lines if l and l.lower() not in ('n/a', 'na', 'none')]
+    rows = []
+    for l in lines:
+        m = _F6B_DATE_TAIL.match(l)
+        if not m or not m.group(1).strip(' ,;'):
+            rows.append((l, '', ''))
+            continue
+        head, dt = m.group(1).strip(' ,;'), m.group(2)
+        if _re_amt.match(r'^\d{4}-\d{2}-\d{2}$', dt):
+            dt = format_dob(dt)
+        if ',' in head:
+            nm, au = head.rsplit(',', 1)
+            rows.append((nm.strip(), au.strip(), dt))
+        else:
+            rows.append((head, '', dt))
+    if len(rows) > 7:
+        sys.stderr.write(f'[fill_form6b] {len(rows)} documents listed; rows 7+ share the last table row\n')
+        rest = rows[6:]
+        rows = rows[:6] + [('; '.join(r[0] for r in rest), '; '.join(r[1] for r in rest if r[1]),
+                            '; '.join(r[2] for r in rest if r[2]))]
+    return rows
+
+
+def _f6b_court_option(name):
+    """Map a courthouse display name onto the form's 3 'Name of court' choices."""
+    n = str(name or '').strip()
+    if not n:
+        return ''
+    if n.startswith('Superior Court of Justice') and 'Family Court' in n:
+        return 'Superior Court of Justice Family Court Branch'
+    if n.startswith('Superior Court of Justice'):
+        return 'Superior Court of Justice'
+    if n.startswith('Ontario Court of Justice'):
+        return 'Ontario Court of Justice'
+    return ''
+
+
+def _f6b_set_sizes(path, sizes):
+    """FIX-F6B-FULL: change only the font SIZE in each listed box's /DA,
+    keeping the form's own font and colour (Times, blue), so the filled
+    answers all look the same."""
+    if not sizes:
+        return
+    r = pypdf.PdfReader(path)
+    w = pypdf.PdfWriter()
+    w.append(r)
+    for page in w.pages:
+        for annot in page.get('/Annots') or []:
+            obj = annot.get_object()
+            fp = _get_field_full_path(obj)
+            if fp not in sizes:
+                continue
+            par = obj['/Parent'].get_object() if '/Parent' in obj else None
+            da = str(obj.get('/DA') or (par.get('/DA') if par is not None else '') or '/Helv 0 Tf 0 g')
+            da = _re_amt.sub(r'[\d.]+(\s+Tf)', f'{sizes[fp]:g}\\1', da, count=1)
+            obj[pypdf.generic.NameObject('/DA')] = pypdf.generic.create_string_object(da)
+    with open(path, 'wb') as f:
+        w.write(f)
+
+
 def fill_form6b(input_path, output_path, form_data_list):
+    # FIX-F6B-FULL (Nov 19 2026): rebuilt from the official form's own field
+    # list. The 6B screen saves f6b_service_<answer>; the old code read other
+    # key names, so date, time, person served, documents and method never
+    # printed, and it wrote the service date into the commissioner's
+    # "sworn/affirmed" boxes and the server's name into the commissioner
+    # block. Signatures, the sworn/affirmed date and the commissioner block
+    # now always stay blank. Nothing is guessed: a box with no saved answer
+    # stays empty.
     d = _fe_flat(form_data_list)
+
+    def g(*keys):
+        for k in keys:
+            v = d.get(k)
+            if v is not None and str(v).strip() != '':
+                return str(v).strip()
+        return ''
+
     courthouse = d.get('courthouse', d.get('court_name', ''))
-    ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, '')
-    fnum = d.get('court_file_number', d.get('fileNumber', ''))
-    ap   = d.get('applicant_full_name', d.get('applicantFullName', ''))
-    re_n = d.get('respondent_full_name', d.get('respondentFullName', ''))
-    # FIX-RESP-PARTIES: the party box's second line is the address for
-    # service: street, then city, province and postal code (it was the
-    # street only, so a party with just a city printed no address).
+    cn = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
+    ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, COURTHOUSE_ADDRESSES_FE.get(cn, ''))
+    court_opt = _f6b_court_option(cn)
+    fnum = g('court_file_number', 'fileNumber')
+
+    # Party boxes: line 1 name (+ phone, email), line 2 address for service.
     def _6b_addr(side):
         st = _fmt_addr(d.get(f'{side}_address', ''), d.get(f'{side}_unit', ''), '', '', '')
         pl = ', '.join(x for x in [str(d.get(f'{side}_city') or '').strip(),
                                    ' '.join(y for y in [str(d.get(f'{side}_province') or '').strip(),
                                                         str(d.get(f'{side}_postal_code') or '').strip()] if y)] if x)
         return ', '.join(x for x in (st, pl) if x)
-    ap_a = _6b_addr('applicant')
-    re_a = _6b_addr('respondent')
-    ap_law = d.get('applicant_lawyer_name', '')
-    ap_law_a = d.get('applicant_lawyer_address', '')
-    re_law = d.get('respondent_lawyer_name', '')
-    re_law_a = d.get('respondent_lawyer_address', '')
-    # FIX-RESP-PARTIES: the 6B screen saves f6b_service_server_name and
-    # f6b_service_server_municipality ("My name is" / "I live in"). The
-    # server can be someone other than the user, so nothing is assumed.
-    server = (d.get('f6b_service_server_name') or d.get('serverFullName')
-              or d.get('server_full_name') or '')
-    server_a = (d.get('f6b_service_server_municipality') or d.get('serverAddress')
-                or d.get('server_address') or '')
-    person_served = d.get('personServed', d.get('person_served', ''))
-    svc_date = d.get('serviceDate', d.get('service_date', ''))
-    svc_method = d.get('serviceMethod', d.get('service_method', ''))
-    docs = d.get('documentsList', d.get('documents_list', ''))
-    svc_addr = d.get('serviceAddress', d.get('service_address', ''))
-    email_served = d.get('emailAddress', d.get('email_address', ''))
-    comm_date = d.get('commissioningDate', d.get('commissioning_date', ''))
-    comm_muni = d.get('commissioningMunicipality', d.get('commissioning_municipality', ''))
+
+    def _6b_name(side):
+        nm = g(f'{side}_full_name', f'{side}FullName')
+        if not nm:
+            return ''
+        extra = [x for x in (format_phone(g(f'{side}_phone')), g(f'{side}_email')) if x]
+        return nm + (' — ' + ', '.join(extra) if extra else '')
+
+    def _6b_lawyer(side):
+        nm = g(f'{side}_lawyer_name', f'{side}_lawyer')
+        firm = g(f'{side}_lawyer_firm')
+        l1 = ', '.join(x for x in (nm, firm) if x)
+        l2 = ', '.join(x for x in (g(f'{side}_lawyer_address'),
+                                   ('Tel: ' + format_phone(g(f'{side}_lawyer_phone'))) if g(f'{side}_lawyer_phone') else '',
+                                   g(f'{side}_lawyer_email')) if x)
+        return l1, l2
+
+    ap_law1, ap_law2 = _6b_lawyer('applicant')
+    re_law1, re_law2 = _6b_lawyer('respondent')
+
+    S = 'f6b_service_'
+    server = g(S + 'server_name', 'serverFullName', 'server_full_name')
+    server_muni = g(S + 'server_municipality', 'serverAddress', 'server_address')
+    svc_date = g(S + 'service_date', 'serviceDate', 'service_date')
+    if _re_amt.match(r'^\d{4}-\d{2}-\d{2}$', svc_date):
+        svc_date = format_dob(svc_date)
+    svc_time = g(S + 'service_time', 'serviceTime')
+    person = g(S + 'person_served_name', 'personServed', 'person_served')
+    method = g(S + 'service_method', 'serviceMethod', 'service_method')
+    svc_addr = g(S + 'service_address', 'serviceAddress', 'service_address')
+    sp_how = g(S + 'special_service_how')
+    notes = g(S + 'service_notes')
+    if notes.lower() in ('n/a', 'na', 'none'):
+        notes = ''
+    relationship = g(S + 'relationship')
+    km = g(S + 'travel_km')
+    fee = g(S + 'service_fee').lstrip('$').strip()
+    if g(S + 'is_adult').lower() == 'no':
+        sys.stderr.write('[fill_form6b] WARNING: server says they are under 18 — paragraph 12 states they are at least 18\n')
+
     fields = {
-        # Page 1 header
-        'form1[0].page1[0].body[0].courtDetails[0].courtFileNumber[0]': fnum,
-        'form1[0].page1[0].body[0].courtDetails[0].court[0].#subform[0].courtOfficeAddress[0]': ca,
-        'form1[0].page1[0].body[0].courtDetails[0].date[0]': svc_date,
-        # Applicant / Respondent party boxes
-        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[0]': ap,
-        'form1[0].page1[0].body[0].applicants[0].appliant[0].textfield[1]': ap_a,
-        'form1[0].page1[0].body[0].applicants[0].applicantLawyer[0].textfield[0]': ap_law,
-        'form1[0].page1[0].body[0].applicants[0].applicantLawyer[0].textfield[1]': ap_law_a,
-        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[0]': re_n,
-        'form1[0].page1[0].body[0].respondents[0].respondant[0].textfield[1]': re_a,
-        'form1[0].page1[0].body[0].respondents[0].respondantLawyer[0].textfield[0]': re_law,
-        'form1[0].page1[0].body[0].respondents[0].respondantLawyer[0].textfield[1]': re_law_a,
-        # Section 4 — person serving (deponent identity)
-        'form1[0].page1[0].body[0].four[0].liveIn[0]': server,
-        'form1[0].page1[0].body[0].four[0].liveIn[1]': server_a,
-        'form1[0].page1[0].body[0].four[0].liveIn[2]': person_served,
-        'form1[0].page1[0].body[0].four[0].liveIn[3]': svc_addr,
-        'form1[0].page1[0].body[0].four[0].liveIn[4]': docs,
-        # Service table rows (Row1[N]: date + method)
-        'form1[0].page1[0].body[0].#subform[4].Table1[0].Row1[0].Cell1[0]': svc_date,
-        'form1[0].page1[0].body[0].#subform[4].Table1[0].Row1[0].Cell2[0]': svc_method,
-        # Page 2 header repetitions
+        _F6B_P1 + 'courtDetails[0].courtFileNumber[0]': fnum,
+        _F6B_P1 + 'courtDetails[0].court[0].#subform[0].courtOfficeAddress[0]': ca,
+        # courtDetails date[0] / Page2 date[0] = "sworn/affirmed": commissioner, blank.
+        _F6B_P1 + 'applicants[0].appliant[0].textfield[0]': _6b_name('applicant'),
+        _F6B_P1 + 'applicants[0].appliant[0].textfield[1]': _6b_addr('applicant'),
+        _F6B_P1 + 'applicants[0].applicantLawyer[0].textfield[0]': ap_law1,
+        _F6B_P1 + 'applicants[0].applicantLawyer[0].textfield[1]': ap_law2,
+        _F6B_P1 + 'respondents[0].respondant[0].textfield[0]': _6b_name('respondent'),
+        _F6B_P1 + 'respondents[0].respondant[0].textfield[1]': _6b_addr('respondent'),
+        _F6B_P1 + 'respondents[0].respondantLawyer[0].textfield[0]': re_law1,
+        _F6B_P1 + 'respondents[0].respondantLawyer[0].textfield[1]': re_law2,
+        # "My name is" / "I live in" / paragraph 1 date, time, person served
+        _F6B_P1 + 'four[0].liveIn[0]': server,
+        _F6B_P1 + 'four[0].liveIn[1]': server_muni,
+        _F6B_P1 + 'four[0].liveIn[2]': svc_date,
+        _F6B_P1 + 'four[0].liveIn[3]': svc_time,
+        _F6B_P1 + 'four[0].liveIn[4]': person,
         'form1[0].Master[0].Page2[0].#subform[0].courtFileNumber[0]': fnum,
-        'form1[0].Master[0].Page2[0].#subform[0].#subform[1].date[0]': svc_date,
         'form1[0].Master[0].Page2[1].#subform[0].courtFileNumber[0]': fnum,
-        'form1[0].Master[0].Page2[1].#subform[0].#subform[1].date[0]': svc_date,
-        # Page 3 — server name + commissioner
-        'form1[0].page3[0].body[0].six[0].applicant[0].#subform[0].fullName[0]': server,
-        'form1[0].page3[0].body[0].six[0].#subform[3].liveIn[1]': comm_muni,
-        'form1[0].page3[0].body[0].six[0].applicant[0].#subform[1].commissioner[0]': comm_date,
-        # Email service
-        'form1[0].page2[0].body[0].liveIn[0]': email_served,
+        # Paragraph 11 relationship, paragraph 13 travel and fee
+        _F6B_P3 + 'four[1].#subform[0].calculation[0]': relationship,
+        _F6B_P3 + '#subform[3].liveIn[1]': km,
+        _F6B_P3 + '#subform[3].liveIn[2]': fee,
     }
-    n = _write_pdf_lc(input_path, output_path, fields)
+    for i, (nm, au, dt) in enumerate(_f6b_doc_rows(g(S + 'documents_served', 'documentsList', 'documents_list'))):
+        row = _F6B_P1 + f'#subform[4].Table1[0].Row1[{i}].'
+        fields[row + 'Cell1[0]'] = nm
+        fields[row + 'Cell2[0]'] = au
+        fields[row + '#field[2]'] = dt
+
+    checkboxes = {}
+    if method in _F6B_METHOD_BOX:
+        checkboxes[_F6B_METHOD_BOX[method]] = True
+    elif method:
+        sys.stderr.write(f'[fill_form6b] unknown service method {method!r}; paragraph 2 left blank\n')
+
+    if method == 'special_service':
+        # Paragraph 3: place/address, then how (one box only).
+        fields[_F6B_P2 + 'liveIn[0]'] = svc_addr
+        if sp_how == 'left_with_person':
+            checkboxes[_F6B_SP + 'condition1[0]'] = True
+        elif sp_how == 'lawyers_office':
+            checkboxes[_F6B_SP + '#subform[1].condition2[0]'] = True
+            checkboxes[_F6B_SP + '#subform[2].condition1[1]'] = True
+            # The lawyer is the served person's lawyer: the other side's.
+            other = 'applicant' if _fe_filer_side(d) == 'respondent' else 'respondent'
+            fields[_F6B_SP + '#subform[1].liveIn[0]'] = g(f'{other}_lawyer_name', f'{other}_lawyer')
+        elif sp_how == 'prepaid_postcard':
+            checkboxes[_F6B_SP + 'condition2[3]'] = True
+        elif sp_how == 'residence_adult':
+            checkboxes[_F6B_SP + 'condition1[2]'] = True
+            sys.stderr.write('[fill_form6b] residence_adult: adult\'s name is not asked yet; left blank\n')
+        elif sp_how == 'other':
+            checkboxes[_F6B_SP + 'condition1[3]'] = True
+            fields[_F6B_SP + '#subform[4].calculation[0]'] = notes
+    elif method == 'mail':
+        fields[_F6B_P2 + 'four[0].liveIn[0]'] = svc_addr
+    elif method in ('courier_same_day', 'courier_next_day'):
+        fields[_F6B_P2 + 'six[0].liveIn[3]'] = svc_addr
+
+    fields = {k: v for k, v in fields.items() if str(v or '').strip()}
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False).name
+    # The short answer lines (13-15pt tall "liveIn" boxes) and the
+    # multi-line "calculation" boxes have auto (0) font size, which viewers
+    # draw at ~12pt over the underline. They get a fixed 10pt (9pt in the
+    # ruled multi-line boxes, whose first rule is ~12pt below the top).
+    _big = {k: (9 if k.endswith('calculation[0]') else 10) for k in fields
+            if k.startswith('form1[0].page') and
+            (k.endswith('calculation[0]') or '.liveIn[' in k)}
+    n = _write_pdf(input_path, tmp, fields, checkboxes)
+    _f6b_set_sizes(tmp, _big)
+    # Dropdowns: _write_pdf skips /Ch, so the court name goes in a 2nd pass.
+    n += _write_pdf_lc(tmp, output_path,
+                       {_F6B_P1 + 'courtDetails[0].court[0].nameOfCourt[0]': court_opt} if court_opt else {})
+    try:
+        os.unlink(tmp)
+    except Exception:
+        pass
     sys.stderr.write(f'[fill_form6b] Filled {n} fields\n')
     return n
 
