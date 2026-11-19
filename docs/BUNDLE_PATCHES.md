@@ -1317,6 +1317,26 @@ The marriage date isn't asked again. It comes from "Your situation".
 - Each document goes in its category's table; numbered 1, 2, 3... in print order; dates printed yyyy/mm/dd as the form asks. More than 5 in one category go on a continuation page. A row with no category is not printed and is logged.
 - "Certified at" = the filer's city; date only if `certifyDate` is answered. Signature always blank. Text is 9pt, smaller only when too wide.
 
+## FIX-F351A (Nov 19 2026)
+
+**Problem.** Family Law Rules r. 35.1(1)(a) require Form 35.1A (Affidavit, child protection information) with Form 35.1 whenever the child or any party has been involved in a child protection case or received services from a children's aid society. Under r. 35.1(6) the clerk must refuse the filing without it. The app asked the CAS question (Form 35.1 Q14) but had no 35.1A screen, template, filler or download. The `casNote` tip also said 35.1A was needed only for a court case, which was wrong.
+
+**Fix (bundle).**
+- Step `f351_care_history`: after `casNote`, four yes/no questions, each with a rows table (max 10), all shown only when `casInvolved` = yes (nested showIf):
+  - `casCourtMineAny` / `casCourtMine` (para 1): columns people, cas, location, orders, when
+  - `casServicesMineAny` / `casServicesMine` (para 2): people, cas, location, services, when
+  - `casCourtOtherAny` / `casCourtOther` (para 3), `casServicesOtherAny` / `casServicesOther` (para 4)
+  - "when" is free text so approximate dates ("approx. spring 2024", "unknown") are allowed.
+- The `casNote` tooltip now says 35.1A is needed for any CAS involvement.
+- FIX-F351A-EXPORT: a "Form 35.1A" card shows when the case has Form 35.1 (`Z`) and the saved `casInvolved` is "yes"; `xt` maps `form35_1a` to `form35_1a`.
+
+**Fix (template + filler, fill_form35_1a, FILLER_VERSION .80).**
+- New template `dist/public/pdfs/form35_1a.pdf`: the official FLR 35.1A (Dec 1, 2020) from ontariocourtforms.on.ca, unchanged.
+- Header from `_header` (court address, file number pages 1-2, both parties). Lawyer boxes are built from the separate lawyer answers (name, firm, address, phone, email), with the one-line answer as the fallback. The court name is a dropdown on this template; it is set to the matching choice (OCJ / SCJ / SCJ Family Branch), or left blank and logged if no choice matches.
+- Name and "I live in" use the same rule as Form 35.1 (main-case answer first, Form 35.1 identity answer as the fallback; a difference is logged).
+- Each part: "No" prints "None." in the first cell; unanswered stays blank; "Yes" prints the rows. The last column is "what (when)". Filled table cells are set to wrap, and the size is 9pt, smaller (not below 5pt) to fit. Rows beyond the form's rows (4, 4, 3, 3), or too long to fit, go on a continuation page. A row too long to fit says "See continuation page, item N"; when there are more rows than the form has, the last row says "See continuation page, items N-M".
+- The sworn block, signature and commissioner always stay blank.
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

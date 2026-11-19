@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.79'
+FILLER_VERSION = 'dist-2026-10-19.80'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -6961,6 +6961,242 @@ def fill_form13a(input_path, output_path, form_data_list):
     return n
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Form 35.1A — Affidavit (child protection information)
+# FIX-F351A: required with Form 35.1 when the child or any party has been
+# involved in a child protection case or received services from a children's
+# aid society (Family Law Rules r. 35.1(1)(a)). The answers come from the
+# Form 35.1 "Where the children have lived" screen (shown only when the CAS
+# question is answered Yes). Four tables: (1) my court cases, (2) my CAS
+# services, (3) the other party's / children's court cases, (4) their CAS
+# services. Dates may be approximate ("approx. spring 2024", "unknown") and
+# are printed as typed. A part answered "No" prints "None."; a part not
+# answered stays blank. The sworn block, signature and commissioner stay blank.
+# ─────────────────────────────────────────────────────────────────────────────
+_F351A_PARTS = (
+    # (answer key, rows on the form, column keys, field-name stems, part label)
+    ('cas_court_mine', 4, ('people', 'cas', 'location', 'orders'),
+     ('Names of people involved in the caseRow{n}', 'Name of childrens aid societyRow{n}',
+      'Court locationRow{n}', 'Court orders made include dates of ordersRow{n}'),
+     'Paragraph 1 - my child protection court cases'),
+    ('cas_services_mine', 4, ('people', 'cas', 'location', 'services'),
+     ('Names of other people involvedRow{n}', 'Name of childrens aid societyRow{n}_2',
+      'Location of childrens aid societyRow{n}',
+      'Child protection services include dates of any agreements or other measuresRow{n}'),
+     'Paragraph 2 - my involvement with child protection services'),
+    ('cas_court_other', 3, ('people', 'cas', 'location', 'orders'),
+     ('Names of people involved in the caseRow{n}_2', 'Name of childrens aid societyRow{n}_3',
+      'Court locationRow{n}_2', 'Court orders made include dates of ordersRow{n}_2'),
+     'Paragraph 3 - the other party / children: court cases'),
+    ('cas_services_other', 3, ('people', 'cas', 'location', 'services'),
+     ('Names of people involvedRow{n}', 'Name of childrens aid societyRow{n}_4',
+      'Location of childrens aid societyRow{n}_2',
+      'Child protection services include dates of any agreements or other measuresRow{n}_2'),
+     'Paragraph 4 - the other party / children: child protection services'),
+)
+_F351A_MAX_ROWS = 10
+
+
+def _f351a_court_choice(name):
+    """Court name -> one of the template's three dropdown choices ('' if unknown)."""
+    n = str(name or '').lower()
+    if 'ontario court of justice' in n:
+        return 'Ontario Court of Justice'
+    if 'superior' in n and 'family' in n:
+        return 'Superior Court of Justice, Family Branch'
+    if 'superior' in n:
+        return 'Superior Court of Justice'
+    return ''
+
+
+def _f351a_lawyer_block(d, side):
+    """Lawyer box: name, firm, address, phone, email from the separate lawyer
+    answers; the older one-line answer is the fallback. Blank stays blank."""
+    def g(k):
+        v = str(d.get(k) or '').strip()
+        return '' if v.upper() == 'N/A' else v
+    name = g(f'{side}_lawyer_name')
+    firm = g(f'{side}_lawyer_firm')
+    addr = g(f'{side}_lawyer_address')
+    ph = format_phone(g(f'{side}_lawyer_phone'))
+    em = g(f'{side}_lawyer_email')
+    lines = [', '.join(x for x in (name, firm) if x), addr]
+    if ph:
+        lines.append(f'Tel: {ph}')
+    if em:
+        lines.append(f'Email: {em}')
+    block = '\n'.join(x for x in lines if x)
+    return block or g(f'{side}_lawyer')
+
+
+def _f351a_fit(text, w, h):
+    """Largest size 9..5pt (half steps) at which text wraps inside w x h.
+    None if it does not fit even at 5pt."""
+    text = str(text)
+    s = 9.0
+    while s >= 5.0:
+        per = max(1, int((w - 4) / (0.5 * s)))
+        lines = 0
+        for para in text.split('\n'):
+            words, cur = para.split(), 0
+            ln = 1
+            for wd in words:
+                add = len(wd) + (1 if cur else 0)
+                if cur + add > per:
+                    ln += 1 + (len(wd) - 1) // per
+                    cur = len(wd) % per or per
+                else:
+                    cur += add
+            lines += ln
+        if lines * s * 1.15 <= h - 2:
+            return s
+        s -= 0.5
+    return None
+
+
+def fill_form35_1a(input_path, output_path, form_data_list):
+    import pypdf
+    d = _fe_flat(form_data_list)
+
+    def g(*keys):
+        for k in keys:
+            v = d.get(k)
+            if v is not None and str(v).strip() and str(v).strip().upper() != 'N/A':
+                return str(v).strip()
+        return ''
+
+    def yn(k):
+        v = g(k).lower()
+        return 'yes' if v in ('yes', 'true', '1') else ('no' if v in ('no', 'false', '0') else '')
+
+    if yn('f351_care_history_cas_involved') == 'no':
+        sys.stderr.write('[fill_form35_1a] CAS question answered No; Form 35.1A is not needed\n')
+
+    h = _header(d, pages=2)
+    fields = {k: h[k] for k in (
+        'Court File Number',
+        "Applicant's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)",
+        "Respondent's full legal name & address for service — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)",
+    ) if h.get(k)}
+    fnum = g('court_file_number', 'fileNumber')
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    cn = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
+    fields['Court address'] = COURTHOUSE_ADDRESSES_FE.get(courthouse, COURTHOUSE_ADDRESSES_FE.get(cn, ''))
+    fields['Applicant lawyer’s name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)'] = _f351a_lawyer_block(d, 'applicant')
+    fields['Respondent lawyer’s name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)'] = _f351a_lawyer_block(d, 'respondent')
+
+    # Name and "I live in": same rule as Form 35.1 (FIX-F351-NAME-SOURCE).
+    me = 'respondent' if _fe_filer_side(d) == 'respondent' else 'applicant'
+    m, o = g(f'{me}_full_name'), g('f351_identity_full_name')
+    if m and o and m.lower() != o.lower():
+        sys.stderr.write(f'[fill_form35_1a] f351_identity_full_name={o!r} differs from {me}_full_name={m!r}; using {me}_full_name\n')
+    fields['full legal name'] = m or o or g('filer_full_name')
+    c, p = g(f'{me}_city'), g(f'{me}_province')
+    if c:
+        if p.upper() in ('ON', 'ONT', 'ONT.'):
+            p = 'Ontario'
+        live = ', '.join(x for x in (c, p) if x)
+    else:
+        live = g('f351_identity_city')
+    fields['name of city, town or municipality and province, state or country if outside of Ontario'] = live
+
+    # Box sizes (for wrapping and font size).
+    rects = {}
+    for pg in pypdf.PdfReader(input_path).pages:
+        for an in pg.get('/Annots') or []:
+            ob = an.get_object()
+            t = ob.get('/T')
+            if t is not None and '/Rect' in ob:
+                r = [float(x) for x in ob['/Rect']]
+                rects[str(t)] = (abs(r[2] - r[0]), abs(r[3] - r[1]))
+
+    P = 'f351_care_history_'
+    sizes, more, wrap = {}, [], set()
+    for key, nrows, cols, stems, label in _F351A_PARTS:
+        any_ = yn(f'{P}{key}_any')
+        rows = []
+        for i in range(_F351A_MAX_ROWS):
+            r = {c2: g(f'{P}{key}_{i}_{c2}') for c2 in cols + ('when',)}
+            if any(r.values()):
+                what, when = r[cols[3]], r['when']
+                r[cols[3]] = f'{what} ({when})' if what and when else (what or when)
+                rows.append(r)
+        if any_ == 'no':
+            if rows:
+                sys.stderr.write(f'[fill_form35_1a] {key}: answered No but rows saved; rows not printed\n')
+            fields[stems[0].format(n=1)] = 'None.'
+            sizes[stems[0].format(n=1)] = 9.0
+            continue
+        if any_ != 'yes':
+            continue
+        if not rows:
+            sys.stderr.write(f'[fill_form35_1a] {key}: answered Yes but no rows given\n')
+        # More rows than the form has: the last row points to the
+        # continuation page for the rest.
+        cap = nrows if len(rows) <= nrows else nrows - 1
+        rest = []
+        for j, r in enumerate(rows):
+            vals = [r[c2] for c2 in cols]
+            names = [s.format(n=j + 1) for s in stems]
+            fits = j < cap and all(
+                not v or _f351a_fit(v, *rects.get(nm, (130, 28))) for nm, v in zip(names, vals))
+            if fits:
+                for nm, v in zip(names, vals):
+                    if v:
+                        fields[nm] = v
+                        sizes[nm] = _f351a_fit(v, *rects.get(nm, (130, 28)))
+                        wrap.add(nm)
+            else:
+                num = len(more) + 1
+                if j < cap:
+                    fields[names[0]] = f'See continuation page, item {num}'
+                else:
+                    rest.append(num)
+                more.append((f'{label} - item {num}',
+                             '\n'.join(f'{t}: {v}' for t, v in zip(
+                                 ('People involved', "Children's aid society", 'Location',
+                                  'Orders / services (dates)'), vals) if v)))
+        if rest:
+            nm = stems[0].format(n=cap + 1)
+            fields[nm] = (f'See continuation page, item {rest[0]}' if len(rest) == 1
+                          else f'See continuation page, items {rest[0]}-{rest[-1]}')
+    fields = {k: v for k, v in fields.items() if str(v or '').strip()}
+    # Party and lawyer boxes: 9pt, smaller only when needed to fit.
+    for k, v in fields.items():
+        if k not in sizes and k in rects and '\n' in str(v):
+            sizes[k] = _f351a_fit(v, *rects[k]) or 5.0
+    n = _write_pdf(input_path, output_path, fields, {}, font_pt=sizes)
+
+    # Table cells are single-line boxes on the template: let filled ones wrap.
+    # Court name is a dropdown, which _write_pdf does not handle.
+    choice = _f351a_court_choice(cn)
+    wr = pypdf.PdfWriter(clone_from=output_path)
+    for page in wr.pages:
+        for an in page.get('/Annots') or []:
+            ob = an.get_object()
+            t = str(ob.get('/T') or '')
+            if t in wrap:
+                ob[pypdf.generic.NameObject('/Ff')] = pypdf.generic.NumberObject(int(ob.get('/Ff', 0)) | 4096)
+            if t == 'Name of court' and choice:
+                ob[pypdf.generic.NameObject('/V')] = pypdf.generic.create_string_object(choice)
+                if '/AP' in ob:
+                    del ob['/AP']
+                n += 1
+    _set_need_appearances(wr)
+    with open(output_path, 'wb') as fh:
+        wr.write(fh)
+    if not choice and cn:
+        sys.stderr.write(f'[fill_form35_1a] court name {cn!r} is not one of the form choices; left blank\n')
+    if more:
+        _append_continuation(output_path,
+                             ['Form 35.1A: Affidavit (child protection information) - continued',
+                              'More entries than the form has room for'],
+                             [('Court file number', fnum)], more)
+        sys.stderr.write(f'[fill_form35_1a] {len(more)} entries on the continuation page\n')
+    sys.stderr.write(f'[fill_form35_1a] filled {n} fields\n')
+    return n
+
+
 if __name__ == '__main__':
     # Self-check mode: prints a small JSON payload proving pypdf loads from the
     # vendored wheel. Used by /api/pdf-runtime-check to verify runtime health
@@ -7009,6 +7245,8 @@ if __name__ == '__main__':
         'form10':   fill_form10,
         'form13':   fill_form13,
         'form13a':  fill_form13a,
+        'form35_1a': fill_form35_1a,
+        'form35-1a': fill_form35_1a,
         'form13_1': fill_form13_1,
         'form13-1': fill_form13_1,
         'form13b':  fill_form13b,

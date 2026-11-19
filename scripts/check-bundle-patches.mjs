@@ -589,6 +589,18 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F13A-EXPORT*/H||q?{key:"form13a"',
   },
+  {
+    commit: 'Nov 19 2026 (see FIX-F351A)',
+    name: 'Form 35.1 screen: Form 35.1A child protection questions, shown when CAS = Yes (FIX-F351A)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351A*/{key:"casCourtMineAny",type:"yesno"',
+  },
+  {
+    commit: 'Nov 19 2026 (see FIX-F351A)',
+    name: 'Export page: Form 35.1A card (CAS = Yes) + official PDF key (FIX-F351A-EXPORT)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F351A-EXPORT*/Z&&(A||[]).some(r=>r.section==="f351_care_history"&&r.fieldKey==="casInvolved"&&r.fieldValue==="yes")?{key:"form35_1a"',
+  },
 ];
 
 function resolveFile(prefixOrName) {
