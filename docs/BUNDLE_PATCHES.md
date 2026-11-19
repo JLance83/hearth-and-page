@@ -1303,6 +1303,20 @@ The marriage date isn't asked again. It comes from "Your situation".
 - The courier pickup time, a.m./p.m., date (dd/mm/yyyy) and company go in paragraph 5.
 - A dropdown's selected-item index (`/I`) is updated to the chosen option, so viewers show "a.m." rather than the "a.m./p.m." placeholder.
 
+## FIX-F13A (Nov 19 2026)
+
+**Problem.** Anyone who files a financial statement (Form 13 or 13.1) must also serve and file Form 13A, the Certificate of Financial Disclosure. The app had the blank template (`dist/public/pdfs/form13a.pdf`) but no screen, no filler and no download button.
+
+**Fix (bundle).**
+- New step object `__hpF13A` (id `f13a_disclosure`, "Financial disclosure (Form 13A)"), defined just before `const kh=[` and added as the last Form 13 step (`kh`) and before `f13_1_review` in the Form 13.1 steps. The combined path de-duplicates by id, so it shows once.
+- Questions: `docs` (rows, max 60) with columns `category` (29 options, one per table on the form, in form order), `description`, `docDate`, `providedDate`; plus optional `certifyDate`.
+- FIX-F13A-EXPORT: the export page shows a "Form 13A" card when the case has Form 13 or 13.1 (`H||q`), and `xt` maps `form13a` to `form13a`, so only the Official Court PDF button shows.
+
+**Fix (filler, fill_form13a, FILLER_VERSION .79).**
+- Header, both parties, both lawyers (from the main keys, incl. the Form 10 gap-fill), "filed by" (`_fe_filer_side`), court file number on pages 2-7.
+- Each document goes in its category's table; numbered 1, 2, 3... in print order; dates printed yyyy/mm/dd as the form asks. More than 5 in one category go on a continuation page. A row with no category is not printed and is logged.
+- "Certified at" = the filer's city; date only if `certifyDate` is answered. Signature always blank. Text is 9pt, smaller only when too wide.
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

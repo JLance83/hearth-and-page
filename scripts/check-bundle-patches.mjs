@@ -577,6 +577,18 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F6B-SCREEN*/{value:"lawyer_of_record",label:"Left with their lawyer of record"}',
   },
+  {
+    commit: 'Nov 19 2026 (see FIX-F13A)',
+    name: 'Form 13A screen: financial disclosure documents (rows), shown with Form 13 and 13.1 (FIX-F13A)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: 'const __hpF13A=/*FIX-F13A*/{id:"f13a_disclosure"',
+  },
+  {
+    commit: 'Nov 19 2026 (see FIX-F13A)',
+    name: 'Export page: Form 13A card + official PDF key (FIX-F13A-EXPORT)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F13A-EXPORT*/H||q?{key:"form13a"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

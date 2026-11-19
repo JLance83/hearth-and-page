@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.78'
+FILLER_VERSION = 'dist-2026-10-19.79'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -6802,6 +6802,165 @@ def fill_form30a(input_path, output_path, form_data_list):
     return n
 
 
+# FIX-F13A (Nov 19 2026): Form 13A - Certificate of Financial Disclosure.
+# The screen "Financial disclosure (Form 13A)" (step f13a_disclosure, shown
+# with Form 13 and Form 13.1) saves one row per document:
+#   f13a_disclosure_docs_<i>_{category,description,doc_date,provided_date}
+# Each row goes in its category's table (5 rows each on the form). Documents
+# are numbered 1, 2, 3... in the order they print. A 6th+ document in one
+# category goes on a continuation page. Signature always blank.
+_F13A_CATS = [
+    ('tax_returns', 'Personal Income Tax Returns'),
+    ('noa', 'Notices of Assessment and Reassessment'),
+    ('employment', 'Employment Income'),
+    ('self_employment', 'Self-Employment Income'),
+    ('partnership_income', 'Partnership Income and Interests in a Partnership'),
+    ('private_corp_income', 'Income from a Privately Held Corporation'),
+    ('trust_income', 'Beneficial Income from, and Interest in, a Trust'),
+    ('ei_social_assistance', 'Income from Employment Insurance or Social Assistance'),
+    ('pensions_annuities', 'Pensions and Annuities'),
+    ('spousal_support_income', 'Income from Spousal Support'),
+    ('tax_benefits', 'Tax Benefits or Rebates'),
+    ('investment_income', 'Investment and Interest Income'),
+    ('rental_income', 'Rental Income'),
+    ('other_income', 'Other Income'),
+    ('special_expenses', 'Special and Extraordinary Expenses'),
+    ('real_estate', 'Real Estate'),
+    ('savings_investments', 'Savings and Investments'),
+    ('pensions', 'Pensions'),
+    ('life_insurance', 'Life Insurance Policies'),
+    ('sole_proprietorship', 'Interest in a Sole Proprietorship'),
+    ('partnership_interest', 'Interest in a Partnership'),
+    ('public_corp', 'Interest in a Publicly Held Corporation'),
+    ('private_corp_interest', 'Interest in a Privately Held Corporation'),
+    ('trust_interests', 'Trust Interests'),
+    ('other_property', 'Property I own which does not belong in any of the other categories'),
+    ('liabilities', 'Liabilities'),
+    ('marriage_assets', 'Assets at Marriage Date'),
+    ('marriage_liabilities', 'Liabilities at Marriage Date'),
+    ('excluded_property', 'Excluded Property'),
+]
+_F13A_COLS = ('Document Number', 'Document Description', 'Date of Document',
+              'Date the Document was Provided')
+
+
+def _f13a_date(v):
+    """yyyy-mm-dd (as saved) -> yyyy/mm/dd (as the form asks). Other text as typed."""
+    v = str(v or '').strip()
+    if v.upper() == 'N/A':
+        return ''
+    m = _re_amt.match(r'^(\d{4})-(\d{2})-(\d{2})', v)
+    return f'{m.group(1)}/{m.group(2)}/{m.group(3)}' if m else v
+
+
+def fill_form13a(input_path, output_path, form_data_list):
+    import pypdf
+    d = _fe_flat(form_data_list)
+
+    def g(*keys):
+        for k in keys:
+            v = d.get(k)
+            if v is not None and str(v).strip() and str(v).strip().upper() != 'N/A':
+                return str(v).strip()
+        return ''
+
+    # Real field names (the template has doubled spaces in some of them).
+    norm = lambda t: ' '.join(str(t).split())
+    real = {norm(k): k for k in (pypdf.PdfReader(input_path).get_fields() or {})}
+
+    def cell(section, col, n):
+        for k, v in real.items():
+            if k.startswith(norm(section) + ' - ' + col) and k.endswith(' ' + str(n)):
+                return v
+        return None
+
+    fields, checkboxes = {}, {}
+    courthouse = d.get('courthouse', d.get('court_name', ''))
+    cn = COURTHOUSE_NAMES_FE.get(courthouse, courthouse)
+    ca = COURTHOUSE_ADDRESSES_FE.get(courthouse, COURTHOUSE_ADDRESSES_FE.get(cn, ''))
+    fnum = g('court_file_number', 'fileNumber')
+    fields['Name of court'] = cn
+    fields['Court office address'] = ca
+    fields['Court File Number'] = fnum
+    for pg in range(2, 8):
+        fields[f'Court file number - Page {pg}'] = fnum
+
+    for side, lab in (('applicant', 'Applicant(s)'), ('respondent', 'Respondent(s)')):
+        fields[f'{lab} — Full legal name'] = g(f'{side}_full_name')
+        fields[f'{lab} — Address'] = _fmt_addr(g(f'{side}_address'), g(f'{side}_unit'),
+                                               g(f'{side}_city'), g(f'{side}_province'),
+                                               g(f'{side}_postal_code'))
+        fields[f'{lab} — Phone & fax'] = format_phone(g(f'{side}_phone'))
+        fields[f'{lab} — Email'] = g(f'{side}_email')
+        fields[f"{lab} — Lawyer's Full legal name"] = ', '.join(
+            x for x in (g(f'{side}_lawyer_name', f'{side}_lawyer'), g(f'{side}_lawyer_firm')) if x)
+        fields[f"{lab} — Lawyer's Address"] = g(f'{side}_lawyer_address')
+        fields[f"{lab} — Lawyer's Phone & fax"] = format_phone(g(f'{side}_lawyer_phone'))
+        fields[f"{lab} — Lawyer's Email"] = g(f'{side}_lawyer_email')
+
+    side = _fe_filer_side(d)
+    if side == 'respondent':
+        checkboxes['respondent'] = True
+    elif g('applicant_full_name'):
+        checkboxes['applicant'] = True
+    me = 'respondent' if side == 'respondent' else 'applicant'
+    fields['City'] = g(f'{me}_city')
+    fields['Date'] = _f13a_date(g('f13a_disclosure_certify_date'))
+
+    # Documents, in screen order, grouped by category in form order.
+    P = 'f13a_disclosure_docs_'
+    docs = []
+    for i in range(60):
+        row = {c: g(f'{P}{i}_{c}') for c in ('category', 'description', 'doc_date', 'provided_date')}
+        if any(row[c] for c in ('description', 'doc_date', 'provided_date')):
+            if row['category'] not in dict(_F13A_CATS):
+                sys.stderr.write(f'[fill_form13a] document {i + 1} has no category; not printed\n')
+                continue
+            docs.append(row)
+    num, more = 0, []
+    for key, section in _F13A_CATS:
+        rows = [r for r in docs if r['category'] == key]
+        for j, r in enumerate(rows):
+            num += 1
+            vals = (str(num), r['description'], _f13a_date(r['doc_date']), _f13a_date(r['provided_date']))
+            if j < 5:
+                for col, v in zip(_F13A_COLS, vals):
+                    t = cell(section, col, j + 1)
+                    if t:
+                        fields[t] = v
+                    else:
+                        sys.stderr.write(f'[fill_form13a] no box for {section} / {col} {j + 1}\n')
+            else:
+                more.append((f'{section} - document {num}',
+                             f'{r["description"]}\nDate of document: {vals[2] or "-"}\n'
+                             f'Date provided to the other party: {vals[3] or "-"}'))
+    fields = {k: v for k, v in fields.items() if str(v or '').strip()}
+    # One steady size: 9pt, smaller (not below 6pt) only when the answer is
+    # too wide for its box. The template mixes auto and 12pt sizes.
+    widths = {}
+    for pg in pypdf.PdfReader(input_path).pages:
+        for an in pg.get('/Annots') or []:
+            o = an.get_object()
+            t = o.get('/T') or (o.get('/Parent') or {}).get('/T')
+            if t is not None and '/Rect' in o:
+                r = [float(x) for x in o['/Rect']]
+                widths[str(t)] = abs(r[2] - r[0])
+    sizes = {}
+    for k, v in fields.items():
+        w = widths.get(k)
+        if w:
+            sizes[k] = max(6.0, min(9.0, int((w - 4) / (0.5 * max(1, len(str(v)))) * 2) / 2))
+    n = _write_pdf(input_path, output_path, fields, checkboxes, font_pt=sizes)
+    if more:
+        _append_continuation(output_path,
+                             ['Form 13A: Certificate of Financial Disclosure - continued',
+                              'More documents than the form has rows for'],
+                             [('Court file number', fnum)], more)
+        sys.stderr.write(f'[fill_form13a] {len(more)} documents on the continuation page\n')
+    sys.stderr.write(f'[fill_form13a] {num} documents; filled {n} fields\n')
+    return n
+
+
 if __name__ == '__main__':
     # Self-check mode: prints a small JSON payload proving pypdf loads from the
     # vendored wheel. Used by /api/pdf-runtime-check to verify runtime health
@@ -6849,6 +7008,7 @@ if __name__ == '__main__':
         'form8':    fill_form8,
         'form10':   fill_form10,
         'form13':   fill_form13,
+        'form13a':  fill_form13a,
         'form13_1': fill_form13_1,
         'form13-1': fill_form13_1,
         'form13b':  fill_form13b,
