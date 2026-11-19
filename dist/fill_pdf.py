@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.76'
+FILLER_VERSION = 'dist-2026-10-19.77'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -6250,13 +6250,23 @@ def fill_form35_1(input_path, output_path, form_data_list):
     fields = _header(d, pages=8)
     # FIX-RESP-PARTIES: the fallback is the user's own side of the case.
     _me = 'respondent' if _fe_filer_side(d) == 'respondent' else 'applicant'
-    fields['Full legal name'] = (
-        d.get('f351_identity_full_name') or d.get('filer_full_name')
-        or d.get(f'{_me}_full_name') or '').strip()
+    # FIX-F351-NAME-SOURCE: when Form 35.1 is combined with another form the
+    # identity screen hides name, birth date and city ("they come from your
+    # earlier answers"), so an older identity answer can no longer be seen or
+    # edited. The user's own main-case answer (incl. Form 10, via _fe_flat)
+    # therefore wins; the Form 35.1 identity answer is the fallback (Form 35.1
+    # on its own has no main-case answers). A difference is logged.
+    def _f351_pick(main_key, own_key):
+        m = str(d.get(main_key) or '').strip()
+        o = str(d.get(own_key) or '').strip()
+        if m and o and m.lower() != o.lower():
+            sys.stderr.write(f'[fill_form35_1] {own_key}={o!r} differs from {main_key}={m!r}; using {main_key}\n')
+        return m or o
+    fields['Full legal name'] = (_f351_pick(f'{_me}_full_name', 'f351_identity_full_name')
+                                 or str(d.get('filer_full_name') or '').strip())
     fields['Date of birth (d, m, y)'] = format_dob(
-        (d.get('f351_identity_dob') or d.get('filer_dob')
-         or d.get(f'{_me}_dob') or '').strip())
-    _f351_city = (d.get('f351_identity_city') or '').strip()
+        _f351_pick(f'{_me}_dob', 'f351_identity_dob') or str(d.get('filer_dob') or '').strip())
+    _f351_city = '' if str(d.get(f'{_me}_city') or '').strip() else (d.get('f351_identity_city') or '').strip()
     if not _f351_city:
         # Main case: city + province. ON is written out as Ontario. No
         # province is printed if none was given (never assumed).
