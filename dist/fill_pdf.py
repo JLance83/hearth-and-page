@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.77'
+FILLER_VERSION = 'dist-2026-10-19.78'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -732,6 +732,17 @@ def _fe_flat(form_data_list):
                 flat[_m] = _av
             elif ' '.join(_mv.casefold().split()) != ' '.join(_av.casefold().split()):
                 sys.stderr.write(f'[_fe_flat] {_m}: main answer kept, Form 10 answer differs\n')
+    # FIX-F10-APP-LAWYER: the Form 10 "Applicant's information" screen asks
+    # for the applicant's lawyer. Used only when "has a lawyer" is Yes (so a
+    # leftover answer behind a No never prints), and only to fill a gap.
+    for _side in ('applicant', 'respondent'):
+        if str(flat.get(f'f10_{_side}_has_lawyer') or '').strip().lower() != 'yes':
+            continue
+        for _sub in ('name', 'firm', 'address', 'phone', 'email'):
+            _m, _a = f'{_side}_lawyer_{_sub}', f'f10_{_side}_lawyer_{_sub}'
+            _av = str(flat.get(_a) or '').strip()
+            if _av and _av.upper() != 'N/A' and not str(flat.get(_m) or '').strip():
+                flat[_m] = _av
     return flat
 
 
@@ -3383,6 +3394,26 @@ def _f6b_set_sizes(path, sizes):
         w.write(f)
 
 
+def _f6b_fix_choice_index(path):
+    r = pypdf.PdfReader(path)
+    w = pypdf.PdfWriter()
+    w.append(r)
+    changed = False
+    for page in w.pages:
+        for annot in page.get('/Annots') or []:
+            obj = annot.get_object()
+            if obj.get('/FT') != '/Ch' or '/I' not in obj or not obj.get('/V'):
+                continue
+            opts = [str(o[1] if isinstance(o, (list, pypdf.generic.ArrayObject)) else o) for o in obj.get('/Opt') or []]
+            v = str(obj['/V'])
+            if v in opts:
+                obj[pypdf.generic.NameObject('/I')] = pypdf.generic.ArrayObject([pypdf.generic.NumberObject(opts.index(v))])
+                changed = True
+    if changed:
+        with open(path, 'wb') as f:
+            w.write(f)
+
+
 def fill_form6b(input_path, output_path, form_data_list):
     # FIX-F6B-FULL (Nov 19 2026): rebuilt from the official form's own field
     # list. The 6B screen saves f6b_service_<answer>; the old code read other
@@ -3435,6 +3466,15 @@ def fill_form6b(input_path, output_path, form_data_list):
     re_law1, re_law2 = _6b_lawyer('respondent')
 
     S = 'f6b_service_'
+    # FIX-F6B-SCREEN: the N/A button can save "N/A" in boxes where it has
+    # no meaning on a sworn affidavit ("My name is N/A", "I served N/A").
+    # Those boxes stay blank instead. Relationship, km and fee keep the
+    # user's own words.
+    _g0 = g
+    def g(*keys):
+        v = _g0(*keys)
+        return '' if v.strip().upper() in ('N/A', 'NA', 'N.A.', 'NOT APPLICABLE') and not any(
+            k.endswith(('relationship', 'travel_km', 'service_fee')) for k in keys) else v
     server = g(S + 'server_name', 'serverFullName', 'server_full_name')
     server_muni = g(S + 'server_municipality', 'serverAddress', 'server_address')
     svc_date = g(S + 'service_date', 'serviceDate', 'service_date')
@@ -3502,18 +3542,39 @@ def fill_form6b(input_path, output_path, form_data_list):
             # The lawyer is the served person's lawyer: the other side's.
             other = 'applicant' if _fe_filer_side(d) == 'respondent' else 'respondent'
             fields[_F6B_SP + '#subform[1].liveIn[0]'] = g(f'{other}_lawyer_name', f'{other}_lawyer')
+        elif sp_how == 'lawyer_of_record':
+            # FIX-F6B-SCREEN: "leaving a copy with (name) who is the person's
+            # lawyer of record".
+            checkboxes[_F6B_SP + '#subform[1].condition2[0]'] = True
+            checkboxes[_F6B_SP + '#subform[2].condition2[1]'] = True
+            other = 'applicant' if _fe_filer_side(d) == 'respondent' else 'respondent'
+            fields[_F6B_SP + '#subform[1].liveIn[0]'] = g(f'{other}_lawyer_name', f'{other}_lawyer')
         elif sp_how == 'prepaid_postcard':
             checkboxes[_F6B_SP + 'condition2[3]'] = True
         elif sp_how == 'residence_adult':
             checkboxes[_F6B_SP + 'condition1[2]'] = True
-            sys.stderr.write('[fill_form6b] residence_adult: adult\'s name is not asked yet; left blank\n')
+            fields[_F6B_SP + 'liveIn[2]'] = g(S + 'residence_adult_name')
         elif sp_how == 'other':
             checkboxes[_F6B_SP + 'condition1[3]'] = True
             fields[_F6B_SP + '#subform[4].calculation[0]'] = notes
-    elif method == 'mail':
-        fields[_F6B_P2 + 'four[0].liveIn[0]'] = svc_addr
-    elif method in ('courier_same_day', 'courier_next_day'):
-        fields[_F6B_P2 + 'six[0].liveIn[3]'] = svc_addr
+    elif method in ('mail', 'courier_same_day', 'courier_next_day'):
+        # FIX-F6B-SCREEN: paragraph 4 (mail) or 5 (courier): the address,
+        # whose address it is (one box), and for courier the pickup time,
+        # a.m./p.m., date and courier company.
+        para = 'four[0].' if method == 'mail' else 'six[0].'
+        fields[_F6B_P2 + para + ('liveIn[0]' if method == 'mail' else 'liveIn[3]')] = svc_addr
+        box = {'business': 'condition1[0]', 'lawyer_accepted': 'condition1[1]',
+               'lawyer_of_record': 'condition1[2]', 'home': 'condition1[3]',
+               'last_filed': 'condition1[4]', 'other': '#subform[1].condition2[0]'}.get(g(S + 'address_is'))
+        if box:
+            checkboxes[_F6B_P2 + para + 'five[0].#subform[0].' + box] = True
+            if g(S + 'address_is') == 'other':
+                fields[_F6B_P2 + para + 'five[0].#subform[0].#subform[1].liveIn[0]'] = g(S + 'address_is_other')
+        if method != 'mail':
+            fields[_F6B_P2 + 'six[0].liveIn[0]'] = g(S + 'courier_pickup_time')
+            _pd = g(S + 'courier_pickup_date')
+            fields[_F6B_P2 + 'six[0].liveIn[1]'] = format_dob(_pd) if _re_amt.match(r'^\d{4}-\d{2}-\d{2}$', _pd) else _pd
+            fields[_F6B_P2 + 'six[0].liveIn[2]'] = g(S + 'courier_name')
 
     fields = {k: v for k, v in fields.items() if str(v or '').strip()}
     import tempfile
@@ -3527,13 +3588,20 @@ def fill_form6b(input_path, output_path, form_data_list):
             (k.endswith('calculation[0]') or '.liveIn[' in k)}
     n = _write_pdf(input_path, tmp, fields, checkboxes)
     _f6b_set_sizes(tmp, _big)
+    _ampm = g(S + 'courier_pickup_am_pm') if method in ('courier_same_day', 'courier_next_day') else ''
+    _ampm = _ampm if _ampm in ('a.m.', 'p.m.') else ''
     # Dropdowns: _write_pdf skips /Ch, so the court name goes in a 2nd pass.
     n += _write_pdf_lc(tmp, output_path,
-                       {_F6B_P1 + 'courtDetails[0].court[0].nameOfCourt[0]': court_opt} if court_opt else {})
+                       dict(([(_F6B_P1 + 'courtDetails[0].court[0].nameOfCourt[0]', court_opt)] if court_opt else []) +
+                            ([(_F6B_P2 + 'six[0].text[1]', _ampm)] if _ampm else [])))
     try:
         os.unlink(tmp)
     except Exception:
         pass
+    # FIX-F6B-SCREEN: a dropdown also keeps a "selected item" index (/I)
+    # that still points at the placeholder ("a.m./p.m."); viewers draw that
+    # instead of the value. Point it at the chosen option.
+    _f6b_fix_choice_index(output_path)
     sys.stderr.write(f'[fill_form6b] Filled {n} fields\n')
     return n
 
@@ -3607,7 +3675,7 @@ def fill_form10(input_path, output_path, form_data_list):
     fields['Address of added party'] = d.get('added_party_address', '')
     fields['Name - Applicant(s) Lawyer'] = d.get('applicant_lawyer_name', '')
     fields['Address - Applicant(s) Lawyer'] = d.get('applicant_lawyer_address', '')
-    fields['Phone & fax - Applicant(s) Lawyer'] = d.get('applicant_lawyer_phone', '')
+    fields['Phone & fax - Applicant(s) Lawyer'] = format_phone(d.get('applicant_lawyer_phone', ''))  # FIX-F10-APP-LAWYER
     fields['Email - Applicant(s) Lawyer'] = d.get('applicant_lawyer_email', '')
     fields['Name - Respondent(s) Lawyer'] = d.get('respondent_lawyer_name', '')
 

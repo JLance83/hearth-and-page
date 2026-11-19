@@ -565,6 +565,18 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F131-B6*/{id:"f131_household",title:"Property: household items and vehicles"',
   },
+  {
+    commit: 'Nov 19 2026 (see FIX-F10-APP-LAWYER)',
+    name: "Form 10 screen: applicant's lawyer questions (FIX-F10-APP-LAWYER)",
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F10-APP-LAWYER*/{key:"hasLawyer",type:"yesno",label:"Does the Applicant have a lawyer?"',
+  },
+  {
+    commit: 'Nov 19 2026 (see FIX-F6B-SCREEN)',
+    name: 'Form 6B screen: lawyer of record, adult name, whose address, courier details (FIX-F6B-SCREEN)',
+    file: 'index-CNjoTsGP.js',
+    sentinel: '/*FIX-F6B-SCREEN*/{value:"lawyer_of_record",label:"Left with their lawyer of record"}',
+  },
 ];
 
 function resolveFile(prefixOrName) {

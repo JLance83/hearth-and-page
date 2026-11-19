@@ -1278,6 +1278,31 @@ The marriage date isn't asked again. It comes from "Your situation".
 
 **Check.** Full, all-No, skipped, bad-number and leftover-answer scenarios, a page render (including a long description), and a browser run of the screen. Regression: no changes across 25 templates x 2 cases.
 
+## FIX-F10-APP-LAWYER (Nov 19 2026)
+
+**Problem.** On the respondent path (Form 10), the app never asked for the applicant's lawyer. Forms 10 and 6B both have a lawyer box for the applicant, and a respondent usually serves their papers on that lawyer. The box always printed empty.
+
+**Fix (bundle).** The Form 10 "Applicant's information" screen (`f10_applicant`) now asks `hasLawyer` (yes/no) and, only if Yes, `lawyerName`, `lawyerFirm`, `lawyerAddress`, `lawyerPhone`, `lawyerEmail`. It is asked once and shared by both forms.
+
+**Fix (filler, `_fe_flat`, FILLER_VERSION .78).** When `f10_<side>_has_lawyer` is yes, `f10_<side>_lawyer_<name|firm|address|phone|email>` fills `<side>_lawyer_*` only when that main key is empty. A leftover answer behind a No never prints. Form 10's lawyer phone is now formatted like the other phone numbers.
+
+## FIX-F6B-SCREEN (Nov 19 2026)
+
+**Problem.** Form 6B has boxes the 6B screen never asked about: "lawyer of record" for special service, the adult's name for service at a residence, whose address was used for mail or courier (paragraphs 4 and 5), and the courier pickup time, a.m./p.m., date and company.
+
+**Fix (bundle).** On `f6b_service`:
+- `specialServiceHow` gets a new option `lawyer_of_record` ("Left with their lawyer of record").
+- `residenceAdultName` (shows only for `residence_adult`).
+- `addressIs` (shows for mail and both courier options): business, lawyer_accepted, lawyer_of_record, home, last_filed, other, plus `addressIsOther` (only for other).
+- `courierPickupTime`, `courierPickupAmPm` (a.m./p.m.), `courierPickupDate`, `courierName` (show only for courier).
+
+**Fix (filler, fill_form6b, FILLER_VERSION .78).**
+- `lawyer_of_record` ticks "leaving a copy with (name)" and "who is the person's lawyer of record", with the other side's lawyer name if saved.
+- `residence_adult` prints the adult's name.
+- `addressIs` ticks the one matching box in paragraph 4 (mail) or 5 (courier); "other" prints the note.
+- The courier pickup time, a.m./p.m., date (dd/mm/yyyy) and company go in paragraph 5.
+- A dropdown's selected-item index (`/I`) is updated to the chosen option, so viewers show "a.m." rather than the "a.m./p.m." placeholder.
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
