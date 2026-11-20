@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.81'
+FILLER_VERSION = 'dist-2026-10-19.82'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -177,6 +177,35 @@ def _amount_lines(text):
         out.append((amt, desc))
     return out
 
+
+# FIX-F13-DEBT-MONTHLY: the Form 13 debts screen asks for lines like
+# "8000 TD line of credit, $200/month payment". The monthly part belongs in
+# the "Monthly Payments" column, not in the creditor box. Only an amount
+# written with a month word (/month, /mo, /mth, per month, a month,
+# monthly) is taken; a range ("100-300/month") is kept as written. If a
+# line has more than one monthly amount, nothing is moved (blank is safer
+# than wrong) and the text stays in the creditor box.
+_MONTHLY_RE = _re_amt.compile(
+    r'[,;.]?\s*\$?\s*(\d[\d,]*(?:\.\d+)?)(?:\s*(?:-|\u2013|to)\s*\$?\s*(\d[\d,]*(?:\.\d+)?))?\s*'
+    r'(?:/\s*(?:month|mo|mth)\b|per\s+month\b|a\s+month\b|monthly\b)'
+    r'(?:\s+(?:payments?|minimum))?', _re_amt.I)
+
+def _split_monthly(desc):
+    """(creditor text without the monthly part, monthly payment or '')."""
+    desc = str(desc or '')
+    ms = list(_MONTHLY_RE.finditer(desc))
+    if len(ms) != 1:
+        return desc, ''
+    m = ms[0]
+    def _n(x):
+        try:
+            return f"{float(x.replace(',', '')):.2f}"
+        except ValueError:
+            return x
+    mon = _n(m.group(1)) if not m.group(2) else f"{m.group(1).replace(',', '')}-{m.group(2).replace(',', '')}"
+    rest = (desc[:m.start()] + ' ' + desc[m.end():]).strip()
+    rest = _re_amt.sub(r'\s+', ' ', rest).strip(' ,;.-\u2013\u2014:')
+    return rest, mon
 
 def _rows3(entries):
     """Fit entries into the PDF's 3 rows; extra lines are merged into row 3
@@ -2055,13 +2084,20 @@ def fill_form13(input_path, output_path, form_data_list):
             entries += _amount_lines(d.get(f'f13_debts_{k}', d.get(k, '')))
         rows = _rows3(entries)
         legacy_desc = val(f'f13_debts_{desc_key}', desc_key)
+        row1_monthly = ''
         for i, (amt, desc) in enumerate(rows, start=1):
+            desc, mon = _split_monthly(desc)
             if i == 1 and not desc and legacy_desc:
                 desc = legacy_desc
             fields[cfmt.format(i=i)] = desc
             fields[f'Full amount now owing (0.00) {off + i}'] = amt
+            if mon:
+                fields[f'Monthly Payments (0.00) {off + i}'] = mon
+                if i == 1:
+                    row1_monthly = mon
             debt_split_total += to_float(amt)
-        fields[f'Monthly Payments (0.00) {off + 1}'] = money(f'f13_debts_{monthly_key}', monthly_key)
+        if not row1_monthly:
+            fields[f'Monthly Payments (0.00) {off + 1}'] = money(f'f13_debts_{monthly_key}', monthly_key)
 
     # FIX-F13-TOTALS: = sum of the debt amounts printed above.
     debt_total_str = f'{debt_split_total:.2f}' if debt_split_total else ''
