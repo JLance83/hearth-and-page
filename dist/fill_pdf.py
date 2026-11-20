@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.84'
+FILLER_VERSION = 'dist-2026-10-19.85'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3432,12 +3432,26 @@ def _f6b_doc_rows(text):
             rows.append((nm.strip(), au.strip(), dt))
         else:
             rows.append((head, '', dt))
-    if len(rows) > 7:
-        sys.stderr.write(f'[fill_form6b] {len(rows)} documents listed; rows 7+ share the last table row\n')
-        rest = rows[6:]
-        rows = rows[:6] + [('; '.join(r[0] for r in rest), '; '.join(r[1] for r in rest if r[1]),
-                            '; '.join(r[2] for r in rest if r[2]))]
+    # FIX-F6B-DOC-OVERFLOW: all rows are returned; fill_form6b puts rows
+    # that don't fit on a continuation page (the old merge into row 7
+    # cut text off and lined authors up with the wrong documents).
     return rows
+
+
+def _f6b_one_line_pt(text, w, max_pt=10.0, min_pt=7.0):
+    """FIX-F6B-DOC-OVERFLOW: largest size (half points, max_pt..min_pt) at
+    which text fits on one line in a box w points wide; None if it doesn't
+    fit even at min_pt. Uses Helvetica widths, which are wider than the
+    form's Times, so a fit here always fits on the page."""
+    text = str(text or '')
+    if not text:
+        return max_pt
+    pt = max_pt
+    while pt >= min_pt:
+        if _helv_width(text, pt) <= (w - 4.0):
+            return pt
+        pt -= 0.5
+    return None
 
 
 def _f6b_court_option(name):
@@ -3602,11 +3616,37 @@ def fill_form6b(input_path, output_path, form_data_list):
         _F6B_P3 + '#subform[3].liveIn[1]': km,
         _F6B_P3 + '#subform[3].liveIn[2]': fee,
     }
-    for i, (nm, au, dt) in enumerate(_f6b_doc_rows(g(S + 'documents_served', 'documentsList', 'documents_list'))):
+    # FIX-F6B-DOC-OVERFLOW: the table has 7 one-line rows. Each cell is
+    # sized to fit on one line (10pt down to 7pt). A row that still doesn't
+    # fit says "See continuation page, document N"; with more than 7
+    # documents, row 7 says "Documents 7-N: see continuation page". Those
+    # documents are listed in full on a continuation page.
+    _docs = _f6b_doc_rows(g(S + 'documents_served', 'documentsList', 'documents_list'))
+    _r0 = _F6B_P1 + '#subform[4].Table1[0].Row1[0].'
+    _bw = _box_sizes(input_path, {_r0 + 'Cell1[0]', _r0 + 'Cell2[0]', _r0 + '#field[2]'})
+    _cw = [_bw.get(_r0 + c, (148.0, 16.0))[0] for c in ('Cell1[0]', 'Cell2[0]', '#field[2]')]
+    _doc_pt = {}
+    _doc_more = []
+    _over = len(_docs) > 7
+    if _over:
+        sys.stderr.write(f'[fill_form6b] {len(_docs)} documents listed; 7 onwards on the continuation page\n')
+    for i, (nm, au, dt) in enumerate(_docs[:6] if _over else _docs):
         row = _F6B_P1 + f'#subform[4].Table1[0].Row1[{i}].'
-        fields[row + 'Cell1[0]'] = nm
-        fields[row + 'Cell2[0]'] = au
-        fields[row + '#field[2]'] = dt
+        cells = ((row + 'Cell1[0]', nm, _cw[0]), (row + 'Cell2[0]', au, _cw[1]), (row + '#field[2]', dt, _cw[2]))
+        pts = [_f6b_one_line_pt(v, w) for _k, v, w in cells]
+        if any(p is None for p in pts):
+            fields[row + 'Cell1[0]'] = f'See continuation page, document {i + 1}'
+            _doc_pt[row + 'Cell1[0]'] = 9
+            _doc_more.append((i + 1, nm, au, dt))
+            continue
+        for (k, v, _w), p in zip(cells, pts):
+            fields[k] = v
+            _doc_pt[k] = p
+    if _over:
+        row = _F6B_P1 + '#subform[4].Table1[0].Row1[6].'
+        fields[row + 'Cell1[0]'] = f'Documents 7-{len(_docs)}: see continuation page'
+        _doc_pt[row + 'Cell1[0]'] = 9
+        _doc_more += [(i + 1, nm, au, dt) for i, (nm, au, dt) in enumerate(_docs) if i >= 6]
 
     checkboxes = {}
     if method in _F6B_METHOD_BOX:
@@ -3669,6 +3709,7 @@ def fill_form6b(input_path, output_path, form_data_list):
     _big = {k: (9 if k.endswith('calculation[0]') else 10) for k in fields
             if k.startswith('form1[0].page') and
             (k.endswith('calculation[0]') or '.liveIn[' in k)}
+    _big.update({k: v for k, v in _doc_pt.items() if k in fields})
     n = _write_pdf(input_path, tmp, fields, checkboxes)
     _f6b_set_sizes(tmp, _big)
     _ampm = g(S + 'courier_pickup_am_pm') if method in ('courier_same_day', 'courier_next_day') else ''
@@ -3685,6 +3726,16 @@ def fill_form6b(input_path, output_path, form_data_list):
     # that still points at the placeholder ("a.m./p.m."); viewers draw that
     # instead of the value. Point it at the chosen option.
     _f6b_fix_choice_index(output_path)
+    if _doc_more:
+        _txt = '\n'.join(
+            f'{no}. {nm}' + (f'\n    Author: {au}' if au else '') + (f'\n    Date signed, issued, sworn, etc.: {dt}' if dt else '')
+            for no, nm, au, dt in _doc_more)
+        _append_continuation(output_path,
+                             ['Form 6B: Affidavit of Service - continued',
+                              'Documents served that did not fit in the table in paragraph 1'],
+                             [('Court file number', fnum)],
+                             [('Paragraph 1. Documents served', _txt)])
+        sys.stderr.write(f'[fill_form6b] {len(_doc_more)} document(s) on the continuation page\n')
     sys.stderr.write(f'[fill_form6b] Filled {n} fields\n')
     return n
 
