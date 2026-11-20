@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.83'
+FILLER_VERSION = 'dist-2026-10-19.84'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3169,6 +3169,24 @@ def _write_pdf(input_path, output_path, fields, checkboxes=None, short_line_pt=N
                     pypdf.generic.NameObject('/V'):  pypdf.generic.create_string_object(str(fields[t])),
                     pypdf.generic.NameObject('/AP'): pypdf.generic.DictionaryObject(),
                 })
+                # FIX-SHORT-MULTILINE: many official templates mark one-line
+                # boxes (about 14pt tall) as multi-line. iPhone/iPad viewers
+                # draw multi-line text from the top with padding, so the
+                # bottom half of the words is cut off. A short box whose
+                # answer has no line break is marked single-line, so every
+                # viewer centres it. Taller boxes and answers with line
+                # breaks are left alone.
+                try:
+                    _rh = abs(float(obj['/Rect'][3]) - float(obj['/Rect'][1]))
+                except Exception:
+                    _rh = 99.0
+                if _rh < 20.0 and '\n' not in str(fields[t]):
+                    _ffo = obj if '/Ff' in obj else (parent if parent is not None and '/Ff' in parent else None)
+                    _ff = int(_ffo['/Ff']) if _ffo is not None else 0
+                    if _ff & 4096:
+                        obj.update({pypdf.generic.NameObject('/Ff'): pypdf.generic.NumberObject(_ff & ~4096)})
+                        if own_t is None and parent is not None and len(parent.get('/Kids', [])) <= 1:
+                            parent.update({pypdf.generic.NameObject('/Ff'): pypdf.generic.NumberObject(_ff & ~4096)})
                 _da = _fit_font_da(obj, parent, fields[t], short_line_pt=short_line_pt)
                 if t in font_pt:
                     _da = f'/Helv {float(font_pt[t]):g} Tf 0 g'
