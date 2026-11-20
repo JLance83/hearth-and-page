@@ -1337,6 +1337,14 @@ The marriage date isn't asked again. It comes from "Your situation".
 - Each part: "No" prints "None." in the first cell; unanswered stays blank; "Yes" prints the rows. The last column is "what (when)". Filled table cells are set to wrap, and the size is 9pt, smaller (not below 5pt) to fit. Rows beyond the form's rows (4, 4, 3, 3), or too long to fit, go on a continuation page. A row too long to fit says "See continuation page, item N"; when there are more rows than the form has, the last row says "See continuation page, items N-M".
 - The sworn block, signature and commissioner always stay blank.
 
+## FIX-PHONE-NOT-MONEY (Nov 20 2026)
+
+**Problem.** The site-wide phone formatter in `hp-patches.js` (`scanPhoneInputs`) attaches to every input whose id, name or test id contains "phone", "mobile" or "tel". The Form 13 / 13.1 expense boxes `exp_telephone` ("Utilities: Telephone (landline) $/month") and `exp_cell_phone` matched, so typing 45.50 became "(455) 0" and that was saved.
+
+**Fix (hp-patches.js).** `scanPhoneInputs` skips inputs with `inputmode="decimal"` (all money boxes use it) and any input whose id starts with `field-exp_`. Real phone boxes are unchanged. Cache token `hp-patches.js?v=20261120ph1`.
+
+**Tested.** Browser: both expense boxes keep "45.50" after leaving the box; the Form 10 phone box still formats 2262203289 as (226) 220-3289.
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`

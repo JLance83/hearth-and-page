@@ -695,7 +695,15 @@ window.__hp_scjFilename = async function(formLabel, caseId, role) {
       'input[placeholder*="phone" i], input[id*="mobile" i], input[name*="mobile" i], ' +
       'input[data-testid*="phone" i], input[data-testid*="mobile" i], input[data-testid*="tel" i]'
     );
-    for (var i = 0; i < candidates.length; i++) attachPhoneFormat(candidates[i]);
+    for (var i = 0; i < candidates.length; i++) {
+      // FIX-PHONE-NOT-MONEY: money boxes (e.g. Form 13 "Utilities: Telephone"
+      // and "Cell phone" $/month) contain "phone"/"tel" in their names but
+      // are amounts, not phone numbers. They use the decimal keypad; skip them.
+      var c = candidates[i];
+      if ((c.getAttribute('inputmode') || '').toLowerCase() === 'decimal') continue;
+      if (/^field-exp_/.test(c.id || '')) continue;
+      attachPhoneFormat(c);
+    }
   }
 
   // Run immediately

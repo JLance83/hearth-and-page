@@ -601,6 +601,12 @@ const PATCHES = [
     file: 'index-CNjoTsGP.js',
     sentinel: '/*FIX-F351A-EXPORT*/Z&&(A||[]).some(r=>r.section==="f351_care_history"&&r.fieldKey==="casInvolved"&&r.fieldValue==="yes")?{key:"form35_1a"',
   },
+  {
+    commit: 'Nov 20 2026 (see FIX-PHONE-NOT-MONEY)',
+    name: 'Phone auto-format skips money boxes (Form 13 telephone / cell phone $/month) (FIX-PHONE-NOT-MONEY)',
+    file: 'hp-patches.js',
+    sentinel: "if ((c.getAttribute('inputmode') || '').toLowerCase() === 'decimal') continue;",
+  },
 ];
 
 function resolveFile(prefixOrName) {
