@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.80'
+FILLER_VERSION = 'dist-2026-10-19.81'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -3273,6 +3273,29 @@ def _header(d, pages=1):
     h["Respondent(s) - Lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = re_law
     h["Respondent(s) Lawyer's name & address — street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"] = re_law
     h['Name & address of Children\'s Lawyer\'s agent (street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)) and name of person represented'] = d.get('childrens_lawyer', '')
+    # FIX-HEADER-LAWYER-BOX: (a) the lawyer box was filled only from the
+    # one-line "applicant_lawyer" answer; the Form 10 screen saves name,
+    # firm, address, phone and email separately, so the box printed blank.
+    # It now uses the separate answers (one-line answer as the fallback).
+    # (b) most templates spell the label with a curly apostrophe
+    # ("Lawyer\u2019s") and other prefixes, which never matched. Every
+    # spelling below gets the same text. Fillers that set these boxes
+    # themselves still win (they write after _header).
+    _tail = "name & address \u2014 street & number, municipality, postal code, telephone & fax numbers and e-mail address (if any)"
+    for _side, _labs in (('applicant', ('Applicant', 'Applicant(s)', "Applicant's")),
+                         ('respondent', ('Respondent', 'Respondent(s)', "Respondent's"))):
+        _law = _f351a_lawyer_block(d, _side)
+        if not _law:
+            continue
+        for _lab in _labs:
+            for _ap in ("'", '\u2019'):
+                for _sep in (' ', ' - '):
+                    _k = f'{_lab}{_sep}{"L" if _sep == " - " else "l"}awyer{_ap}s {_tail}'
+                    if not str(h.get(_k) or '').strip():
+                        h[_k] = _law
+                _k = f'{_lab} Lawyer{_ap}s {_tail}'
+                if not str(h.get(_k) or '').strip():
+                    h[_k] = _law
     return h
 
 
