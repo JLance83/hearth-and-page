@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.82'
+FILLER_VERSION = 'dist-2026-10-19.83'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -2085,7 +2085,13 @@ def fill_form13(input_path, output_path, form_data_list):
         rows = _rows3(entries)
         legacy_desc = val(f'f13_debts_{desc_key}', desc_key)
         row1_monthly = ''
+        # FIX-F13-DEBT-PAYING: "Are payments being made?" is asked once per
+        # debt type (yes = all, no = none, some = left for the person to
+        # tick by hand). It ticks Yes or No on every printed row of that type.
+        paying = str(d.get(f'f13_debts_{keys[0]}_paying') or d.get(f'{keys[0]}_paying') or '').strip().lower()
         for i, (amt, desc) in enumerate(rows, start=1):
+            if paying in ('yes', 'no') and (amt or desc):
+                checkboxes[f'{"Yes" if paying == "yes" else "No"} {off + i}'] = True
             desc, mon = _split_monthly(desc)
             if i == 1 and not desc and legacy_desc:
                 desc = legacy_desc

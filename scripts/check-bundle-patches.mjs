@@ -607,6 +607,12 @@ const PATCHES = [
     file: 'hp-patches.js',
     sentinel: "if ((c.getAttribute('inputmode') || '').toLowerCase() === 'decimal') continue;",
   },
+  {
+    commit: 'Nov 20 2026 (see FIX-F13-DEBT-PAYING)',
+    name: 'Form 13 debts: "Are payments being made?" question per debt type (FIX-F13-DEBT-PAYING)',
+    file: 'index-',
+    sentinel: '{key:"debt_mortgage_loans_paying",type:"select",label:"Are payments being made on these mortgages, lines of credit and loans?"',
+  },
 ];
 
 function resolveFile(prefixOrName) {

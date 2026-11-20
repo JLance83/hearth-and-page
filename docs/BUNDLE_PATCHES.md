@@ -1345,6 +1345,16 @@ The marriage date isn't asked again. It comes from "Your situation".
 
 **Tested.** Browser: both expense boxes keep "45.50" after leaving the box; the Form 10 phone box still formats 2262203289 as (226) 220-3289.
 
+## FIX-F13-DEBT-PAYING (Nov 20 2026)
+
+**Problem.** Form 13 Part 4 (debts) has an "Are Payments Being Made? Yes / No" box on every row. The debts screen never asked it, so all 12 rows printed blank.
+
+**Fix (bundle).** On step `f13_debts`, a dropdown after each debt box: `debt_mortgage_loans_paying`, `debt_credit_cards_paying`, `debt_unpaid_support_paying`, `debt_other_paying`. Choices: `yes` (all of them), `no` (none of them), `some` (the person ticks by hand). Each one shows only when its debt box has an answer that isn't N/A (`showIf:{key,set:1}`). Each field ends with the marker `/*FIX-F13-DEBT-PAYING*/`. Cache token `index-CNjoTsGP.js?v=20261119g9`.
+
+**Fix (filler, dist-2026-10-19.83).** In `fill_form13` Part 4, `yes` / `no` ticks `Yes N` / `No N` on every printed row of that debt type. `some` or no answer leaves the boxes blank.
+
+**Tested.** Filler: yes ticks Yes 1-2, no on two credit cards ticks No 4-5, some ticks nothing. Browser: the question appears only after a debt is typed, and the choice is saved under `f13_debts`.
+
 ## How to add a new bundle patch
 
 1. Make the string-replace edit in `dist/public/assets/index-CNjoTsGP.js`
