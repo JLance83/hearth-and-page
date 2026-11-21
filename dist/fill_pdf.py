@@ -26,7 +26,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 # FIX-FILLER-VERSION: bump on each filler change; reported by --self-check
 # (and therefore by /api/pdf-runtime-check).
-FILLER_VERSION = 'dist-2026-10-19.85'
+FILLER_VERSION = 'dist-2026-10-19.86'
 
 def _wheel_needs_extract(whl_path):
     # Wheels with compiled C extensions (.so / .pyd) cannot be zipimported —
@@ -1130,6 +1130,11 @@ def fill_form8(input_path, output_path, form_data_list):
         'annulment':               'annulment of marriage',
         'costs':                   'Costs',
         'prejudgmentInterest':     'prejudgment interest',
+        # FIX-F8-CLAIM-NAMES: the names the Form 8 claims list actually saves.
+        # "Child support payments" = table amount (Josh decision A, Nov 20
+        # 2026; the app's hint says the table amount is the starting point).
+        'childSupport':            f'support for child(ren) \u2013 table amount {suffix}',
+        'spousalSupport':          f'support for me {suffix}',
     }
     if claims_csv.strip():
         for token in claims_csv.split(','):
@@ -1137,6 +1142,14 @@ def fill_form8(input_path, output_path, form_data_list):
             field_name = CLAIMS_CSV_MAP.get(token)
             if field_name:
                 checkboxes[field_name] = True
+            elif token == 'property':
+                # FIX-F8-CLAIM-NAMES (Josh decision B): "Division of property"
+                # is equalization only for married spouses. Unmarried: leave
+                # blank and log; they describe the claim under Other.
+                if were_married:
+                    checkboxes['equalization of net family properties'] = True
+                else:
+                    sys.stderr.write('[fill_form8] property claim but not married; equalization left blank\n')
 
     # Legacy per-key flags (kept for backward compatibility)
     if _is_yes(d.get('claimCustody', d.get('claim_custody', ''))):
@@ -1155,8 +1168,20 @@ def fill_form8(input_path, output_path, form_data_list):
         checkboxes['Costs'] = True
     if _is_yes(d.get('claimAnnulment', '')):
         checkboxes['annulment of marriage'] = True
-    if _is_yes(d.get('claimDivorce', d.get('claim_divorce', ''))):
+    # FIX-F8-CLAIM-NAMES: "a divorce" follows is_divorce_case, so a yes to
+    # "Are you asking for a divorce?" ticks it, and a divorce claim with an
+    # explicit "No" to that question is a conflict: blank, logged.
+    checkboxes.pop('a divorce', None)
+    if is_divorce_case:
         checkboxes['a divorce'] = True
+    elif 'divorce' in claims_csv or _is_yes(d.get('claimDivorce', d.get('claim_divorce', ''))):
+        sys.stderr.write('[fill_form8] divorce claim conflicts with askingDivorce=no; left blank\n')
+
+    # FIX-F8-CLAIM-NAMES: "Anything else you're asking for?" -> Other (Specify).
+    _other = str(_pick(d, 'claims_other_claim', 'claimsOtherClaim', 'otherClaim', 'other_claim') or '').strip()
+    if _other and _other.lower().rstrip('.') not in _NO_UNIT:
+        checkboxes['Other (Specify)'] = True
+        fields['Other - Specify'] = _other
 
     # FIX-F8-NOTICE: page 2 tells the other party which financial form to
     # file. The two boxes contradict each other, so at most one is ticked.
@@ -1164,9 +1189,12 @@ def fill_form8(input_path, output_path, form_data_list):
     # alone ticks the support note. Children-only claims tick neither.
     # Josh confirmed this rule Oct 19 2026.
     _tokens = {t.strip() for t in claims_csv.split(',') if t.strip()}
-    _support = _tokens & {'supportForMe', 'childSupportTable', 'childSupportOther', 'spousalSupportIndexing'}
+    _support = _tokens & {'supportForMe', 'childSupportTable', 'childSupportOther', 'spousalSupportIndexing',
+                          'childSupport', 'spousalSupport'}
     _support = _support or _is_yes(d.get('claimChildSupport', d.get('claim_child_support', ''))) or _is_yes(d.get('claimSpousalSupport', d.get('claim_spousal_support', '')))
     _property = _tokens & {'equalization', 'exclusivePossession', 'exclusiveContents', 'saleOfProperty'}
+    if 'property' in _tokens and were_married:
+        _property = True
     _property = _property or _is_yes(d.get('claimPropertyDivision', d.get('claim_property_division', '')))
     if _property:
         checkboxes['This case includes a claim for property or exclusive possession of the matrimonial home and its contents. You MUST fill out a Financial Statement (Form 13.1 – a blank copy attached), serve a copy on the applicant(s) and file a copy in the court office with an Affidavit of Service even if you do not answer this case'] = True
